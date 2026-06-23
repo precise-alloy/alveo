@@ -1,0 +1,37 @@
+.zzz-o-portfolio {
+  text-align: center;
+  color: $primary;
+
+  &__inner {
+    display: grid;
+    gap: px2rem(10px);
+  }
+
+  &__label {
+    @include font-label;
+
+    & {
+      color: $subtitle;
+    }
+  }
+
+  &__description {
+    @include font-sub-heading;
+  }
+
+  &__images {
+    margin-top: px2rem(20px);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15.625rem, 1fr));
+    gap: px2rem(20px);
+    align-items: start;
+
+    @include tablet {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  &__button {
+    margin-top: px2rem(20px);
+  }
+}

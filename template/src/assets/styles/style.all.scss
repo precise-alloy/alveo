@@ -1,0 +1,11 @@
+@forward './02-base/base';
+
+@forward '../../_patterns/atoms/**/*.scss';
+
+@forward '../../_patterns/molecules/**/*.scss';
+
+@forward '../../_patterns/organisms/**/*.scss';
+
+@forward '../../_patterns/templates/**/*.scss';
+
+@forward '../../_patterns/pages/**/*.scss';

@@ -1,7 +1,10 @@
-*.ts
-!*.d.ts
-
-.github
-.vscode
-
-assets/**/*
+src/**/*.test.ts
+src/**/*.test.tsx
+test/
+coverage/
+vitest.config.ts
+tsconfig.json
+tsconfig.build.json
+*.tsbuildinfo
+.gitignore
+.npmignore
