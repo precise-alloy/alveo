@@ -1,0 +1,13 @@
+{
+  "name": "alveo",
+  "module": "index.ts",
+  "version": "0.0.1",
+  "type": "module",
+  "private": false,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
