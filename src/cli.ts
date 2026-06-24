@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 
 import path from 'path';
-import { execSync, type ExecSyncOptions } from 'child_process';
+import { execFileSync, type ExecSyncOptions } from 'child_process';
 import { createRequire } from 'module';
 
 import { Command } from 'commander';
@@ -20,14 +20,20 @@ function resolveRoot(root?: string): string {
   return process.cwd();
 }
 
-function exec(cmd: string, options: ExecSyncOptions): void {
-  execSync(cmd, { stdio: 'inherit', ...options });
+const isWindows = process.platform === 'win32';
+
+function exec(command: string, options: ExecSyncOptions, args?: string[]): void {
+  execFileSync(command, args, { stdio: 'inherit', shell: isWindows, ...options });
 }
 
 function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: string): void {
-  const ssrArg = ssr ? ` --ssr ${ssr}` : '';
+  const args = ['vite', 'build', '--outDir', outDir, '--mode', mode];
 
-  exec(`npx vite build --outDir ${outDir} --mode ${mode}${ssrArg}`, { cwd: projectRoot });
+  if (ssr) {
+    args.push('--ssr', ssr);
+  }
+
+  exec('npx', { cwd: projectRoot }, args);
 }
 
 const program = new Command();
@@ -253,17 +259,30 @@ program
 
     const pkgJsonPath = path.join(targetDir, 'package.json');
 
-    if (fs.existsSync(pkgJsonPath)) {
-      const content = fs.readFileSync(pkgJsonPath, 'utf-8');
+    try {
+      const fd = fs.openSync(pkgJsonPath, fs.constants.O_RDWR);
 
-      fs.writeFileSync(pkgJsonPath, content.replace('{{PROJECT_NAME}}', projectName));
+      try {
+        const content = fs.readFileSync(fd, 'utf-8');
+        const updated = content.replace('{{PROJECT_NAME}}', projectName);
+
+        fs.ftruncateSync(fd);
+        fs.writeSync(fd, updated, 0, 'utf-8');
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch {
+      console.log('[alveo] cannot write template files');
+      process.exitCode = 1;
+
+      return;
     }
 
     console.log('[alveo] Project scaffolded successfully!\n');
 
     if (options.install) {
       console.log('[alveo] Installing dependencies...');
-      exec('bun install', { cwd: targetDir });
+      exec('bun', { cwd: targetDir }, ['install']);
     } else {
       console.log('Next steps:');
       console.log(`  cd ${projectName}`);
