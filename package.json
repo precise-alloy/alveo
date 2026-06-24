@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
+  "repository": {
+    "url": "https://github.com/precise-alloy/alveo"
+  },
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "prestart": "bun upgrade",
