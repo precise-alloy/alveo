@@ -22,6 +22,8 @@ function resolveRoot(root?: string): string {
 
 const isWindows = process.platform === 'win32';
 
+// Windows needs shell:true because executables like npx are .cmd wrappers that
+// execFileSync cannot run directly (ENOENT/EINVAL). Unix doesn't need it.
 function exec(command: string, options: ExecSyncOptions, args?: string[]): void {
   execFileSync(command, args, { stdio: 'inherit', shell: isWindows, ...options });
 }
@@ -259,6 +261,9 @@ program
 
     const pkgJsonPath = path.join(targetDir, 'package.json');
 
+    // Use a file descriptor to read-then-write atomically on the same handle,
+    // avoiding a TOCTOU race between separate readFileSync/writeFileSync calls.
+    // Truncate before writing because the replaced content may be shorter.
     try {
       const fd = fs.openSync(pkgJsonPath, fs.constants.O_RDWR);
 

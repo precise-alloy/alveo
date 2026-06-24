@@ -264,7 +264,7 @@ const appendButtons = (states: ComponentState[]) => {
         `<div class="pl-state ${buttonModifier}" ${buttonZIndex}>` +
         '<div class="pl-state__controls">' +
         `<button class="pl-state__button" ${buttonTitle}>` +
-        `<img src="${import.meta.env.BASE_URL}pl-states.svg" loading="async">` +
+        `<img src="${import.meta.env.BASE_URL}pl-states.svg" loading="lazy">` +
         '</button></div></div>';
 
       const stateButtonParent = plState.button?.parentSelector ? item.querySelector(plState.button.parentSelector) : item;

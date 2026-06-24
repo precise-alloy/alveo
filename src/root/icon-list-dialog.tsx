@@ -34,7 +34,7 @@ function SvgIcon({
 const IconListDialog = () => {
   const [allSvgs, setAllSvgs] = useState<ParsedSvgSymbol[]>([]);
   const [searchValue, setSearchValue] = useState<string>('');
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const parseSvg = async (): Promise<ParsedSvgSymbol[]> => {
     const data: ParsedSvgSymbol[] = [];

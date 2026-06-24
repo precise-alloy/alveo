@@ -21,9 +21,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./styles/*": "./src/styles/*",
-    "./scripts/*": "./src/scripts/*"
+    }
   },
   "files": [
     "dist",

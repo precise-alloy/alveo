@@ -24,7 +24,7 @@ export const runStatesBuild = (options: StatesBuildOptions): void => {
   const { projectRoot, isWatch = false } = options;
   const log = console.log.bind(console);
 
-  const states: { [path: string]: string } = {};
+  const states: { [filePath: string]: string } = {};
   const outputPath = path.resolve(projectRoot, 'public/pl-states.json');
 
   const buildStates = debounce(() => {

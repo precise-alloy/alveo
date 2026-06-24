@@ -88,7 +88,6 @@ export default defineConfig([
       'unused-imports/no-unused-imports': 'warn',
       'react-refresh/only-export-components': 'error',
       'no-new': 'error',
-      '@next/next/no-img-element': 'off',
       complexity: ['error', 15],
       'max-depth': ['error', 4],
 
