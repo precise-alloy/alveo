@@ -1,13 +1,92 @@
 {
   "name": "alveo",
-  "module": "index.ts",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "private": false,
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "prestart": "bun upgrade",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint --fix",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "prepare": "git config core.hooksPath .git-hooks"
+  },
+  "bin": {
+    "alveo": "./bin/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "template"
+  ],
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "browserslist": "^4.28.2",
+    "chalk": "^5.5.0",
+    "cheerio": "^1.2.0",
+    "chokidar": "^4.0.3",
+    "commander": "^13.1.0",
+    "concurrently": "^9.2.0",
+    "debounce": "^3.0.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.4.1",
+    "lodash": "^4.17.21",
+    "glob": "^13.0.6",
+    "js-beautify": "^1.15.4",
+    "js-yaml": "^4.1.1",
+    "lightningcss": "^1.32.0",
+    "magic-string": "^0.30.17",
+    "react-router-dom": "^7.13.1",
+    "sass": "^1.89.2",
+    "serve-static": "^2.2.0",
+    "slash": "^5.1.0",
+    "source-map-js": "^1.2.1",
+    "vite": "^8.0.10"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/bun": "latest",
+    "@types/debounce": "^1.2.4",
+    "@types/express": "^5.0.6",
+    "@types/js-beautify": "^1.14.3",
+    "@types/js-yaml": "^4.0.9",
+    "@types/lodash": "^4.17.18",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.1.7",
+    "@types/serve-static": "^2.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "jsdom": "^29.1.0",
+    "msw": "^2.13.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-node": "11.1.0",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-unused-imports": "^4.4.1"
   },
   "peerDependencies": {
-    "typescript": "^5"
-  }
+    "typescript": "^5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "license": "MIT"
 }

@@ -1,0 +1,20 @@
+#!/bin/sh
+
+echo "Running pre-commit checks..."
+
+echo "→ Lint"
+bun run lint
+LINT_EXIT=$?
+
+echo "→ Test"
+bun run test
+TEST_EXIT=$?
+
+echo "→ Typecheck"
+bun run typecheck
+TYPECHECK_EXIT=$?
+
+if [ $LINT_EXIT -ne 0 ] || [ $TEST_EXIT -ne 0 ] || [ $TYPECHECK_EXIT -ne 0 ]; then
+  echo "Pre-commit checks failed. Commit aborted."
+  exit 1
+fi
