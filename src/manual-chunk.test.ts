@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./paths.js', () => ({

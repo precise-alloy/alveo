@@ -5,8 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { virtualModules, VIRTUAL_PAGES_ID, VIRTUAL_CLIENT_COMPONENTS_ID, VIRTUAL_SVG_SPRITES_ID } from './virtual-modules.js';
 
 describe('alveo/virtual-modules.ts', () => {
-  const projectRoot = '/project/root';
-  const plugin = virtualModules(projectRoot) as {
+  const plugin = virtualModules() as {
     name: string;
     enforce: string;
     resolveId: (id: string) => string | undefined;
