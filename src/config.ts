@@ -61,7 +61,7 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
 
   const defaultPlugins: PluginOption[] = [
     react(),
-    virtualModules(projectRoot),
+    virtualModules(),
     options(context),
     buildStart(),
     injectFunctions(),

@@ -1,9 +1,5 @@
 import type { PluginOption } from 'vite';
 
-import path from 'path';
-
-import slash from 'slash';
-
 const VIRTUAL_PAGES_ID = 'virtual:alveo/pages';
 const VIRTUAL_CLIENT_COMPONENTS_ID = 'virtual:alveo/client-components';
 const VIRTUAL_SVG_SPRITES_ID = 'virtual:alveo/svg-sprites';
@@ -17,9 +13,7 @@ const RESOLVED_VIRTUAL_SVG_SPRITES_ID = '\0' + VIRTUAL_SVG_SPRITES_ID;
  * - `virtual:alveo/client-components` — re-exports consumer's `src/client-components.tsx`
  * - `virtual:alveo/svg-sprites` — glob-imports consumer's `public/assets/images/*.svg` as raw strings
  */
-export function virtualModules(projectRoot: string): PluginOption {
-  const clientComponentsPath = slash(path.resolve(projectRoot, 'src/client-components'));
-
+export function virtualModules(): PluginOption {
   return {
     name: 'alveo-virtual-modules',
     enforce: 'pre',
@@ -49,7 +43,7 @@ export function virtualModules(projectRoot: string): PluginOption {
       }
 
       if (id === RESOLVED_VIRTUAL_CLIENT_COMPONENTS_ID) {
-        return `export { clientComponents } from '${clientComponentsPath}';`;
+        return "export { clientComponents } from '/src/client-components';";
       }
 
       if (id === RESOLVED_VIRTUAL_SVG_SPRITES_ID) {

@@ -61,7 +61,7 @@ describe('alveo/virtual-modules.ts', () => {
       const code = plugin.load('\0' + VIRTUAL_CLIENT_COMPONENTS_ID);
 
       // The path should contain the resolved projectRoot
-      expect(code).toContain('/project/root/src/client-components');
+      expect(code).toContain("export { clientComponents } from '/src/client-components';");
     });
 
     it('returns glob import code for the svg-sprites virtual module', () => {

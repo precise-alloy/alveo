@@ -1,10 +1,10 @@
 // @vitest-environment node
 
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./paths.js', () => ({
   getAbsolutePath: vi.fn((p: string, projectRoot: string) => {
-    const path = require('path');
     const slash = (s: string) => s.replace(/\\/g, '/');
 
     return path.isAbsolute(p) ? slash(p) : slash(path.resolve(projectRoot, p));

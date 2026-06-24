@@ -56,7 +56,7 @@ export async function prerender(projectRoot: string): Promise<void> {
   const toAbsolute = (p: string) => path.resolve(projectRoot, p);
   const log = console.log.bind(console);
 
-  const template = normalizeTextLineEndings(fs.readFileSync(toAbsolute(process.env.VITE_TEMPLATE ?? 'dist/static/index.html'), 'utf-8'));
+  const template = normalizeTextLineEndings(fs.readFileSync(toAbsolute(alveoEnv.VITE_TEMPLATE ?? 'dist/static/index.html'), 'utf-8'));
   const { render, routesToPrerender } = await import(pathToFileURL(toAbsolute('./dist/server/entry-server.js')).href);
 
   const renderPage = async (renderedPages: RenderedPage[], addHash: boolean) => {
@@ -74,7 +74,7 @@ export async function prerender(projectRoot: string): Promise<void> {
       const resourcePathOptions = {
         addHash,
         baseUrl: alveoEnv.VITE_BASE_URL ?? '/',
-        domain: process.env.VITE_DOMAIN,
+        domain: alveoEnv.VITE_DOMAIN,
         toAbsolute,
         existsSync: fs.existsSync,
         readFileSync: fs.readFileSync,
@@ -109,7 +109,7 @@ export async function prerender(projectRoot: string): Promise<void> {
 
       renderedPages.push({
         name: _.kebabCase(fileName.replaceAll(/\.\w+$/gi, '')),
-        url: `${process.env.VITE_DOMAIN ?? ''}${fileName}`,
+        url: `${alveoEnv.VITE_DOMAIN ?? ''}${fileName}`,
         fileName: fileName,
       });
     }
