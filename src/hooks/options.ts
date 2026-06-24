@@ -19,11 +19,14 @@ const options = (context: AlveoContext): PluginOption => {
     }
 
     // Scan consumer's entry files and alveo package's own script entries
-    const filePaths = glob.sync(['/src/assets/**/*.entry.ts', `${packageRoot}/src/scripts/**/*.entry.ts`], { root: context.projectRoot });
+    const filePaths = glob.sync(
+      ['/src/assets/**/*.entry.{js,jsx,ts,tsx}', `${packageRoot}/dist/scripts/**/*.entry.js`, `${packageRoot}/src/scripts/**/*.entry.ts`],
+      { root: context.projectRoot }
+    );
 
     [].forEach.call(filePaths, (filePath: string) => {
       const fileName = path.basename(filePath).toLowerCase();
-      const entryName = fileName.replace(/\.entry\.ts$/gi, '');
+      const entryName = fileName.replace(/\.entry\.(?:js|jsx|ts|tsx)$/gi, '');
 
       if (entryName === 'mock-api' && context.mode === 'production') {
         return;

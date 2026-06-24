@@ -11,7 +11,16 @@ export const FUNCTIONS_PLACEHOLDER = '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS 
  * Returns the absolute path to alveo's own `scripts/functions.ts`.
  * Resolves relative to the alveo package root, not the consumer project.
  */
-export const getFunctionsSourcePath = (): string => slash(path.resolve(getPackageRoot(), 'src/scripts/functions.ts'));
+export const getFunctionsSourcePath = (): string => {
+  const packageRoot = getPackageRoot();
+  const distPath = slash(path.resolve(packageRoot, 'dist/scripts/functions.js'));
+
+  if (fs.existsSync(distPath)) {
+    return distPath;
+  }
+
+  return slash(path.resolve(packageRoot, 'src/scripts/functions.ts'));
+};
 
 export type InjectFunctionsDependencies = {
   readFileSync: typeof fs.readFileSync;
