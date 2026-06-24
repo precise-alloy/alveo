@@ -24,7 +24,6 @@ $-label-fg: #434342;
 
 $-sand: #d4ccc7;
 $-lava: #434342;
-$-black: #000;
 $-beam: #f8c276;
 $-wave-50: #d2dde4;
 
@@ -79,12 +78,10 @@ $-wave-50: #d2dde4;
     }
     40% {
       background-color: $-beam;
-      box-shadow: 0px 0px px2rem(16px) px2rem(8px) rgba($-white, 0.8);
       box-shadow: none;
     }
     60% {
       background-color: $-beam;
-      box-shadow: 0px 0px px2rem(16px) px2rem(8px) rgba($-white, 0.8);
       box-shadow: none;
     }
     100% {

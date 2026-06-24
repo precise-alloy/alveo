@@ -6,7 +6,7 @@
   const urlParams = new URLSearchParams(window.location.search);
   const theme = urlParams.get('theme');
 
-  if (theme === 'dark' || theme == 'light') {
+  if (theme === 'dark' || theme === 'light') {
     document.documentElement.setAttribute('data-theme', theme);
 
     return;

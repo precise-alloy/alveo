@@ -8,3 +8,5 @@ tsconfig.build.json
 *.tsbuildinfo
 .gitignore
 .npmignore
+src/**/*.ts
+src/**/*.tsx

@@ -10,7 +10,7 @@ import { createAliases } from './alias.js';
 
 describe('alveo/alias.ts', () => {
   describe('createAliases', () => {
-    it('returns exactly 13 alias entries', () => {
+    it('returns exactly 12 alias entries', () => {
       const aliases = createAliases('/project/root');
 
       expect(aliases).toHaveLength(12);

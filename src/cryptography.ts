@@ -10,19 +10,19 @@ export type AssetMetadata = {
 };
 
 export function getAssetVersion(content: Buffer | string): string {
-  const sha1Hash = crypto.createHash('sha384');
+  const sha384Hash = crypto.createHash('sha384');
 
-  sha1Hash.update(content);
+  sha384Hash.update(content);
 
-  return sha1Hash.digest('base64url').substring(0, 10);
+  return sha384Hash.digest('base64url').substring(0, 10);
 }
 
 export function getAssetHash(content: Buffer | string): string {
-  const sha1Hash = crypto.createHash('sha384');
+  const sha384Hash = crypto.createHash('sha384');
 
-  sha1Hash.update(content);
+  sha384Hash.update(content);
 
-  return sha1Hash.digest('base64');
+  return sha384Hash.digest('base64');
 }
 
 export function getMetadata(content: Buffer | string, filename: string): AssetMetadataItem {
