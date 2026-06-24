@@ -43,14 +43,14 @@ jobs:
         with:
           node-version: '22.x'
 
-      # - name: Upgrade npm for OIDC trusted publishing
-      #   run: npm install -g npm@latest
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
 
-      # - name: Install dependencies
-      #   run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      # - name: Build package
-      #   run: npm run build
+      - name: Build package
+        run: npm run build
 
-      # - name: Publish to npm
-      #   run: npm publish --access public --provenance
+      - name: Publish to npm
+        run: npm publish --access public --provenance
