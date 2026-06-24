@@ -10,7 +10,7 @@ import { getPackageRoot } from './paths.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
-const ssrEntry = path.resolve(getPackageRoot(), 'src', 'entry-server.tsx');
+const ssrEntry = path.resolve(getPackageRoot(), 'dist', 'entry-server.js');
 
 function resolveRoot(root?: string): string {
   if (root) {
@@ -221,6 +221,10 @@ program
       if (modeIdx === -1) {
         process.argv.push('--mode', options.mode);
       }
+    }
+
+    if (options.port) {
+      process.env.VITE_PORT = options.port;
     }
 
     initServer(projectRoot);
