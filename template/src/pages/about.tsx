@@ -1,0 +1,13 @@
+import { footer } from '@data/footer';
+import Template from '@templates/about';
+
+export default {
+  $$name: 'About',
+  $$path: 'about',
+} as StoryCollectionMeta;
+
+export const About: Story = {
+  name: 'About Page - Default',
+  path: 'default',
+  render: () => <Template footer={footer} />,
+};
