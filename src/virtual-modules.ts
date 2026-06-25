@@ -37,6 +37,8 @@ export function virtualModules(): PluginOption {
         return RESOLVED_VIRTUAL_SVG_SPRITES_ID;
       }
 
+      // Resolve the HTML entry `/alveo/react-loader` (and legacy `.tsx`) to the packaged build output,
+      // since `src/` is not published with the npm package.
       if (id === '/alveo/react-loader' || id === '/alveo/react-loader.tsx') {
         return slash(path.resolve(getPackageRoot(), 'dist/react-loader.js'));
       }
