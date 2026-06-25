@@ -1,5 +1,11 @@
 import type { PluginOption } from 'vite';
 
+import path from 'path';
+
+import slash from 'slash';
+
+import { getPackageRoot } from './paths.js';
+
 const VIRTUAL_PAGES_ID = 'virtual:alveo/pages';
 const VIRTUAL_CLIENT_COMPONENTS_ID = 'virtual:alveo/client-components';
 const VIRTUAL_SVG_SPRITES_ID = 'virtual:alveo/svg-sprites';
@@ -29,6 +35,10 @@ export function virtualModules(): PluginOption {
 
       if (id === VIRTUAL_SVG_SPRITES_ID) {
         return RESOLVED_VIRTUAL_SVG_SPRITES_ID;
+      }
+
+      if (id === '/alveo/react-loader' || id === '/alveo/react-loader.tsx') {
+        return slash(path.resolve(getPackageRoot(), 'dist/react-loader.js'));
       }
 
       return undefined;

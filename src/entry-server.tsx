@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 import ReactDOMServer from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
 

@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 import { loadEnv } from 'vite';
 
 import { startServer } from './create-server.js';

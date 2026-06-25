@@ -2,8 +2,6 @@ import path from 'path';
 
 import slash from 'slash';
 
-import { getPackageRoot } from './paths.js';
-
 type AliasEntry = {
   find: string;
   replacement: string;
@@ -11,13 +9,11 @@ type AliasEntry = {
 
 /**
  * Creates Vite alias mappings resolved relative to the consumer's project root.
- * The `@alveo` alias points to the alveo package's own `src/` directory.
  *
  * @param projectRoot - Absolute path to the consumer project's root directory
  */
 export function createAliases(projectRoot: string): AliasEntry[] {
   const srcRoot = slash(path.resolve(projectRoot, 'src'));
-  const packageRoot = getPackageRoot();
 
   return [
     { find: '@atoms', replacement: slash(path.resolve(srcRoot, 'atoms')) },
@@ -31,6 +27,5 @@ export function createAliases(projectRoot: string): AliasEntry[] {
     { find: '@_http', replacement: slash(path.resolve(srcRoot, '_http')) },
     { find: '@_api', replacement: slash(path.resolve(srcRoot, '_api')) },
     { find: '@mocks', replacement: slash(path.resolve(srcRoot, 'mocks')) },
-    { find: '/alveo', replacement: slash(path.resolve(packageRoot, 'src')) },
   ];
 }

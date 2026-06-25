@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import fs from 'fs';
 import path from 'path';
 
@@ -105,9 +104,8 @@ const removeDuplicateAssets = ($: cheerio.CheerioAPI, selector: string, attr: st
 };
 
 export const _useRenderer = ({ app, indexProd, isProd, viteDevServer, resolve }: Props) => {
-  // Resolve entry-server from the alveo package's own source directory
   const packageRoot = getPackageRoot();
-  const entryServerPath = path.join(packageRoot, 'src/entry-server.tsx');
+  const entryServerPath = path.join(packageRoot, 'dist/entry-server.js');
 
   app.use(rendererRateLimiter, async (req, res) => {
     try {
