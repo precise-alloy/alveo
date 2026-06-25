@@ -1,8 +1,6 @@
 // @vitest-environment node
 
-import fs from 'fs';
-
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   FUNCTIONS_PLACEHOLDER,
@@ -53,22 +51,10 @@ describe('alveo/hooks/inject-functions-core.ts', () => {
   });
 
   describe('getFunctionsSourcePath', () => {
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it('returns dist/scripts/functions.js when the dist file exists', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    it('returns dist/scripts/functions.js', () => {
       const result = getFunctionsSourcePath();
 
       expect(result).toMatch(/dist\/scripts\/functions\.js$/);
-    });
-
-    it('falls back to src/scripts/functions.ts when the dist file does not exist', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-      const result = getFunctionsSourcePath();
-
-      expect(result).toMatch(/src\/scripts\/functions\.ts$/);
     });
 
     it('returns a forward-slash-normalized path', () => {

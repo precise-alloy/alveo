@@ -1,19 +1,15 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('./paths.js', () => ({
-  getPackageRoot: vi.fn(() => '/mock/packages/alveo'),
-}));
+import { describe, expect, it } from 'vitest';
 
 import { createAliases } from './alias.js';
 
 describe('alveo/alias.ts', () => {
   describe('createAliases', () => {
-    it('returns exactly 12 alias entries', () => {
+    it('returns exactly 11 alias entries', () => {
       const aliases = createAliases('/project/root');
 
-      expect(aliases).toHaveLength(12);
+      expect(aliases).toHaveLength(11);
     });
 
     it('maps all expected alias names', () => {
@@ -32,7 +28,6 @@ describe('alveo/alias.ts', () => {
         '@_http',
         '@_api',
         '@mocks',
-        '/alveo',
       ]);
     });
 
@@ -43,13 +38,6 @@ describe('alveo/alias.ts', () => {
 
       expect(atomsAlias?.replacement).toContain('/src/atoms');
       expect(helpersAlias?.replacement).toContain('/src/_helpers');
-    });
-
-    it('resolves @alveo and /alveo to the package src directory', () => {
-      const aliases = createAliases('/project/root');
-      const slashalveoAlias = aliases.find((a) => a.find === '/alveo');
-
-      expect(slashalveoAlias?.replacement).toContain('/mock/packages/alveo/src');
     });
 
     it('uses forward slashes in all paths (normalized)', () => {

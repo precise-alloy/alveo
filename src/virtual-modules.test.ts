@@ -35,6 +35,26 @@ describe('alveo/virtual-modules.ts', () => {
       expect(plugin.resolveId('some-other-module')).toBeUndefined();
       expect(plugin.resolveId('./local-import')).toBeUndefined();
     });
+
+    describe('/alveo/react-loader resolution', () => {
+      it('resolves to dist/react-loader.js', () => {
+        const resolved = plugin.resolveId('/alveo/react-loader');
+
+        expect(resolved).toMatch(/dist\/react-loader\.js$/);
+      });
+
+      it('handles /alveo/react-loader.tsx for backward compatibility', () => {
+        const resolved = plugin.resolveId('/alveo/react-loader.tsx');
+
+        expect(resolved).toMatch(/dist\/react-loader\.js$/);
+      });
+
+      it('returns forward-slash-normalized paths', () => {
+        const resolved = plugin.resolveId('/alveo/react-loader');
+
+        expect(resolved).not.toContain('\\');
+      });
+    });
   });
 
   describe('load', () => {

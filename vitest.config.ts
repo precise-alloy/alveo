@@ -20,6 +20,7 @@ export default defineConfig({
         'src/prerender-core.ts',
         'src/scripts-core.ts',
         'src/styles-core.ts',
+        'src/precompile-styles.ts',
       ],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/**/*.d.ts', 'src/types.d.ts', 'src/scripts/*.entry.ts', 'src/styles/**', 'src/root/**'],
     },

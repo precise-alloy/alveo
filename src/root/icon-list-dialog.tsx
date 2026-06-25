@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as cheerio from 'cheerio';
 import { sprites } from 'virtual:alveo/svg-sprites';

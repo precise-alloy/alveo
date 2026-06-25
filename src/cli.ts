@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 import path from 'path';
 import { execFileSync, type ExecSyncOptions } from 'child_process';
 import { createRequire } from 'module';

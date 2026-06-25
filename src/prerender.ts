@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // Pre-render the app into static HTML.
 // run `alveo generate` and then `dist/static` can be served as a static site.
 

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -63,6 +62,10 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
   // Framework styles from the alveo package itself
   const ALVEO_PL_STATES_PREFIX = slash(path.resolve(packageRoot, 'src/styles/pl-states'));
   const ALVEO_STYLES_PREFIX = slash(path.resolve(packageRoot, 'src/styles'));
+  const alveoDistStyles = path.resolve(packageRoot, 'dist/styles');
+  // Prefer SCSS source for local dev; use precompiled CSS only for published installs
+  const hasScssSource = fs.existsSync(path.resolve(packageRoot, 'src/styles'));
+  const usePrecompiled = !hasScssSource && fs.existsSync(alveoDistStyles);
 
   const ABSTRACTS_DIR = 'src/assets/styles/00-abstracts';
   const MIXINS_DIR = 'src/assets/styles/01-mixins';
@@ -308,11 +311,39 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     (isReady: boolean) => compile(path.resolve(projectRoot, 'src/assets/styles/style-base.scss'), { isReady }),
     DEBOUNCE_DELAY_MS
   );
-  const stylePlState = debounce(
-    (isReady: boolean) => compile(path.resolve(packageRoot, 'src/styles/pl-states.scss'), { isReady }),
-    DEBOUNCE_DELAY_MS
-  );
-  const styleRoot = debounce((isReady: boolean) => compile(path.resolve(packageRoot, 'src/styles/root.scss'), { isReady }), DEBOUNCE_DELAY_MS);
+  // Copy precompiled CSS + source map from dist/styles/ to the output directory
+  const copyPrecompiledStyle = (cssFile: string, outName: string): void => {
+    try {
+      fs.copyFileSync(cssFile, path.join(outDir, outName));
+      const mapFile = cssFile + '.map';
+
+      if (fs.existsSync(mapFile)) {
+        fs.copyFileSync(mapFile, path.join(outDir, outName + '.map'));
+      }
+    } catch (error) {
+      reportStyleFailure(cssFile, 'sass', error);
+    }
+  };
+
+  const stylePlState = debounce((isReady: boolean) => {
+    const precompiled = path.join(alveoDistStyles, 'pl-states.css');
+
+    if (usePrecompiled && fs.existsSync(precompiled)) {
+      copyPrecompiledStyle(precompiled, 'pl-states.css');
+    } else {
+      compile(path.resolve(packageRoot, 'src/styles/pl-states.scss'), { isReady });
+    }
+  }, DEBOUNCE_DELAY_MS);
+
+  const styleRoot = debounce((isReady: boolean) => {
+    const precompiled = path.join(alveoDistStyles, 'root.css');
+
+    if (usePrecompiled && fs.existsSync(precompiled)) {
+      copyPrecompiledStyle(precompiled, 'root.css');
+    } else {
+      compile(path.resolve(packageRoot, 'src/styles/root.scss'), { isReady });
+    }
+  }, DEBOUNCE_DELAY_MS);
   const styleOrganism = (srcFile: string, isReady: boolean): void => compile(srcFile, { prefix: ORGANISM_PREFIX, isReady });
   const styleTemplate = (srcFile: string, isReady: boolean): void => compile(srcFile, { prefix: TEMPLATE_PREFIX, isReady });
 
@@ -376,7 +407,18 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
   };
 
   if (isWatch) {
-    const watchPaths = [slash(path.resolve(projectRoot, 'src')), slash(path.resolve(packageRoot, 'src/styles'))];
+    const watchPaths = [slash(path.resolve(projectRoot, 'src'))];
+
+    if (hasScssSource) {
+      watchPaths.push(slash(path.resolve(packageRoot, 'src/styles')));
+    }
+
+    // Seed precompiled framework CSS so it's available before any file events
+    if (usePrecompiled) {
+      stylePlState(false);
+      styleRoot(false);
+    }
+
     const watcher = watch(watchPaths, getStyleWatchOptions());
     let ready = false;
 
@@ -394,11 +436,16 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
   } else {
     styleBase(true);
     stylePlState(true);
+    styleRoot(true);
 
     const consumerGlob = slash(path.resolve(projectRoot, 'src/{organisms,templates}/**/*.scss'));
-    const frameworkGlob = slash(path.resolve(packageRoot, 'src/styles/**/*.scss'));
+    const globs = [consumerGlob];
 
-    sortStylePaths(glob.sync([consumerGlob, frameworkGlob]))
+    if (!usePrecompiled) {
+      globs.push(slash(path.resolve(packageRoot, 'src/styles/**/*.scss')));
+    }
+
+    sortStylePaths(glob.sync(globs))
       .filter((f) => !path.basename(f).startsWith('_'))
       .forEach((f) => sassCompile(f, true));
 
