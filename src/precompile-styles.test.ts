@@ -92,6 +92,28 @@ describe('precompile-styles', () => {
     });
   });
 
+  it('normalizes sourceMap.sources to root-relative forward-slash paths', () => {
+    const { deps, written } = createMockDeps();
+
+    (deps.compile as ReturnType<typeof vi.fn>).mockReturnValue({
+      css: 'a{color:red}',
+      sourceMap: {
+        version: 3,
+        sources: ['/project/src/styles/root.scss', 'src\\styles\\pl-states.scss'],
+        sourcesContent: [],
+        mappings: 'AAAA',
+      },
+    });
+    compileStyles('/project', deps);
+    const mapFiles = Object.keys(written).filter((k) => k.endsWith('.css.map'));
+
+    mapFiles.forEach((f) => {
+      const parsed = JSON.parse(written[f]!);
+
+      expect(parsed.sources).toEqual(['src/styles/root.scss', 'src/styles/pl-states.scss']);
+    });
+  });
+
   it('normalizes CRLF in CSS output', () => {
     const { deps, written } = createMockDeps();
 
