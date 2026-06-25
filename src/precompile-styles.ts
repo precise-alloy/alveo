@@ -50,15 +50,21 @@ export function compileStyles(rootDir: string, deps: CompileDependencies = defau
     const cssOut = normalizeLf(result.css);
 
     // Normalize CRLF in embedded source content for cross-platform consistency
-    const sourceMap = result.sourceMap as unknown as { sourcesContent?: Array<string | null> };
+    const sourceMap = result.sourceMap as unknown as { sources?: string[]; sourcesContent?: Array<string | null> };
+
+    if (Array.isArray(sourceMap?.sources)) {
+      sourceMap.sources = sourceMap.sources.map((s) => (path.isAbsolute(s) ? path.relative(rootDir, s) : s).replace(/\\/g, '/'));
+    }
 
     if (Array.isArray(sourceMap?.sourcesContent)) {
       sourceMap.sourcesContent = sourceMap.sourcesContent.map((c) => (typeof c === 'string' ? normalizeLf(c) : c));
     }
 
+    const sourceMapJson = JSON.stringify(sourceMap ?? {});
+
     // Append sourceMappingURL so browsers/dev tools can locate the .map file
     deps.writeFileSync(outputPath, cssOut + `\n/*# sourceMappingURL=${mapFileName} */`);
-    deps.writeFileSync(outputPath + '.map', JSON.stringify(sourceMap));
+    deps.writeFileSync(outputPath + '.map', sourceMapJson);
 
     console.log(`compiled: ${input} → ${output}`);
   }
