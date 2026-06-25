@@ -64,9 +64,7 @@ export function compileStyles(rootDir: string, deps: CompileDependencies = defau
   }
 }
 
-// Run directly when executed as a script (bun src/precompile-styles.ts)
-const isDirectExecution = process.argv[1]?.endsWith('precompile-styles.ts');
-
-if (isDirectExecution) {
+/* v8 ignore next 4 -- exercised via `bun src/precompile-styles.ts`, not via unit tests */
+if (import.meta.main) {
   compileStyles(path.resolve(import.meta.dirname, '..'));
 }

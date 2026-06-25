@@ -134,4 +134,46 @@ describe('precompile-styles', () => {
       });
     });
   });
+
+  it('skips sourcesContent normalization when sourcesContent is missing', () => {
+    const { deps, written } = createMockDeps();
+
+    (deps.compile as ReturnType<typeof vi.fn>).mockReturnValue({
+      css: 'a{color:red}',
+      sourceMap: {
+        version: 3,
+        sources: ['test.scss'],
+        mappings: 'AAAA',
+      },
+    });
+    expect(() => compileStyles('/project', deps)).not.toThrow();
+    const mapFiles = Object.keys(written).filter((k) => k.endsWith('.css.map'));
+
+    mapFiles.forEach((f) => {
+      const parsed = JSON.parse(written[f]!);
+
+      expect(parsed.sourcesContent).toBeUndefined();
+    });
+  });
+  it('preserves non-string (null) sourcesContent entries', () => {
+    const { deps, written } = createMockDeps();
+
+    (deps.compile as ReturnType<typeof vi.fn>).mockReturnValue({
+      css: 'a{color:red}',
+      sourceMap: {
+        version: 3,
+        sources: ['test.scss'],
+        sourcesContent: [null],
+        mappings: 'AAAA',
+      },
+    });
+    compileStyles('/project', deps);
+    const mapFiles = Object.keys(written).filter((k) => k.endsWith('.css.map'));
+
+    mapFiles.forEach((f) => {
+      const parsed = JSON.parse(written[f]!);
+
+      expect(parsed.sourcesContent).toEqual([null]);
+    });
+  });
 });
