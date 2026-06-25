@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { ViteDevServer } from 'vite';
 import * as cheerio from 'cheerio';
 import jsBeautify, { CSSBeautifyOptions, HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';
+import slash from 'slash';
 
 import { getPackageRoot } from './paths.js';
 
@@ -105,7 +106,7 @@ const removeDuplicateAssets = ($: cheerio.CheerioAPI, selector: string, attr: st
 
 export const _useRenderer = ({ app, indexProd, isProd, viteDevServer, resolve }: Props) => {
   const packageRoot = getPackageRoot();
-  const entryServerPath = path.join(packageRoot, 'dist/entry-server.js');
+  const entryServerPath = slash(path.join(packageRoot, 'dist/entry-server.js'));
 
   app.use(rendererRateLimiter, async (req, res) => {
     try {

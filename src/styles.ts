@@ -313,12 +313,15 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
   );
   // Copy precompiled CSS + source map from dist/styles/ to the output directory
   const copyPrecompiledStyle = (cssFile: string, outName: string): void => {
-    fs.copyFileSync(cssFile, path.join(outDir, outName));
+    try {
+      fs.copyFileSync(cssFile, path.join(outDir, outName));
+      const mapFile = cssFile + '.map';
 
-    const mapFile = cssFile + '.map';
-
-    if (fs.existsSync(mapFile)) {
-      fs.copyFileSync(mapFile, path.join(outDir, outName + '.map'));
+      if (fs.existsSync(mapFile)) {
+        fs.copyFileSync(mapFile, path.join(outDir, outName + '.map'));
+      }
+    } catch (error) {
+      reportStyleFailure(cssFile, 'sass', error);
     }
   };
 

@@ -3,29 +3,70 @@ import path from 'path';
 
 import * as sass from 'sass';
 
-const entries = [
+interface StyleEntry {
+  input: string;
+  output: string;
+}
+
+const entries: StyleEntry[] = [
   { input: 'src/styles/root.scss', output: 'dist/styles/root.css' },
   { input: 'src/styles/pl-states.scss', output: 'dist/styles/pl-states.css' },
 ];
 
-const rootDir = path.resolve(import.meta.dirname, '..');
+// Normalize line endings to LF so output is consistent across Windows and Unix
+const normalizeLf = (text: string): string => text.replace(/\r\n?/g, '\n');
 
-for (const { input, output } of entries) {
-  const inputPath = path.resolve(rootDir, input);
-  const outputPath = path.resolve(rootDir, output);
+export interface CompileDependencies {
+  compile: typeof sass.compile;
+  mkdirSync: typeof fs.mkdirSync;
+  writeFileSync: typeof fs.writeFileSync;
+}
 
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+const defaultDependencies: CompileDependencies = {
+  compile: sass.compile,
+  mkdirSync: fs.mkdirSync,
+  writeFileSync: fs.writeFileSync,
+};
 
-  const result = sass.compile(inputPath, {
-    style: 'compressed',
-    sourceMap: true,
-    sourceMapIncludeSources: true,
-  });
+/**
+ * Compiles SCSS entries to CSS with embedded source maps.
+ * Source maps include original SCSS content (sourceMapIncludeSources)
+ * so consumers don't need the raw .scss files.
+ */
+export function compileStyles(rootDir: string, deps: CompileDependencies = defaultDependencies): void {
+  for (const { input, output } of entries) {
+    const inputPath = path.resolve(rootDir, input);
+    const outputPath = path.resolve(rootDir, output);
 
-  const mapFileName = path.basename(output) + '.map';
+    deps.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-  fs.writeFileSync(outputPath, result.css + `\n/*# sourceMappingURL=${mapFileName} */`);
-  fs.writeFileSync(outputPath + '.map', JSON.stringify(result.sourceMap));
+    const result = deps.compile(inputPath, {
+      style: 'compressed',
+      sourceMap: true,
+      sourceMapIncludeSources: true,
+    });
 
-  console.log(`compiled: ${input} → ${output}`);
+    const mapFileName = path.basename(output) + '.map';
+    const cssOut = normalizeLf(result.css);
+
+    // Normalize CRLF in embedded source content for cross-platform consistency
+    const sourceMap = result.sourceMap as unknown as { sourcesContent?: Array<string | null> };
+
+    if (Array.isArray(sourceMap?.sourcesContent)) {
+      sourceMap.sourcesContent = sourceMap.sourcesContent.map((c) => (typeof c === 'string' ? normalizeLf(c) : c));
+    }
+
+    // Append sourceMappingURL so browsers/dev tools can locate the .map file
+    deps.writeFileSync(outputPath, cssOut + `\n/*# sourceMappingURL=${mapFileName} */`);
+    deps.writeFileSync(outputPath + '.map', JSON.stringify(sourceMap));
+
+    console.log(`compiled: ${input} → ${output}`);
+  }
+}
+
+// Run directly when executed as a script (bun src/precompile-styles.ts)
+const isDirectExecution = process.argv[1]?.endsWith('precompile-styles.ts');
+
+if (isDirectExecution) {
+  compileStyles(path.resolve(import.meta.dirname, '..'));
 }
