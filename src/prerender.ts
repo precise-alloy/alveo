@@ -48,12 +48,17 @@ const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOpti
  *
  * @param projectRoot - Absolute path to the consumer project's root directory.
  */
-export async function prerender(projectRoot: string): Promise<void> {
+export interface PrerenderResult {
+  missing: string[];
+}
+
+export async function prerender(projectRoot: string): Promise<PrerenderResult> {
   const { mode, addHash } = parsePrerenderArgs(process.argv);
 
   const alveoEnv = loadEnv(mode, projectRoot);
   const toAbsolute = (p: string) => path.resolve(projectRoot, p);
   const log = console.log.bind(console);
+  const missing: string[] = [];
 
   const template = normalizeTextLineEndings(fs.readFileSync(toAbsolute(alveoEnv.VITE_TEMPLATE ?? 'dist/static/index.html'), 'utf-8'));
   const { render, routesToPrerender } = await import(pathToFileURL(toAbsolute('./dist/server/entry-server.js')).href);
@@ -77,7 +82,13 @@ export async function prerender(projectRoot: string): Promise<void> {
         toAbsolute,
         existsSync: fs.existsSync,
         readFileSync: fs.readFileSync,
-        onMissingPath: (resourcePath: string) => log(chalk.yellow('Cannot find:', resourcePath)),
+        onMissingPath: (resourcePath: string) => {
+          log(chalk.yellow('Cannot find:', resourcePath));
+
+          if (!missing.includes(resourcePath)) {
+            missing.push(resourcePath);
+          }
+        },
       };
 
       removeDuplicateAssets($, 'link[data-pl-require][href]', 'href', paths);
@@ -120,4 +131,6 @@ export async function prerender(projectRoot: string): Promise<void> {
   pool.push(renderPage(renderedPages, addHash));
 
   await Promise.all(pool);
+
+  return { missing: [...new Set(missing)] };
 }

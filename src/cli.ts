@@ -36,6 +36,23 @@ function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: stri
   exec('npx', { cwd: projectRoot }, args);
 }
 
+async function runPrerender(projectRoot: string, mode: string, { addHash = false } = {}): Promise<boolean> {
+  const { prerender } = await import('./prerender.js');
+
+  console.log('[alveo] Pre-rendering...');
+  process.argv = ['node', 'alveo', ...(addHash ? ['--add-hash'] : []), '--mode', mode];
+  const result = await prerender(projectRoot);
+
+  if (result.missing.length > 0) {
+    console.error('[alveo] Pre-render failed. Missing files:', result.missing);
+    process.exitCode = 1;
+
+    return false;
+  }
+
+  return true;
+}
+
 const program = new Command();
 
 program.name('alveo').description('Opinionated React SSR framework built on Vite').version(pkg.version);
@@ -120,7 +137,6 @@ program
     const projectRoot = resolveRoot(options.root);
     const { runStatesBuild } = await import('./states.js');
     const { runStyleBuild } = await import('./styles.js');
-    const { prerender } = await import('./prerender.js');
 
     console.log('[alveo] Running states...');
     runStatesBuild({ projectRoot });
@@ -132,9 +148,7 @@ program
     viteBuild(projectRoot, options.mode, path.join('dist', 'static'));
     viteBuild(projectRoot, options.mode, path.join('dist', 'server'), ssrEntry);
 
-    console.log('[alveo] Pre-rendering...');
-    process.argv = ['node', 'alveo', '--add-hash', '--mode', options.mode];
-    await prerender(projectRoot);
+    if (!(await runPrerender(projectRoot, options.mode, { addHash: true }))) return;
 
     console.log('[alveo] Generate complete.');
   });
@@ -148,7 +162,6 @@ program
   .action(async (options: { root?: string; mode: string }) => {
     const projectRoot = resolveRoot(options.root);
     const { runStyleBuild } = await import('./styles.js');
-    const { prerender } = await import('./prerender.js');
     const { runIntegration } = await import('./integration.js');
 
     console.log('[alveo] Running styles...');
@@ -158,9 +171,7 @@ program
     viteBuild(projectRoot, options.mode, path.join('dist', 'static'));
     viteBuild(projectRoot, options.mode, path.join('dist', 'server'), ssrEntry);
 
-    console.log('[alveo] Pre-rendering...');
-    process.argv = ['node', 'alveo', '--mode', options.mode];
-    await prerender(projectRoot);
+    if (!(await runPrerender(projectRoot, options.mode))) return;
 
     console.log('[alveo] Running integration...');
     const result = runIntegration({ projectRoot });
