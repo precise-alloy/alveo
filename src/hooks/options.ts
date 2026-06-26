@@ -18,11 +18,14 @@ const options = (context: AlveoContext): PluginOption => {
       inputs['index'] = `${context.projectRoot}/index.html`;
     }
 
-    // Scan consumer's entry files and alveo package's own script entries
-    const filePaths = glob.sync(
-      ['/src/assets/**/*.entry.{js,jsx,ts,tsx}', `${packageRoot}/dist/scripts/**/*.entry.js`, `${packageRoot}/src/scripts/**/*.entry.ts`],
-      { root: context.projectRoot }
-    );
+    // Scan consumer's entry files and alveo package's own script entries.
+    // All patterns must be absolute — glob's `root` option rewrites
+    // `/`-prefixed patterns on Linux, which corrupts absolute packageRoot paths.
+    const filePaths = glob.sync([
+      `${context.projectRoot}/src/assets/**/*.entry.{js,jsx,ts,tsx}`,
+      `${packageRoot}/dist/scripts/**/*.entry.js`,
+      `${packageRoot}/src/scripts/**/*.entry`,
+    ]);
 
     [].forEach.call(filePaths, (filePath: string) => {
       const fileName = path.basename(filePath).toLowerCase();
