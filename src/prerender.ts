@@ -12,9 +12,8 @@ import _ from 'lodash';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { removeDuplicateAssets, removeStyleBase, updateResourcePath } from './prerender-core.js';
-import { normalizeTextLineEndings } from './text-normalization.js';
-import { viteAbsoluteUrl } from './prerender-core.js';
+import { removeDuplicateAssets, removeStyleBase, updateResourcePath, viteAbsoluteUrl } from './prerender-core.ts';
+import { normalizeTextLineEndings } from './text-normalization.ts';
 
 interface RenderedPage {
   name: string;
@@ -47,6 +46,8 @@ const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOpti
  * Pre-renders all routes to static HTML files.
  *
  * @param projectRoot - Absolute path to the consumer project's root directory.
+ * @param options - Pre-render configuration (mode, addHash).
+ * @returns Missing resource paths discovered during rendering. Empty when all referenced assets exist on disk.
  */
 export interface PrerenderOptions {
   mode: string;
