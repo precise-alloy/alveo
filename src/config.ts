@@ -1,22 +1,22 @@
 import type { BuildOptions, CSSOptions, PluginOption, UserConfig } from 'vite';
-import type { AlveoContext } from './hooks/types.js';
+import type { AlveoContext } from './hooks/types.ts';
 
 import react from '@vitejs/plugin-react';
 
-import { createAliases } from './alias.js';
-import { getAssetFileName, getChunkFileName, getEntryFileName } from './filename.js';
-import { createManualChunk } from './manual-chunk.js';
-import { createPaths, getPackageRoot } from './paths.js';
-import { virtualModules } from './virtual-modules.js';
-import buildStart from './hooks/build-start.js';
-import closeBundle from './hooks/close-bundle.js';
-import handleHotUpdate from './hooks/handle-hot-update.js';
-import injectFunctions from './hooks/inject-functions.js';
-import options from './hooks/options.js';
-import resolveDynamicImport from './hooks/resolve-dynamic-import.js';
-import transform from './hooks/transform.js';
-import transformIndexHtml from './hooks/transform-index-html.js';
-import writeBundle from './hooks/write-bundle.js';
+import { createAliases } from './alias.ts';
+import { getAssetFileName, getChunkFileName, getEntryFileName } from './filename.ts';
+import { createManualChunk } from './manual-chunk.ts';
+import { createPaths, getPackageRoot } from './paths.ts';
+import { virtualModules } from './virtual-modules.ts';
+import buildStart from './hooks/build-start.ts';
+import closeBundle from './hooks/close-bundle.ts';
+import handleHotUpdate from './hooks/handle-hot-update.ts';
+import injectFunctions from './hooks/inject-functions.ts';
+import options from './hooks/options.ts';
+import resolveDynamicImport from './hooks/resolve-dynamic-import.ts';
+import transform from './hooks/transform.ts';
+import transformIndexHtml from './hooks/transform-index-html.ts';
+import writeBundle from './hooks/write-bundle.ts';
 
 export type AlveoConfigOptions = {
   /** Consumer's project root (default: process.cwd()) */

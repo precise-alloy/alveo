@@ -1,5 +1,5 @@
-export { defineAlveoConfig } from './config.js';
-export type { AlveoConfigOptions } from './config.js';
-export type { AlveoPaths } from './paths.js';
-export { createPaths, getPackageRoot, getAbsolutePath } from './paths.js';
-export { createAliases } from './alias.js';
+export { defineAlveoConfig } from './config.ts';
+export type { AlveoConfigOptions } from './config.ts';
+export type { AlveoPaths } from './paths.ts';
+export { createPaths, getPackageRoot, getAbsolutePath } from './paths.ts';
+export { createAliases } from './alias.ts';

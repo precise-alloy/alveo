@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import slash from 'slash';
 import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map-js';
 
-import { normalizeTextLineEndings } from './text-normalization.js';
+import { normalizeTextLineEndings } from './text-normalization.ts';
 
 export interface StyleCoreDependencies {
   existsSync: typeof fs.existsSync;

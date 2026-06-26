@@ -12,9 +12,9 @@ import _ from 'lodash';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { parsePrerenderArgs, removeDuplicateAssets, removeStyleBase, updateResourcePath } from './prerender-core.js';
-import { normalizeTextLineEndings } from './text-normalization.js';
-import { viteAbsoluteUrl } from './prerender-core.js';
+import { parsePrerenderArgs, removeDuplicateAssets, removeStyleBase, updateResourcePath } from './prerender-core.ts';
+import { normalizeTextLineEndings } from './text-normalization.ts';
+import { viteAbsoluteUrl } from './prerender-core.ts';
 
 interface RenderedPage {
   name: string;

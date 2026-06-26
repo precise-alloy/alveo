@@ -3,8 +3,8 @@ import path from 'path';
 
 import slash from 'slash';
 
-import { getAssetVersion } from './cryptography.js';
-import { normalizeTextLikeContent } from './text-normalization.js';
+import { getAssetVersion } from './cryptography.ts';
+import { normalizeTextLikeContent } from './text-normalization.ts';
 
 // Regex that matches `/assets/<path>.<ext>` URLs we want to cache-bust.
 //

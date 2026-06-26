@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { virtualModules, VIRTUAL_PAGES_ID, VIRTUAL_CLIENT_COMPONENTS_ID, VIRTUAL_SVG_SPRITES_ID } from './virtual-modules.js';
+import { virtualModules, VIRTUAL_PAGES_ID, VIRTUAL_CLIENT_COMPONENTS_ID, VIRTUAL_SVG_SPRITES_ID } from './virtual-modules.ts';
 
 describe('alveo/virtual-modules.ts', () => {
   const plugin = virtualModules() as {

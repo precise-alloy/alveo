@@ -1,4 +1,4 @@
-import { THEME_KEY, switchTheme } from './handle-theme.js';
+import { THEME_KEY, switchTheme } from './handle-theme.ts';
 
 /**
  * Handle storage change

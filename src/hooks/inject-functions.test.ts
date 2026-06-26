@@ -2,11 +2,11 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import injectFunctions from './inject-functions.js';
-import { FUNCTIONS_PLACEHOLDER, getFunctionsSourcePath } from './inject-functions-core.js';
+import injectFunctions from './inject-functions.ts';
+import { FUNCTIONS_PLACEHOLDER, getFunctionsSourcePath } from './inject-functions-core.ts';
 
-vi.mock('./inject-functions-core.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./inject-functions-core.js')>();
+vi.mock('./inject-functions-core.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./inject-functions-core.ts')>();
 
   return {
     ...actual,

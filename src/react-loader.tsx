@@ -1,11 +1,11 @@
 import { lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import YAML from 'js-yaml';
-import './scripts/functions.js';
+import './scripts/functions.ts';
 import { clientComponents } from 'virtual:alveo/client-components';
 
 const blocks: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
-  root: lazy(() => import('./root/index.js')),
+  root: lazy(() => import('./root/index.tsx')),
   ...clientComponents,
 };
 

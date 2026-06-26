@@ -2,7 +2,7 @@ import type { PluginOption } from 'vite';
 
 import MagicString, { SourceMapOptions } from 'magic-string';
 
-import { FUNCTIONS_PLACEHOLDER, containsFunctionsPlaceholder, getFunctionsSourcePath, loadFunctionsSource } from './inject-functions-core.js';
+import { FUNCTIONS_PLACEHOLDER, containsFunctionsPlaceholder, getFunctionsSourcePath, loadFunctionsSource } from './inject-functions-core.ts';
 
 const injectFunctions = (): PluginOption => {
   const functionsSourcePath = getFunctionsSourcePath();

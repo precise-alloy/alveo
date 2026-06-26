@@ -8,7 +8,7 @@ import {
   getFunctionsSourcePath,
   loadFunctionsSource,
   InjectFunctionsDependencies,
-} from './inject-functions-core.js';
+} from './inject-functions-core.ts';
 
 describe('alveo/hooks/inject-functions-core.ts', () => {
   describe('FUNCTIONS_PLACEHOLDER', () => {

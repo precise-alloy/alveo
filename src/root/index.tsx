@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { RootContext, RootData } from './root-context.js';
-import FrameControls from './frame-controls.js';
-import ActiveItemOptions from './active-item-options.js';
-import RootNav from './root-nav.js';
-import IconListDialog from './icon-list-dialog.js';
+import { RootContext, RootData } from './root-context.ts';
+import FrameControls from './frame-controls.tsx';
+import ActiveItemOptions from './active-item-options.tsx';
+import RootNav from './root-nav.tsx';
+import IconListDialog from './icon-list-dialog.tsx';
 
 export default function Root(props: RootModel) {
   const [activeItem, setActiveItem] = useState<SinglePageNode | undefined>(typeof window !== 'undefined' ? undefined : undefined);

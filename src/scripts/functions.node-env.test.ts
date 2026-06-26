@@ -29,7 +29,7 @@ const importFunctionsModuleInNode = async (env: Record<string, string> = {}) => 
     vi.stubEnv(key, value);
   });
 
-  await import('./functions.js');
+  await import('./functions.ts');
 };
 
 describe('alveo/scripts/functions.ts (node environment)', () => {

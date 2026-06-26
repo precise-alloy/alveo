@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('./paths.js', () => ({
+vi.mock('./paths.ts', () => ({
   getAbsolutePath: vi.fn((p: string, projectRoot: string) => {
     const slash = (s: string) => s.replace(/\\/g, '/');
 
@@ -12,7 +12,7 @@ vi.mock('./paths.js', () => ({
   }),
 }));
 
-import { createManualChunk } from './manual-chunk.js';
+import { createManualChunk } from './manual-chunk.ts';
 
 describe('alveo/manual-chunk.ts', () => {
   const srcRoot = '/project/src';

@@ -1,9 +1,9 @@
 import type { PluginOption } from 'vite';
-import type { AlveoContext } from './types.js';
+import type { AlveoContext } from './types.ts';
 
 import MagicString, { SourceMapOptions } from 'magic-string';
 
-import { ASSET_HASH_REGEX, createAppendAssetHash, createDefaultAssetHashDependencies } from '../asset-hash.js';
+import { ASSET_HASH_REGEX, createAppendAssetHash, createDefaultAssetHashDependencies } from '../asset-hash.ts';
 
 const transform = (context: AlveoContext): PluginOption => {
   const assetHashDeps = createDefaultAssetHashDependencies(context.projectRoot);

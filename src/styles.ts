@@ -20,8 +20,8 @@ import {
   prepareCssFileContent,
   sortStylePaths,
   stripInjectedPreludeFromSourceMap,
-} from './styles-core.js';
-import { getPackageRoot } from './paths.js';
+} from './styles-core.ts';
+import { getPackageRoot } from './paths.ts';
 
 const DEBOUNCE_DELAY_MS = 200;
 const ORGANISM_PREFIX = 'b-';
