@@ -24,7 +24,7 @@ const options = (context: AlveoContext): PluginOption => {
     const filePaths = glob.sync([
       `${context.projectRoot}/src/assets/**/*.entry.{js,jsx,ts,tsx}`,
       `${packageRoot}/dist/scripts/**/*.entry.js`,
-      `${packageRoot}/src/scripts/**/*.entry`,
+      `${packageRoot}/src/scripts/**/*.entry.{js,jsx,ts,tsx}`,
     ]);
 
     [].forEach.call(filePaths, (filePath: string) => {
