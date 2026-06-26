@@ -64,7 +64,7 @@ export async function prerender(projectRoot: string, options: PrerenderOptions):
   const alveoEnv = loadEnv(mode, projectRoot);
   const toAbsolute = (p: string) => path.resolve(projectRoot, p);
   const log = console.log.bind(console);
-  const missing: string[] = [];
+  const missing: Set<string> = new Set();
 
   const template = normalizeTextLineEndings(fs.readFileSync(toAbsolute(alveoEnv.VITE_TEMPLATE ?? 'dist/static/index.html'), 'utf-8'));
   const { render, routesToPrerender } = await import(pathToFileURL(toAbsolute('./dist/server/entry-server.js')).href);
@@ -89,8 +89,8 @@ export async function prerender(projectRoot: string, options: PrerenderOptions):
         existsSync: fs.existsSync,
         readFileSync: fs.readFileSync,
         onMissingPath: (resourcePath: string) => {
-          if (!missing.includes(resourcePath)) {
-            missing.push(resourcePath);
+          if (!missing.has(resourcePath)) {
+            missing.add(resourcePath);
             log(chalk.yellow('Cannot find:', resourcePath));
           }
         },
@@ -137,5 +137,5 @@ export async function prerender(projectRoot: string, options: PrerenderOptions):
 
   await Promise.all(pool);
 
-  return { missing };
+  return { missing: [...missing] };
 }
