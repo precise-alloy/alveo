@@ -1,9 +1,9 @@
 import { debounce } from 'lodash';
 import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 
-import { useRootContext } from './root-context.js';
-import { useOnClickOutside } from './use-click-outside.js';
-import RenderedItem from './rendered-item.js';
+import { useRootContext } from './root-context.ts';
+import { useOnClickOutside } from './use-click-outside.ts';
+import RenderedItem from './rendered-item.tsx';
 
 interface Props {
   routes: RootItemModel[];

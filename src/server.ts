@@ -1,6 +1,6 @@
 import { loadEnv } from 'vite';
 
-import { startServer } from './create-server.js';
+import { startServer } from './create-server.ts';
 
 console.log('[INIT] server');
 

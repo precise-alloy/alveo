@@ -12,7 +12,7 @@ import {
   compileDiscoveredScripts,
   runScriptBuild,
   ScriptCoreDependencies,
-} from './scripts-core.js';
+} from './scripts-core.ts';
 
 const buildDeps = (overrides: Partial<ScriptCoreDependencies> = {}): ScriptCoreDependencies => ({
   existsSync: vi.fn().mockReturnValue(true) as never,

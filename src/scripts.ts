@@ -1,7 +1,7 @@
-import { runScriptBuild } from './scripts-core.js';
+import { runScriptBuild } from './scripts-core.ts';
 
-export { runScriptBuild } from './scripts-core.js';
-export type { ScriptCoreDependencies } from './scripts-core.js';
+export { runScriptBuild } from './scripts-core.ts';
+export type { ScriptCoreDependencies } from './scripts-core.ts';
 
 /**
  * Runs the script build pipeline for a consumer project.

@@ -43,11 +43,11 @@
     "debounce": "^3.0.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.4.1",
-    "lodash": "^4.17.21",
     "glob": "^13.0.6",
     "js-beautify": "^1.15.4",
     "js-yaml": "^4.1.1",
     "lightningcss": "^1.32.0",
+    "lodash": "^4.17.21",
     "magic-string": "^0.30.17",
     "react-router-dom": "^7.13.1",
     "sass": "^1.89.2",
@@ -70,11 +70,9 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.1.7",
     "@types/serve-static": "^2.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.62.0",
+    "@typescript-eslint/parser": "^8.62.0",
     "@vitest/coverage-v8": "^4.1.5",
-    "jsdom": "^29.1.0",
-    "msw": "^2.13.6",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.5",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import": "2.32.0",
@@ -84,12 +82,17 @@
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "eslint-plugin-unused-imports": "^4.4.1"
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.7.0",
+    "jsdom": "^29.1.0",
+    "msw": "^2.13.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "peerDependencies": {
-    "typescript": "^5",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "typescript": "^5"
   },
   "license": "MIT"
 }

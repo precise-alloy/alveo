@@ -1,11 +1,11 @@
 import type { PluginOption } from 'vite';
-import type { AlveoContext } from './types.js';
+import type { AlveoContext } from './types.ts';
 
 import path from 'path';
 
 import { glob } from 'glob';
 
-import { getPackageRoot } from '../paths.js';
+import { getPackageRoot } from '../paths.ts';
 
 const options = (context: AlveoContext): PluginOption => {
   const scriptOnly = process.env.scriptOnly;

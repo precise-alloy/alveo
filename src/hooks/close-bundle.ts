@@ -1,5 +1,5 @@
 import type { PluginOption } from 'vite';
-import type { AlveoContext } from './types.js';
+import type { AlveoContext } from './types.ts';
 
 const closeBundle = (_context: AlveoContext): PluginOption => {
   return {

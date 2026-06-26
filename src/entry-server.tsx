@@ -1,9 +1,9 @@
 import ReactDOMServer from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
 
-import './scripts/functions.js';
-import { routesToPrerender } from './routes.js';
-import { App } from './app.js';
+import './scripts/functions.ts';
+import { routesToPrerender } from './routes.ts';
+import { App } from './app.tsx';
 
 interface RenderOutput {
   html: string;

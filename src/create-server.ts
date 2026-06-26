@@ -6,8 +6,8 @@ import serveStatic from 'serve-static';
 import { ViteDevServer, loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { createViteDevServer } from './create-vite-dev-server.js';
-import { _useRenderer } from './renderer.js';
+import { createViteDevServer } from './create-vite-dev-server.ts';
+import { _useRenderer } from './renderer.ts';
 
 interface Props {
   root: string;

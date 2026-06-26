@@ -1,4 +1,4 @@
-import { worker } from './mock-browser.js';
+import { worker } from './mock-browser.ts';
 
 worker.start({
   serviceWorker: {

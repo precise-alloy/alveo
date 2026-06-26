@@ -9,7 +9,7 @@ import {
   normalizeTextFileContent,
   normalizeTextLikeContent,
   normalizeTextLineEndings,
-} from './text-normalization.js';
+} from './text-normalization.ts';
 
 describe('alveo/text-normalization.ts', () => {
   describe('normalizeTextLineEndings', () => {
