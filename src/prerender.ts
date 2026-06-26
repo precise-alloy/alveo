@@ -12,7 +12,7 @@ import _ from 'lodash';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { parsePrerenderArgs, removeDuplicateAssets, removeStyleBase, updateResourcePath } from './prerender-core.js';
+import { removeDuplicateAssets, removeStyleBase, updateResourcePath } from './prerender-core.js';
 import { normalizeTextLineEndings } from './text-normalization.js';
 import { viteAbsoluteUrl } from './prerender-core.js';
 
@@ -48,12 +48,17 @@ const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOpti
  *
  * @param projectRoot - Absolute path to the consumer project's root directory.
  */
+export interface PrerenderOptions {
+  mode: string;
+  addHash?: boolean;
+}
+
 export interface PrerenderResult {
   missing: string[];
 }
 
-export async function prerender(projectRoot: string): Promise<PrerenderResult> {
-  const { mode, addHash } = parsePrerenderArgs(process.argv);
+export async function prerender(projectRoot: string, options: PrerenderOptions): Promise<PrerenderResult> {
+  const { mode, addHash = false } = options;
 
   const alveoEnv = loadEnv(mode, projectRoot);
   const toAbsolute = (p: string) => path.resolve(projectRoot, p);
