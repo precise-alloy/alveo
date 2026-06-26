@@ -132,5 +132,5 @@ export async function prerender(projectRoot: string): Promise<PrerenderResult> {
 
   await Promise.all(pool);
 
-  return { missing: [...new Set(missing)] };
+  return { missing };
 }

@@ -38,19 +38,30 @@ function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: stri
 
 async function runPrerender(projectRoot: string, mode: string, { addHash = false } = {}): Promise<boolean> {
   const { prerender } = await import('./prerender.js');
+  const prevArgv = process.argv;
 
-  console.log('[alveo] Pre-rendering...');
-  process.argv = ['node', 'alveo', ...(addHash ? ['--add-hash'] : []), '--mode', mode];
-  const result = await prerender(projectRoot);
+  try {
+    console.log('[alveo] Pre-rendering...');
+    process.argv = ['node', 'alveo', ...(addHash ? ['--add-hash'] : []), '--mode', mode];
 
-  if (result.missing.length > 0) {
-    console.error('[alveo] Pre-render failed. Missing files:', result.missing);
+    const result = await prerender(projectRoot);
+
+    if (result.missing.length > 0) {
+      console.error('[alveo] Pre-render failed. Missing files:', result.missing);
+      process.exitCode = 1;
+
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.log('[alveo] Pre-render failed with error:', error);
     process.exitCode = 1;
 
     return false;
+  } finally {
+    process.argv = prevArgv;
   }
-
-  return true;
 }
 
 const program = new Command();
