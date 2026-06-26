@@ -55,7 +55,7 @@ async function runPrerender(projectRoot: string, mode: string, { addHash = false
 
     return true;
   } catch (error) {
-    console.log('[alveo] Pre-render failed with error:', error);
+    console.error('[alveo] Pre-render failed with error:', error);
     process.exitCode = 1;
 
     return false;

@@ -83,10 +83,9 @@ export async function prerender(projectRoot: string): Promise<PrerenderResult> {
         existsSync: fs.existsSync,
         readFileSync: fs.readFileSync,
         onMissingPath: (resourcePath: string) => {
-          log(chalk.yellow('Cannot find:', resourcePath));
-
           if (!missing.includes(resourcePath)) {
             missing.push(resourcePath);
+            log(chalk.yellow('Cannot find:', resourcePath));
           }
         },
       };
