@@ -4,7 +4,7 @@ A minimal project demonstrating how to use `alveo` as a framework dependency.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) (recommended) or Node.js >= 20
+- [Bun](https://bun.sh/) (recommended) or Node.js >= 24
 - `alveo` installed (linked via monorepo or published to npm)
 
 ## Install

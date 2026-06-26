@@ -9,16 +9,16 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      { find: '@atoms', replacement: path.resolve(srcRoot, 'atoms') },
-      { find: '@molecules', replacement: path.resolve(srcRoot, 'molecules') },
-      { find: '@organisms', replacement: path.resolve(srcRoot, 'organisms') },
-      { find: '@templates', replacement: path.resolve(srcRoot, 'templates') },
-      { find: '@pages', replacement: path.resolve(srcRoot, 'pages') },
-      { find: '@assets', replacement: path.resolve(srcRoot, 'assets') },
-      { find: '@helpers', replacement: path.resolve(srcRoot, '_helpers') },
-      { find: '@data', replacement: path.resolve(srcRoot, '_data') },
-      { find: '@_api', replacement: path.resolve(srcRoot, '_api') },
-      { find: '@mocks', replacement: path.resolve(srcRoot, 'mocks') },
+      {find: '@atoms', replacement: path.resolve(srcRoot, 'atoms')},
+      {find: '@molecules', replacement: path.resolve(srcRoot, 'molecules')},
+      {find: '@organisms', replacement: path.resolve(srcRoot, 'organisms')},
+      {find: '@templates', replacement: path.resolve(srcRoot, 'templates')},
+      {find: '@pages', replacement: path.resolve(srcRoot, 'pages')},
+      {find: '@assets', replacement: path.resolve(srcRoot, 'assets')},
+      {find: '@helpers', replacement: path.resolve(srcRoot, '_helpers')},
+      {find: '@data', replacement: path.resolve(srcRoot, '_data')},
+      {find: '@_api', replacement: path.resolve(srcRoot, '_api')},
+      {find: '@mocks', replacement: path.resolve(srcRoot, 'mocks')},
     ],
   },
   test: {
@@ -46,10 +46,7 @@ export default defineConfig({
         lines: 100,
         statements: 100,
         functions: 100,
-        // Branches stays at the achieved per-file minimum: the `||` chain in
-        // removeDuplicateAssets includes a defensive bare-defer comparator
-        // (`attr('defer') === ''`) whose execution depends on cheerio's attr
-        // normalization, which V8 occasionally reports as a partial branch.
+        // Some defensive `||` fallbacks in template runtime code can be difficult to drive to 100% branch coverage under V8;
         // 95 keeps the gate strict while tolerating the residual micro-branch.
         branches: 95,
       },
