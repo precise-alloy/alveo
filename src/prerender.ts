@@ -12,9 +12,8 @@ import _ from 'lodash';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { parsePrerenderArgs, removeDuplicateAssets, removeStyleBase, updateResourcePath } from './prerender-core.ts';
+import { removeDuplicateAssets, removeStyleBase, updateResourcePath, viteAbsoluteUrl } from './prerender-core.ts';
 import { normalizeTextLineEndings } from './text-normalization.ts';
-import { viteAbsoluteUrl } from './prerender-core.ts';
 
 interface RenderedPage {
   name: string;
@@ -47,13 +46,25 @@ const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOpti
  * Pre-renders all routes to static HTML files.
  *
  * @param projectRoot - Absolute path to the consumer project's root directory.
+ * @param options - Pre-render configuration (mode, addHash).
+ * @returns Missing resource paths discovered during rendering. Empty when all referenced assets exist on disk.
  */
-export async function prerender(projectRoot: string): Promise<void> {
-  const { mode, addHash } = parsePrerenderArgs(process.argv);
+export interface PrerenderOptions {
+  mode: string;
+  addHash?: boolean;
+}
+
+export interface PrerenderResult {
+  missing: string[];
+}
+
+export async function prerender(projectRoot: string, options: PrerenderOptions): Promise<PrerenderResult> {
+  const { mode, addHash = false } = options;
 
   const alveoEnv = loadEnv(mode, projectRoot);
   const toAbsolute = (p: string) => path.resolve(projectRoot, p);
   const log = console.log.bind(console);
+  const missing: Set<string> = new Set();
 
   const template = normalizeTextLineEndings(fs.readFileSync(toAbsolute(alveoEnv.VITE_TEMPLATE ?? 'dist/static/index.html'), 'utf-8'));
   const { render, routesToPrerender } = await import(pathToFileURL(toAbsolute('./dist/server/entry-server.js')).href);
@@ -77,7 +88,12 @@ export async function prerender(projectRoot: string): Promise<void> {
         toAbsolute,
         existsSync: fs.existsSync,
         readFileSync: fs.readFileSync,
-        onMissingPath: (resourcePath: string) => log(chalk.yellow('Cannot find:', resourcePath)),
+        onMissingPath: (resourcePath: string) => {
+          if (!missing.has(resourcePath)) {
+            missing.add(resourcePath);
+            log(chalk.yellow('Cannot find:', resourcePath));
+          }
+        },
       };
 
       removeDuplicateAssets($, 'link[data-pl-require][href]', 'href', paths);
@@ -120,4 +136,6 @@ export async function prerender(projectRoot: string): Promise<void> {
   pool.push(renderPage(renderedPages, addHash));
 
   await Promise.all(pool);
+
+  return { missing: [...missing] };
 }
