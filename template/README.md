@@ -68,7 +68,7 @@ bun run typecheck
 
 ## Project Structure
 
-```
+```text
 src/
   _api/          API client modules
   _data/         Static data and content
@@ -100,5 +100,5 @@ src/
 
 - `vite.config.ts` - Vite configuration (uses `defineAlveoConfig` from alveo)
 - `vitest.config.ts` - Test configuration
-- `tsconfig.json` - TypeScript configuration (extends alveo base)
+- `tsconfig.json` - TypeScript configuration
 - `.env` - Environment variables (base URL, API endpoints, integration paths)
