@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { compileStyles, CompileDependencies } from './precompile-styles.js';
+import { compileStyles, CompileDependencies } from './precompile-styles.ts';
 
 describe('precompile-styles', () => {
   const createMockDeps = () => {

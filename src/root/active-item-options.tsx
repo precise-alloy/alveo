@@ -1,8 +1,8 @@
 import { createRef, MouseEvent, useState } from 'react';
 
-import { useRootContext } from './root-context.js';
-import { useOnClickOutside } from './use-click-outside.js';
-import StateAnimationHtml from './state-animation-html.js';
+import { useRootContext } from './root-context.ts';
+import { useOnClickOutside } from './use-click-outside.ts';
+import StateAnimationHtml from './state-animation-html.tsx';
 
 export default function ActiveItemOptions() {
   const { activeItem, isTopPanel, isRtl } = useRootContext();

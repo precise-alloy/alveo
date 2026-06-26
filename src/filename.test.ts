@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { getAssetFileName, getEntryFileName, getChunkFileName } from './filename.js';
+import { getAssetFileName, getEntryFileName, getChunkFileName } from './filename.ts';
 
 describe('alveo/filename.ts', () => {
   describe('getAssetFileName', () => {

@@ -2,8 +2,8 @@ import path from 'path';
 
 import slash from 'slash';
 
-import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.js';
-import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.js';
+import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.ts';
+import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.ts';
 
 export interface CopyItem {
   from: string;

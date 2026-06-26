@@ -4,7 +4,7 @@ import path from 'path';
 
 import slash from 'slash';
 
-import { getPackageRoot } from './paths.js';
+import { getPackageRoot } from './paths.ts';
 
 const VIRTUAL_PAGES_ID = 'virtual:alveo/pages';
 const VIRTUAL_CLIENT_COMPONENTS_ID = 'virtual:alveo/client-components';

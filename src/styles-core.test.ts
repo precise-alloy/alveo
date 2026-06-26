@@ -21,7 +21,7 @@ import {
   resolveSourceMapPath,
   sortStylePaths,
   stripInjectedPreludeFromSourceMap,
-} from './styles-core.js';
+} from './styles-core.ts';
 
 describe('alveo/styles-core.ts', () => {
   it('parses style compile concurrency from the environment with a conservative fallback', () => {

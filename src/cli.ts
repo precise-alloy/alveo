@@ -4,7 +4,7 @@ import { createRequire } from 'module';
 
 import { Command } from 'commander';
 
-import { getPackageRoot } from './paths.js';
+import { getPackageRoot } from './paths.ts';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
@@ -37,7 +37,7 @@ function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: stri
 }
 
 async function runPrerender(projectRoot: string, mode: string, { addHash = false } = {}): Promise<boolean> {
-  const { prerender } = await import('./prerender.js');
+  const { prerender } = await import('./prerender.ts');
 
   console.log('[alveo] Pre-rendering...');
   const result = await prerender(projectRoot, { mode, addHash });
@@ -134,8 +134,8 @@ program
   .option('--mode <mode>', 'Vite mode', 'production')
   .action(async (options: { root?: string; mode: string }) => {
     const projectRoot = resolveRoot(options.root);
-    const { runStatesBuild } = await import('./states.js');
-    const { runStyleBuild } = await import('./styles.js');
+    const { runStatesBuild } = await import('./states.ts');
+    const { runStyleBuild } = await import('./styles.ts');
 
     console.log('[alveo] Running states...');
     runStatesBuild({ projectRoot });
@@ -160,8 +160,8 @@ program
   .option('--mode <mode>', 'Vite mode', 'production')
   .action(async (options: { root?: string; mode: string }) => {
     const projectRoot = resolveRoot(options.root);
-    const { runStyleBuild } = await import('./styles.js');
-    const { runIntegration } = await import('./integration.js');
+    const { runStyleBuild } = await import('./styles.ts');
+    const { runIntegration } = await import('./integration.ts');
 
     console.log('[alveo] Running styles...');
     await runStyleBuild({ projectRoot });
@@ -193,7 +193,7 @@ program
   .option('--watch', 'watch for changes')
   .action(async (options: { root?: string; watch?: boolean }) => {
     const projectRoot = resolveRoot(options.root);
-    const { runStyleBuild } = await import('./styles.js');
+    const { runStyleBuild } = await import('./styles.ts');
 
     runStyleBuild({ projectRoot, isWatch: options.watch });
   });
@@ -206,7 +206,7 @@ program
   .option('--watch', 'watch for changes')
   .action(async (options: { root?: string; watch?: boolean }) => {
     const projectRoot = resolveRoot(options.root);
-    const { runStatesBuild } = await import('./states.js');
+    const { runStatesBuild } = await import('./states.ts');
 
     runStatesBuild({ projectRoot, isWatch: options.watch });
   });
@@ -220,7 +220,7 @@ program
   .option('--port <port>', 'server port')
   .action(async (options: { root?: string; mode: string; port?: string }) => {
     const projectRoot = resolveRoot(options.root);
-    const { initServer } = await import('./server.js');
+    const { initServer } = await import('./server.ts');
 
     // Ensure mode is available in process.argv for initServer
     if (options.mode) {

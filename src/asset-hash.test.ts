@@ -12,7 +12,7 @@ import {
   createAppendAssetHash,
   createDefaultAssetHashDependencies,
   rewriteAssetHashes,
-} from './asset-hash.js';
+} from './asset-hash.ts';
 
 const buildDeps = (overrides: Partial<AssetHashDependencies> = {}): AssetHashDependencies => ({
   existsSync: vi.fn().mockReturnValue(true) as never,

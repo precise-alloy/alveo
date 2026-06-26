@@ -16,7 +16,7 @@ import {
   runIntegrationBuild,
   IntegrationDependencies,
   IntegrationConfig,
-} from './integration-core.js';
+} from './integration-core.ts';
 
 describe('alveo/integration-core.ts', () => {
   describe('getPatternCopyTarget', () => {

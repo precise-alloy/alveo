@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { getAssetVersion, getAssetHash, getMetadata } from './cryptography.js';
+import { getAssetVersion, getAssetHash, getMetadata } from './cryptography.ts';
 
 describe('alveo/cryptography.ts', () => {
   describe('getAssetVersion', () => {

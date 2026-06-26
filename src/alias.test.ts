@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { createAliases } from './alias.js';
+import { createAliases } from './alias.ts';
 
 describe('alveo/alias.ts', () => {
   describe('createAliases', () => {

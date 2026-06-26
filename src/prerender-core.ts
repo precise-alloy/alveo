@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 
 import * as cheerio from 'cheerio';
 
-import { normalizeTextLikeContent } from './text-normalization.js';
+import { normalizeTextLikeContent } from './text-normalization.ts';
 
 export interface PrerenderArgs {
   mode: string;

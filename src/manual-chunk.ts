@@ -2,7 +2,7 @@ import path from 'path';
 
 import slash from 'slash';
 
-import { getAbsolutePath } from './paths.js';
+import { getAbsolutePath } from './paths.ts';
 
 type ManualChunkMeta = {
   getModuleInfo: (id: string) => ModuleInfo | null;

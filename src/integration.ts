@@ -7,7 +7,7 @@ import { glob } from 'glob';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { CopyItem, FileExistCheck, parseIntegrationArgs, runIntegrationBuild } from './integration-core.js';
+import { CopyItem, FileExistCheck, parseIntegrationArgs, runIntegrationBuild } from './integration-core.ts';
 
 export interface IntegrationBuildOptions {
   projectRoot: string;

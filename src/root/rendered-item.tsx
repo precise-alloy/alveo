@@ -1,6 +1,6 @@
 import { MouseEvent } from 'react';
 
-import { useRootContext } from './root-context.js';
+import { useRootContext } from './root-context.ts';
 
 export default function RenderedItem(item: SinglePageNode) {
   const { activeItem, setActiveItem } = useRootContext();

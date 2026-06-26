@@ -13,7 +13,7 @@ import {
   removeStyleBase,
   removeDuplicateAssets,
   ResourcePathOptions,
-} from './prerender-core.js';
+} from './prerender-core.ts';
 
 describe('alveo/prerender-core.ts', () => {
   describe('hasContentHashInFileName', () => {

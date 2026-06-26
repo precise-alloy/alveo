@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import { pages } from 'virtual:alveo/pages';
 
-import RootTemplate from './root/template.js';
+import RootTemplate from './root/template.tsx';
 
 // Auto generates routes from files under consumer's src/pages
 // https://vitejs.dev/guide/features.html#glob-import

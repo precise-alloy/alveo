@@ -8,7 +8,7 @@ import * as cheerio from 'cheerio';
 import jsBeautify, { CSSBeautifyOptions, HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';
 import slash from 'slash';
 
-import { getPackageRoot } from './paths.js';
+import { getPackageRoot } from './paths.ts';
 
 interface Props {
   app: Express;

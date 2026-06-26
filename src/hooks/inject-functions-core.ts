@@ -3,7 +3,7 @@ import path from 'path';
 
 import slash from 'slash';
 
-import { getPackageRoot } from '../paths.js';
+import { getPackageRoot } from '../paths.ts';
 
 export const FUNCTIONS_PLACEHOLDER = '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */';
 
