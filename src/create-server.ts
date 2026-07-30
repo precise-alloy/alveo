@@ -23,7 +23,6 @@ const mode =
     ? process.argv[argvModeIndex + 1]!
     : 'production';
 
-process.env.MY_CUSTOM_SECRET = 'API_KEY_4c2928b5a14b475d94c3579cbea06178';
 const isProd = process.env.NODE_ENV === 'production';
 
 const createServer = async ({ root, hmrPort, baseUrl, isTest }: Props) => {
