@@ -50,7 +50,11 @@ const createServer = async ({ root, hmrPort, baseUrl, isTest }: Props) => {
   app.use('/assets', serveStatic(resolve('dist/assets'), { index: false }));
   app.use('/samples', serveStatic(resolve('public/samples'), { index: false }));
 
-  _useRenderer({ app, indexProd, isProd, viteDevServer, resolve });
+  // VITE_DOMAIN is read via loadEnv (not process.env, which loadEnv never
+  // populates) and threaded into the renderer so a .env-only domain is applied.
+  const alveoEnv = loadEnv(mode, root);
+
+  _useRenderer({ app, indexProd, isProd, viteDevServer, resolve, domain: alveoEnv.VITE_DOMAIN });
 
   return { app, viteDevServer };
 };

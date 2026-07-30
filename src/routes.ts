@@ -53,14 +53,21 @@ Object.keys(pages).forEach((path) => {
   nodes.push(node);
 });
 
-const rootItem: SinglePageNode = {
-  type: 'single',
-  name: 'Root',
-  path: '/',
-  component: RootTemplate,
-};
+// A consumer `Root` page already maps to '/'. Only push the framework's
+// fallback root route when no consumer route owns '/', otherwise duplicate
+// '/' routes (and duplicate prerender targets) are emitted.
+const hasRootRoute = nodes.some((node) => node.type === 'single' && node.path === '/');
 
-nodes.push(rootItem);
-routesToPrerender.push({ route: rootItem.path, name: rootItem.name });
+if (!hasRootRoute) {
+  const rootItem: SinglePageNode = {
+    type: 'single',
+    name: 'Root',
+    path: '/',
+    component: RootTemplate,
+  };
+
+  nodes.push(rootItem);
+  routesToPrerender.push({ route: rootItem.path, name: rootItem.name });
+}
 
 export { nodes, routesToPrerender };

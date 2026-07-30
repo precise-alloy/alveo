@@ -1,0 +1,526 @@
+{
+  "request": {
+    "owner": "precise-alloy",
+    "repo": "alveo",
+    "pullNumber": "1"
+  },
+  "unresolvedOnly": true,
+  "reviewComments": {
+    "returned": 40,
+    "comments": [
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`mkdirSync(saveDir)` is called without `{ recursive: true }`. If `public/assets/js` (or intermediate dirs) don't exist yet, this will throw and script compilation will fail.",
+        "path": "src/scripts-core.ts",
+        "line": 65,
+        "original_line": 65,
+        "diff_hunk": "@@ -0,0 +1,113 @@\n+/* eslint-disable no-console */\n+import fs from 'fs';\n+import path from 'path';\n+\n+import chokidar from 'chokidar';\n+import { glob } from 'glob';\n+import slash from 'slash';\n+import { transformWithEsbuild } from 'vite';\n+\n+type ScriptGlobSync = (pattern: string) => string[];\n+\n+export interface ScriptCoreDependencies {\n+  existsSync: typeof fs.existsSync;\n+  mkdirSync: typeof fs.mkdirSync;\n+  readFileSync: typeof fs.readFileSync;\n+  writeFileSync: typeof fs.writeFileSync;\n+  transformWithEsbuild: typeof transformWithEsbuild;\n+  globSync: ScriptGlobSync;\n+  createWatcher: typeof chokidar.watch;\n+  log: (message?: unknown, ...optionalParams: unknown[]) => void;\n+}\n+\n+export const defaultScriptCoreDependencies: ScriptCoreDependencies = {\n+  existsSync: fs.existsSync,\n+  mkdirSync: fs.mkdirSync,\n+  readFileSync: fs.readFileSync,\n+  writeFileSync: fs.writeFileSync,\n+  transformWithEsbuild,\n+  globSync: glob.sync,\n+  createWatcher: chokidar.watch,\n+  log: console.log.bind(console),\n+};\n+\n+export const getScriptTransformOptions = (inputPath: string) => ({\n+  minify: true,\n+  format: 'esm' as const,\n+  sourcemap: path.basename(inputPath).includes('critical') ? false : ('external' as const),\n+});\n+\n+/**\n+ * Resolves the output path for a compiled script file relative to the\n+ * consumer's project root.\n+ */\n+export const getScriptOutputPath = (inputPath: string, projectRoot: string): string => {\n+  return path.resolve(projectRoot, 'public/assets/js/' + path.parse(inputPath).name + '.js');\n+};\n+\n+export const compileScript = async (\n+  inputPath: string,\n+  projectRoot: string,\n+  dependencies: ScriptCoreDependencies = defaultScriptCoreDependencies\n+): Promise<void> => {\n+  dependencies.log('compile:', slash(inputPath));\n+\n+  const code = dependencies.readFileSync(inputPath, 'utf8');\n+\n+  return dependencies\n+    .transformWithEsbuild(code, inputPath, getScriptTransformOptions(inputPath))\n+    .then((result) => {\n+      const savePath = getScriptOutputPath(",
+        "created_at": "2026-06-24T01:42:38Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`mkdirSync(destDirPath)` is called without `{ recursive: true }`. If the destination path has missing intermediate directories, the integration copy will throw.",
+        "path": "src/integration-core.ts",
+        "line": 78,
+        "original_line": 78,
+        "diff_hunk": "@@ -0,0 +1,257 @@\n+import path from 'path';\n+\n+import slash from 'slash';\n+\n+import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.js';\n+import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.js';\n+\n+export interface CopyItem {\n+  from: string;\n+  to?: string;\n+}\n+\n+export interface FileExistCheck {\n+  folder?: string;\n+  fileName: string | RegExp;\n+}\n+\n+export interface IntegrationDependencies {\n+  existsSync: (value: string) => boolean;\n+  statSync: (value: string) => { isDirectory: () => boolean };\n+  rmSync: (target: string, options?: { recursive?: boolean; force?: boolean }) => void;\n+  mkdirSync: (target: string, options?: { recursive?: boolean }) => void;\n+  cpSync: (source: string, destination: string, options?: { recursive?: boolean; force?: boolean }) => void;\n+  copyFileSync: (source: string, destination: string) => void;\n+  readFileSync: (path: string, encoding?: BufferEncoding) => string | Buffer;\n+  writeFileSync: (path: string, data: string) => void;\n+  readdirSync: (path: string) => string[];\n+  globSync: (pattern: string, options?: { nodir?: boolean }) => string[];\n+  nodeFsCpSync: (source: string, destination: string, options?: { recursive?: boolean }) => void;\n+  log: (message?: unknown, ...optionalParams: unknown[]) => void;\n+  warn: (value: string) => unknown;\n+}\n+\n+export interface IntegrationConfig {\n+  argv: string[];\n+  staticBasePath: string;\n+  srcBasePath: string;\n+  destBasePath: string;\n+  patternPath?: string;\n+  copyItems: CopyItem[];\n+  hashItems: string[];\n+  checkExistFileList: FileExistCheck[];\n+}\n+\n+export const parseIntegrationArgs = (argv: string[]) => {\n+  return {\n+    mode: parsePrerenderArgs(argv).mode,\n+  };\n+};\n+\n+export const copyConfiguredItems = (\n+  copyItems: CopyItem[],\n+  { srcBasePath, destBasePath }: Pick<IntegrationConfig, 'srcBasePath' | 'destBasePath'>,\n+  dependencies: IntegrationDependencies\n+): void => {\n+  copyItems.forEach((item) ",
+        "created_at": "2026-06-24T01:42:38Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "The `light` mixin currently scopes styles under `[data-theme='dark']`, same as the `dark` mixin, so light-mode overrides can never be targeted correctly.",
+        "path": "src/styles/_theme.scss",
+        "line": 20,
+        "original_line": 20,
+        "diff_hunk": "@@ -0,0 +1,26 @@\n+$body-color: var(--body-color);\n+$body-strong-color: var(--body-strong-color);\n+$body-color-rgb: var(--body-color-rgb);\n+$body-bg: var(--body-bg);\n+$body-bg-rgb: var(--body-bg-rgb);\n+$link-color: var(--link-color);\n+$link-hover-color: var(--link-hover-color);\n+$border-color: var(--border-color);\n+$black: var(--black);\n+\n+// scrollbar\n+$scrollbar-track-bg: var(--scrollbar-track-bg);\n+$scrollbar-thumb-bg: var(--scrollbar-thumb-bg);\n+$scrollbar-thumb-hover-bg: var(--scrollbar-thumb-hover-bg);\n+\n+@mixin light {\n+  [data-theme='dark'] & {\n+    @content;\n+  }\n+}",
+        "created_at": "2026-06-24T01:42:38Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`useOnClickOutside(navItemRef, closeMenu, [buttonRef])` passes a new array literal every render. Because the hook depends on `otherDependenceRef`, this will re-register document listeners on each render (unnecessary churn). Memoize the array so it stays referentially stable.",
+        "path": "src/root/root-nav.tsx",
+        "line": 28,
+        "original_line": 28,
+        "diff_hunk": "@@ -0,0 +1,160 @@\n+import { debounce } from 'lodash';\n+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';\n+\n+import { useRootContext } from './root-context.js';\n+import { useOnClickOutside } from './use-click-outside.js';\n+import RenderedItem from './rendered-item.js';\n+\n+interface Props {\n+  routes: RootItemModel[];\n+}\n+\n+export default function RootNav({ routes: routesProp }: Props) {\n+  const { activeItem } = useRootContext();\n+  const [show, setShow] = useState(false);\n+  const navItemRef = useRef<HTMLDivElement>(null);\n+  const buttonRef = useRef<HTMLAnchorElement>(null);\n+  const inputRef = useRef<HTMLInputElement>(null);\n+  const [routes, setRoutes] = useState(routesProp);\n+  const [routesSearch, setRoutesSearch] = useState<RootItemModel[]>([]);\n+  const [textSearch, setTextSearch] = useState('');\n+\n+  const closeMenu = () => {\n+    setShow(false);\n+    setTextSearch('');\n+  };\n+\n+  useOnClickOutside(navItemRef, closeMenu, [buttonRef]);\n+",
+        "created_at": "2026-06-24T01:42:39Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "A new `document.addEventListener('click', ...)` handler is registered once per state group every time the state bar content is rebuilt. This can accumulate handlers and does N-times work per click. Prefer registering a single delegated document click handler (or reuse one stored on the state bar) to collapse/close groups.",
+        "path": "src/scripts/pl-states.entry.ts",
+        "line": 180,
+        "original_line": 180,
+        "diff_hunk": "@@ -0,0 +1,321 @@\n+interface Theme {\n+  value: string;\n+  name: string;\n+}\n+\n+interface StateOption {\n+  name: string;\n+  value: string;\n+}\n+\n+interface State {\n+  name: string;\n+  options?: StateOption[];\n+  multiple?: boolean;\n+}\n+\n+interface StateButton {\n+  parentSelector?: string;\n+  styleModifier: string;\n+  zIndex?: number;\n+}\n+\n+interface ComponentState {\n+  name: string;\n+  selector: string;\n+  button?: StateButton;\n+  states: State[];\n+}\n+\n+let index = 100000;\n+\n+const themes: Theme[] = [\n+  {\n+    value: 'theme-blue-p',\n+    name: 'Blue',\n+  },\n+  {\n+    value: 'theme-white-p',\n+    name: 'White',\n+  },\n+  {\n+    value: 'theme-sand-s',\n+    name: 'Sand',\n+  },\n+  {\n+    value: 'theme-flow-25',\n+    name: 'Flow 25',\n+  },\n+  {\n+    value: 'theme-wave-ac',\n+    name: 'Wave',\n+  },\n+  {\n+    value: 'theme-wave-50',\n+    name: 'Wave 50',\n+  },\n+  {\n+    value: 'theme-pearl-s',\n+    name: 'Pearl',\n+  },\n+  {\n+    value: 'theme-pebble-s',\n+    name: 'Pebble',\n+  },\n+];\n+\n+const newId = () => {\n+  return 'pl-state-id-' + index++;\n+};\n+\n+const createSelect = (state: State, classList: DOMTokenList) => {\n+  if (!state.options) {\n+    return '';\n+  }\n+\n+  const options = state.options;\n+  const name = newId();\n+  const header = state.multiple ? 'Select many...' : (options.find((o) => classList.contains(o.value))?.name ?? '---');\n+  const type = state.multiple ? 'checkbox' : 'radio';\n+\n+  let optionsHtml = '';\n+\n+  options.forEach((option: StateOption) => {\n+    const selectedHtml = classList.contains(option.value) ? 'checked' : '';\n+    const id = newId();\n+\n+    optionsHtml +=\n+      `<input name=\"${name}\" class=\"pl-state-bar__input\" type=\"${type}\" id=\"${id}\" data-name=\"${option.name}\" value=\"${option.value}\" ${selectedHtml}/>` +\n+      `<label class=\"pl-state-bar__label\" for=\"${id}\"><span>${option.name}</span></label>`;\n+  });\n+\n+  const html =\n+    '<div class=\"pl-state-bar__group\">' +\n+    `<div>${state.name}:</div>` +\n+    `<div class=\"pl-state-bar__group-heade",
+        "created_at": "2026-06-24T01:42:39Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "File watching is forced to polling for all environments. The comment says this is only needed during tests; polling in normal dev can significantly increase CPU usage. Gate polling behind `isTest`.",
+        "path": "src/create-vite-dev-server.ts",
+        "line": 22,
+        "original_line": 22,
+        "diff_hunk": "@@ -0,0 +1,33 @@\n+import { ViteDevServer, createServer } from 'vite';\n+\n+interface Props {\n+  root: string;\n+  baseUrl?: string;\n+  isTest: boolean;\n+  hmrPort?: number;\n+}\n+\n+const createViteDevServer = ({ root, baseUrl, hmrPort, isTest }: Props): Promise<ViteDevServer> => {\n+  const server = createServer({\n+    root,\n+    base: baseUrl,\n+    logLevel: isTest ? 'error' : 'info',\n+    server: {\n+      middlewareMode: true,\n+      watch: {\n+        // During tests we edit the files too fast and sometimes chokidar\n+        // misses change events, so enforce polling for consistency\n+        usePolling: true,\n+        interval: 200,\n+      },",
+        "created_at": "2026-06-24T01:42:40Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "Several new testable modules added in this PR (and already covered by tests) are not in `coverage.include`, so V8 coverage enforcement will silently ignore them. Add them to `coverage.include` to match the repo’s coverage policy and prevent regressions from slipping in.",
+        "path": "vitest.config.ts",
+        "line": 23,
+        "original_line": 23,
+        "diff_hunk": "@@ -0,0 +1,27 @@\n+import { defineConfig } from 'vitest/config';\n+\n+export default defineConfig({\n+  test: {\n+    environment: 'jsdom',\n+    globals: true,\n+    setupFiles: ['./test/setup.ts'],\n+    include: ['src/**/*.test.{ts,tsx}'],\n+    coverage: {\n+      provider: 'v8',\n+      reportsDirectory: './coverage',\n+      reporter: ['text', 'text-summary', 'html', 'lcov'],\n+      include: [\n+        'src/asset-hash.ts',\n+        'src/filename.ts',\n+        'src/hooks/inject-functions.ts',\n+        'src/hooks/inject-functions-core.ts',\n+        'src/integration-core.ts',\n+        'src/manual-chunk.ts',\n+        'src/prerender-core.ts',\n+        'src/scripts-core.ts',\n+        'src/styles-core.ts',\n+      ],",
+        "created_at": "2026-06-24T01:42:40Z",
+        "updated_at": "2026-06-24T01:42:41Z"
+      },
+      {
+        "user": {
+          "login": "coderabbitai[bot]"
+        },
+        "body": "_📐 Maintainability & Code Quality_ | _🔴 Critical_\n\n<details>\n<summary>🧩 Analysis chain</summary>\n\n🏁 Script executed:\n\n```shell\n#!/bin/bash\n# Description: Find code generation script for functions.ts\n\n# Look for scripts that generate or write to functions.ts\nrg -n --type=ts --type=js 'functions\\.ts|functions\\.js' -g '!**/node_modules/**' -g '!src/scripts/functions.ts'\n\n# Check if there's a template file\nfd -e tpl -e template 'functions' src/\n```\n\nRepository: precise-alloy/alveo\n\nLength of output: 157\n\n---\n\n🏁 Script executed:\n\n```shell\n# Read the actual file to see if it contains business logic\ncat -n src/scripts/functions.ts\n\n# Check package.json for any generation scripts\ngrep -A5 -B5 'generate\\|build\\|codegen' package.json 2>/dev/null || true\n\n# Search for build configuration files that might reference code generation\nfd -e config.js -e vite.config.ts -e webpack.config.js -e tsconfig.json src/\n\n# Look for any build or scripts directories\nfd -t d 'scripts\\|build\\|tools\\|generate' --max-depth 2 .\n\n# Check if there are comments in the file itself about generation\nhead -20 src/scripts/functions.ts\n```\n\nRepository: precise-alloy/alveo\n\nLength of output: 3953\n\n---\n\n\n\n</details>\n\n**Remove the misleading AUTO-GENERATED FILE header.**\n\nLines 1-3 claim this is auto-generated, but the file contains substantial hand-written business logic (getModifiers, viteAbsoluteUrl, getCookie functions). No code generation tools, templates, or generator references exist in the build system (package.json contains only TypeScript compilation). Additionally, the contradictory comment \"Please commit any changes you see here\" directly conflicts with \"DO NOT EDIT BY HAND.\"\n\n<details>\n<summary>🤖 Prompt for AI Agents</summary>\n\n```\nVerify each finding against current code. Fix only still-valid issues, skip the\nrest with a brief reason, keep changes minimal, and validate.\n\nIn `@src/scripts/functions.ts` around lines 1 - 3, The file begins with a\nmisleading AUTO-GENERATED FILE header comment (lines 1-3) that contradicts the\nactual nature of the code, which contains hand-written business logic in\nfunctions like getModifiers, viteAbsoluteUrl, and getCookie. Remove the entire\nAUTO-GENERATED FILE header comment block at the beginning of the file since this\nis clearly a hand-written source file with no code generation involved in its\nbuild process.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:poseidon:puma -->\n\n<!-- cr-indicator-types:potential_issue -->\n\n<!-- cr-comment:v1:d2c8faa88b883845fd17629a -->\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
+        "path": "src/scripts/functions.ts",
+        "line": 3,
+        "original_line": 3,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND.\n+ * Please commit any changes you see here.\n+ */",
+        "created_at": "2026-06-24T01:59:08Z",
+        "updated_at": "2026-06-24T07:52:08Z"
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/, skip for now",
+        "path": "src/scripts-core.ts",
+        "line": 65,
+        "original_line": 65,
+        "diff_hunk": "@@ -0,0 +1,113 @@\n+/* eslint-disable no-console */\n+import fs from 'fs';\n+import path from 'path';\n+\n+import chokidar from 'chokidar';\n+import { glob } from 'glob';\n+import slash from 'slash';\n+import { transformWithEsbuild } from 'vite';\n+\n+type ScriptGlobSync = (pattern: string) => string[];\n+\n+export interface ScriptCoreDependencies {\n+  existsSync: typeof fs.existsSync;\n+  mkdirSync: typeof fs.mkdirSync;\n+  readFileSync: typeof fs.readFileSync;\n+  writeFileSync: typeof fs.writeFileSync;\n+  transformWithEsbuild: typeof transformWithEsbuild;\n+  globSync: ScriptGlobSync;\n+  createWatcher: typeof chokidar.watch;\n+  log: (message?: unknown, ...optionalParams: unknown[]) => void;\n+}\n+\n+export const defaultScriptCoreDependencies: ScriptCoreDependencies = {\n+  existsSync: fs.existsSync,\n+  mkdirSync: fs.mkdirSync,\n+  readFileSync: fs.readFileSync,\n+  writeFileSync: fs.writeFileSync,\n+  transformWithEsbuild,\n+  globSync: glob.sync,\n+  createWatcher: chokidar.watch,\n+  log: console.log.bind(console),\n+};\n+\n+export const getScriptTransformOptions = (inputPath: string) => ({\n+  minify: true,\n+  format: 'esm' as const,\n+  sourcemap: path.basename(inputPath).includes('critical') ? false : ('external' as const),\n+});\n+\n+/**\n+ * Resolves the output path for a compiled script file relative to the\n+ * consumer's project root.\n+ */\n+export const getScriptOutputPath = (inputPath: string, projectRoot: string): string => {\n+  return path.resolve(projectRoot, 'public/assets/js/' + path.parse(inputPath).name + '.js');\n+};\n+\n+export const compileScript = async (\n+  inputPath: string,\n+  projectRoot: string,\n+  dependencies: ScriptCoreDependencies = defaultScriptCoreDependencies\n+): Promise<void> => {\n+  dependencies.log('compile:', slash(inputPath));\n+\n+  const code = dependencies.readFileSync(inputPath, 'utf8');\n+\n+  return dependencies\n+    .transformWithEsbuild(code, inputPath, getScriptTransformOptions(inputPath))\n+    .then((result) => {\n+      const savePath = getScriptOutputPath(",
+        "created_at": "2026-06-24T03:29:12Z",
+        "updated_at": "2026-06-24T03:29:54Z",
+        "in_reply_to_id": 3464039242
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/, skip for now",
+        "path": "src/integration-core.ts",
+        "line": 78,
+        "original_line": 78,
+        "diff_hunk": "@@ -0,0 +1,257 @@\n+import path from 'path';\n+\n+import slash from 'slash';\n+\n+import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.js';\n+import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.js';\n+\n+export interface CopyItem {\n+  from: string;\n+  to?: string;\n+}\n+\n+export interface FileExistCheck {\n+  folder?: string;\n+  fileName: string | RegExp;\n+}\n+\n+export interface IntegrationDependencies {\n+  existsSync: (value: string) => boolean;\n+  statSync: (value: string) => { isDirectory: () => boolean };\n+  rmSync: (target: string, options?: { recursive?: boolean; force?: boolean }) => void;\n+  mkdirSync: (target: string, options?: { recursive?: boolean }) => void;\n+  cpSync: (source: string, destination: string, options?: { recursive?: boolean; force?: boolean }) => void;\n+  copyFileSync: (source: string, destination: string) => void;\n+  readFileSync: (path: string, encoding?: BufferEncoding) => string | Buffer;\n+  writeFileSync: (path: string, data: string) => void;\n+  readdirSync: (path: string) => string[];\n+  globSync: (pattern: string, options?: { nodir?: boolean }) => string[];\n+  nodeFsCpSync: (source: string, destination: string, options?: { recursive?: boolean }) => void;\n+  log: (message?: unknown, ...optionalParams: unknown[]) => void;\n+  warn: (value: string) => unknown;\n+}\n+\n+export interface IntegrationConfig {\n+  argv: string[];\n+  staticBasePath: string;\n+  srcBasePath: string;\n+  destBasePath: string;\n+  patternPath?: string;\n+  copyItems: CopyItem[];\n+  hashItems: string[];\n+  checkExistFileList: FileExistCheck[];\n+}\n+\n+export const parseIntegrationArgs = (argv: string[]) => {\n+  return {\n+    mode: parsePrerenderArgs(argv).mode,\n+  };\n+};\n+\n+export const copyConfiguredItems = (\n+  copyItems: CopyItem[],\n+  { srcBasePath, destBasePath }: Pick<IntegrationConfig, 'srcBasePath' | 'destBasePath'>,\n+  dependencies: IntegrationDependencies\n+): void => {\n+  copyItems.forEach((item) ",
+        "created_at": "2026-06-24T03:29:44Z",
+        "updated_at": "2026-06-24T03:29:45Z",
+        "in_reply_to_id": 3464039259
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/styles/_theme.scss",
+        "line": 20,
+        "original_line": 20,
+        "diff_hunk": "@@ -0,0 +1,26 @@\n+$body-color: var(--body-color);\n+$body-strong-color: var(--body-strong-color);\n+$body-color-rgb: var(--body-color-rgb);\n+$body-bg: var(--body-bg);\n+$body-bg-rgb: var(--body-bg-rgb);\n+$link-color: var(--link-color);\n+$link-hover-color: var(--link-hover-color);\n+$border-color: var(--border-color);\n+$black: var(--black);\n+\n+// scrollbar\n+$scrollbar-track-bg: var(--scrollbar-track-bg);\n+$scrollbar-thumb-bg: var(--scrollbar-thumb-bg);\n+$scrollbar-thumb-hover-bg: var(--scrollbar-thumb-hover-bg);\n+\n+@mixin light {\n+  [data-theme='dark'] & {\n+    @content;\n+  }\n+}",
+        "created_at": "2026-06-24T03:38:12Z",
+        "updated_at": "2026-06-24T03:38:13Z",
+        "in_reply_to_id": 3464039285
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/root/root-nav.tsx",
+        "line": 28,
+        "original_line": 28,
+        "diff_hunk": "@@ -0,0 +1,160 @@\n+import { debounce } from 'lodash';\n+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';\n+\n+import { useRootContext } from './root-context.js';\n+import { useOnClickOutside } from './use-click-outside.js';\n+import RenderedItem from './rendered-item.js';\n+\n+interface Props {\n+  routes: RootItemModel[];\n+}\n+\n+export default function RootNav({ routes: routesProp }: Props) {\n+  const { activeItem } = useRootContext();\n+  const [show, setShow] = useState(false);\n+  const navItemRef = useRef<HTMLDivElement>(null);\n+  const buttonRef = useRef<HTMLAnchorElement>(null);\n+  const inputRef = useRef<HTMLInputElement>(null);\n+  const [routes, setRoutes] = useState(routesProp);\n+  const [routesSearch, setRoutesSearch] = useState<RootItemModel[]>([]);\n+  const [textSearch, setTextSearch] = useState('');\n+\n+  const closeMenu = () => {\n+    setShow(false);\n+    setTextSearch('');\n+  };\n+\n+  useOnClickOutside(navItemRef, closeMenu, [buttonRef]);\n+",
+        "created_at": "2026-06-24T03:40:16Z",
+        "updated_at": "2026-06-24T03:40:16Z",
+        "in_reply_to_id": 3464039331
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/scripts/pl-states.entry.ts",
+        "line": 180,
+        "original_line": 180,
+        "diff_hunk": "@@ -0,0 +1,321 @@\n+interface Theme {\n+  value: string;\n+  name: string;\n+}\n+\n+interface StateOption {\n+  name: string;\n+  value: string;\n+}\n+\n+interface State {\n+  name: string;\n+  options?: StateOption[];\n+  multiple?: boolean;\n+}\n+\n+interface StateButton {\n+  parentSelector?: string;\n+  styleModifier: string;\n+  zIndex?: number;\n+}\n+\n+interface ComponentState {\n+  name: string;\n+  selector: string;\n+  button?: StateButton;\n+  states: State[];\n+}\n+\n+let index = 100000;\n+\n+const themes: Theme[] = [\n+  {\n+    value: 'theme-blue-p',\n+    name: 'Blue',\n+  },\n+  {\n+    value: 'theme-white-p',\n+    name: 'White',\n+  },\n+  {\n+    value: 'theme-sand-s',\n+    name: 'Sand',\n+  },\n+  {\n+    value: 'theme-flow-25',\n+    name: 'Flow 25',\n+  },\n+  {\n+    value: 'theme-wave-ac',\n+    name: 'Wave',\n+  },\n+  {\n+    value: 'theme-wave-50',\n+    name: 'Wave 50',\n+  },\n+  {\n+    value: 'theme-pearl-s',\n+    name: 'Pearl',\n+  },\n+  {\n+    value: 'theme-pebble-s',\n+    name: 'Pebble',\n+  },\n+];\n+\n+const newId = () => {\n+  return 'pl-state-id-' + index++;\n+};\n+\n+const createSelect = (state: State, classList: DOMTokenList) => {\n+  if (!state.options) {\n+    return '';\n+  }\n+\n+  const options = state.options;\n+  const name = newId();\n+  const header = state.multiple ? 'Select many...' : (options.find((o) => classList.contains(o.value))?.name ?? '---');\n+  const type = state.multiple ? 'checkbox' : 'radio';\n+\n+  let optionsHtml = '';\n+\n+  options.forEach((option: StateOption) => {\n+    const selectedHtml = classList.contains(option.value) ? 'checked' : '';\n+    const id = newId();\n+\n+    optionsHtml +=\n+      `<input name=\"${name}\" class=\"pl-state-bar__input\" type=\"${type}\" id=\"${id}\" data-name=\"${option.name}\" value=\"${option.value}\" ${selectedHtml}/>` +\n+      `<label class=\"pl-state-bar__label\" for=\"${id}\"><span>${option.name}</span></label>`;\n+  });\n+\n+  const html =\n+    '<div class=\"pl-state-bar__group\">' +\n+    `<div>${state.name}:</div>` +\n+    `<div class=\"pl-state-bar__group-heade",
+        "created_at": "2026-06-24T03:41:46Z",
+        "updated_at": "2026-06-24T03:41:46Z",
+        "in_reply_to_id": 3464039344
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/create-vite-dev-server.ts",
+        "line": 22,
+        "original_line": 22,
+        "diff_hunk": "@@ -0,0 +1,33 @@\n+import { ViteDevServer, createServer } from 'vite';\n+\n+interface Props {\n+  root: string;\n+  baseUrl?: string;\n+  isTest: boolean;\n+  hmrPort?: number;\n+}\n+\n+const createViteDevServer = ({ root, baseUrl, hmrPort, isTest }: Props): Promise<ViteDevServer> => {\n+  const server = createServer({\n+    root,\n+    base: baseUrl,\n+    logLevel: isTest ? 'error' : 'info',\n+    server: {\n+      middlewareMode: true,\n+      watch: {\n+        // During tests we edit the files too fast and sometimes chokidar\n+        // misses change events, so enforce polling for consistency\n+        usePolling: true,\n+        interval: 200,\n+      },",
+        "created_at": "2026-06-24T03:42:35Z",
+        "updated_at": "2026-06-24T03:42:35Z",
+        "in_reply_to_id": 3464039356
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack, keep it as-is for now, more tests will be added soon ",
+        "path": "vitest.config.ts",
+        "line": 23,
+        "original_line": 23,
+        "diff_hunk": "@@ -0,0 +1,27 @@\n+import { defineConfig } from 'vitest/config';\n+\n+export default defineConfig({\n+  test: {\n+    environment: 'jsdom',\n+    globals: true,\n+    setupFiles: ['./test/setup.ts'],\n+    include: ['src/**/*.test.{ts,tsx}'],\n+    coverage: {\n+      provider: 'v8',\n+      reportsDirectory: './coverage',\n+      reporter: ['text', 'text-summary', 'html', 'lcov'],\n+      include: [\n+        'src/asset-hash.ts',\n+        'src/filename.ts',\n+        'src/hooks/inject-functions.ts',\n+        'src/hooks/inject-functions-core.ts',\n+        'src/integration-core.ts',\n+        'src/manual-chunk.ts',\n+        'src/prerender-core.ts',\n+        'src/scripts-core.ts',\n+        'src/styles-core.ts',\n+      ],",
+        "created_at": "2026-06-24T03:44:56Z",
+        "updated_at": "2026-06-24T03:44:57Z",
+        "in_reply_to_id": 3464039380
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "The `activeItem` state initializer is a redundant conditional that always evaluates to `undefined`. This adds noise and may suggest SSR-specific behavior that isn't actually present.",
+        "path": "src/root/index.tsx",
+        "line": 13,
+        "original_line": 13,
+        "diff_hunk": "@@ -0,0 +1,132 @@\n+'use client';\n+\n+import { useEffect, useMemo, useState } from 'react';\n+\n+import { RootContext, RootData } from './root-context.js';\n+import FrameControls from './frame-controls.js';\n+import ActiveItemOptions from './active-item-options.js';\n+import RootNav from './root-nav.js';\n+import IconListDialog from './icon-list-dialog.js';\n+\n+export default function Root(props: RootModel) {\n+  const [activeItem, setActiveItem] = useState<SinglePageNode | undefined>(typeof window !== 'undefined' ? undefined : undefined);\n+  const [isTopPanel, setTopPanel] = useState<boolean>(() =>",
+        "created_at": "2026-06-24T04:00:14Z",
+        "updated_at": "2026-06-24T04:00:15Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "This renders a nested interactive element (`<a>` containing a `<button>`), which is invalid HTML and causes keyboard/screen-reader issues. If you need a clickable control here, use a single interactive element and ensure it is keyboard accessible without disabling a11y lint rules.",
+        "path": "src/root/root-nav.tsx",
+        "line": 81,
+        "original_line": 81,
+        "diff_hunk": "@@ -0,0 +1,160 @@\n+import { debounce } from 'lodash';\n+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';\n+\n+import { useRootContext } from './root-context.js';\n+import { useOnClickOutside } from './use-click-outside.js';\n+import RenderedItem from './rendered-item.js';\n+\n+interface Props {\n+  routes: RootItemModel[];\n+}\n+\n+export default function RootNav({ routes: routesProp }: Props) {\n+  const { activeItem } = useRootContext();\n+  const [show, setShow] = useState(false);\n+  const navItemRef = useRef<HTMLDivElement>(null);\n+  const buttonRef = useRef<HTMLAnchorElement>(null);\n+  const inputRef = useRef<HTMLInputElement>(null);\n+  const [routes, setRoutes] = useState(routesProp);\n+  const [routesSearch, setRoutesSearch] = useState<RootItemModel[]>([]);\n+  const [textSearch, setTextSearch] = useState('');\n+\n+  const closeMenu = () => {\n+    setShow(false);\n+    setTextSearch('');\n+  };\n+\n+  useOnClickOutside(navItemRef, closeMenu, [buttonRef]);\n+\n+  const handleClick = () => {\n+    if (!show && inputRef.current) {\n+      inputRef.current.focus();\n+    }\n+    setShow(!show);\n+  };\n+\n+  const handleChange = useCallback(\n+    (text: string) => {\n+      const searchTerms = text.trim().toLocaleLowerCase().split(/\\s+/);\n+      const isSearchActive = searchTerms.length > 0 && text.trim();\n+\n+      const isItemIncludedText: (item: RootItemModel) => boolean = (item: RootItemModel) => {\n+        if (!isSearchActive) return false;\n+\n+        if (item.type === 'single') {\n+          return searchTerms.some((s) => item.name.toLocaleLowerCase().includes(s));\n+        }\n+\n+        return searchTerms.some(\n+          (s) => item.name.toLocaleLowerCase().includes(s) || (item as MultiplePageNode).items.some((x) => isItemIncludedText(x))\n+        );\n+      };\n+\n+      const tempRoutesSearch: RootItemModel[] = [];\n+      const tempRoutes: RootItemModel[] = [];\n+\n+      routesProp.forEach((item) => {\n+        (isItemIncludedText(item) ? tempRoutesSearch : tempRout",
+        "created_at": "2026-06-24T04:00:15Z",
+        "updated_at": "2026-06-24T04:00:16Z"
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/root/index.tsx",
+        "line": 13,
+        "original_line": 13,
+        "diff_hunk": "@@ -0,0 +1,132 @@\n+'use client';\n+\n+import { useEffect, useMemo, useState } from 'react';\n+\n+import { RootContext, RootData } from './root-context.js';\n+import FrameControls from './frame-controls.js';\n+import ActiveItemOptions from './active-item-options.js';\n+import RootNav from './root-nav.js';\n+import IconListDialog from './icon-list-dialog.js';\n+\n+export default function Root(props: RootModel) {\n+  const [activeItem, setActiveItem] = useState<SinglePageNode | undefined>(typeof window !== 'undefined' ? undefined : undefined);\n+  const [isTopPanel, setTopPanel] = useState<boolean>(() =>",
+        "created_at": "2026-06-24T04:05:23Z",
+        "updated_at": "2026-06-24T04:05:24Z",
+        "in_reply_to_id": 3464440922
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/root/root-nav.tsx",
+        "line": 81,
+        "original_line": 81,
+        "diff_hunk": "@@ -0,0 +1,160 @@\n+import { debounce } from 'lodash';\n+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';\n+\n+import { useRootContext } from './root-context.js';\n+import { useOnClickOutside } from './use-click-outside.js';\n+import RenderedItem from './rendered-item.js';\n+\n+interface Props {\n+  routes: RootItemModel[];\n+}\n+\n+export default function RootNav({ routes: routesProp }: Props) {\n+  const { activeItem } = useRootContext();\n+  const [show, setShow] = useState(false);\n+  const navItemRef = useRef<HTMLDivElement>(null);\n+  const buttonRef = useRef<HTMLAnchorElement>(null);\n+  const inputRef = useRef<HTMLInputElement>(null);\n+  const [routes, setRoutes] = useState(routesProp);\n+  const [routesSearch, setRoutesSearch] = useState<RootItemModel[]>([]);\n+  const [textSearch, setTextSearch] = useState('');\n+\n+  const closeMenu = () => {\n+    setShow(false);\n+    setTextSearch('');\n+  };\n+\n+  useOnClickOutside(navItemRef, closeMenu, [buttonRef]);\n+\n+  const handleClick = () => {\n+    if (!show && inputRef.current) {\n+      inputRef.current.focus();\n+    }\n+    setShow(!show);\n+  };\n+\n+  const handleChange = useCallback(\n+    (text: string) => {\n+      const searchTerms = text.trim().toLocaleLowerCase().split(/\\s+/);\n+      const isSearchActive = searchTerms.length > 0 && text.trim();\n+\n+      const isItemIncludedText: (item: RootItemModel) => boolean = (item: RootItemModel) => {\n+        if (!isSearchActive) return false;\n+\n+        if (item.type === 'single') {\n+          return searchTerms.some((s) => item.name.toLocaleLowerCase().includes(s));\n+        }\n+\n+        return searchTerms.some(\n+          (s) => item.name.toLocaleLowerCase().includes(s) || (item as MultiplePageNode).items.some((x) => isItemIncludedText(x))\n+        );\n+      };\n+\n+      const tempRoutesSearch: RootItemModel[] = [];\n+      const tempRoutes: RootItemModel[] = [];\n+\n+      routesProp.forEach((item) => {\n+        (isItemIncludedText(item) ? tempRoutesSearch : tempRout",
+        "created_at": "2026-06-24T04:07:02Z",
+        "updated_at": "2026-06-24T04:07:02Z",
+        "in_reply_to_id": 3464440965
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "Route generation maps a consumer page named `Root` to `/`, but this file also unconditionally adds the framework Root route at `/`. If a consumer provides `src/pages/Root.tsx`, this will create duplicate `/` routes and ambiguous prerender output. Reserve `/` for the framework Root UI and keep consumer pages under `/pages/...`.",
+        "path": "src/routes.ts",
+        "line": 25,
+        "original_line": 25,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+import _ from 'lodash';\n+import { pages } from 'virtual:alveo/pages';\n+\n+import RootTemplate from './root/template.js';\n+\n+// Auto generates routes from files under consumer's src/pages\n+// https://vitejs.dev/guide/features.html#glob-import\n+\n+const nodes: RootItemModel[] = [];\n+const routesToPrerender: { route: string; name: string }[] = [];\n+\n+Object.keys(pages).forEach((path) => {\n+  const match = path.match(/\\/src\\/pages\\/(.*)\\.\\w+$/);\n+  const name = match ? match[1]! : '';\n+  const normalizedName = name.replaceAll(/^(\\w+)/gi, (_p0, p1: string) => _.lowerCase(p1).replaceAll(' ', '-'));\n+\n+  const page = pages[path] as { [key: string]: any };\n+\n+  if (!page.default.$$name) {\n+    const node = {\n+      type: 'single',\n+      name: _.startCase(_.lowerCase(name)),\n+      path: name === 'Root' ? '/' : `/pages/${normalizedName}`,\n+      component: page.default,\n+    } as SinglePageNode;",
+        "created_at": "2026-06-24T04:27:53Z",
+        "updated_at": "2026-06-24T04:27:54Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "Cookie parsing uses `cookie.split('=')`, which truncates values containing `=` (common for base64/JWT) and can also produce `undefined` values when a segment lacks `=`. Parse on the first `=` instead so values are preserved.",
+        "path": "src/scripts/functions.ts",
+        "line": 63,
+        "original_line": 63,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND.\n+ * Please commit any changes you see here.\n+ */\n+\n+type RuntimeGlobal = typeof globalThis & {\n+  window?: Window & typeof globalThis;\n+  getModifiers?: (model: BasedAtomicModel, baseClass: string) => string;\n+  viteAbsoluteUrl?: (path: string, addExtension?: boolean) => string;\n+};\n+\n+const runtimeGlobal = globalThis as RuntimeGlobal;\n+const runtimeWindow = (typeof window !== 'undefined' ? window : runtimeGlobal) as Window & typeof globalThis;\n+\n+if (typeof window === 'undefined') {\n+  runtimeGlobal.window = runtimeWindow;\n+}\n+\n+runtimeGlobal.getModifiers = (model: BasedAtomicModel, baseClass: string) => {\n+  const classes = [baseClass];\n+\n+  model.globalModifier?.forEach((m) => classes.push(m));\n+  model.styleModifier?.forEach((m) => classes.push(baseClass + '--' + m));\n+\n+  if (model.theme) {\n+    classes.push('theme-' + model.theme);\n+  }\n+\n+  return classes.join(' ');\n+};\n+\n+runtimeGlobal.viteAbsoluteUrl = (path: string, addExtension = false): string => {\n+  if (/^https?:\\/\\//gi.test(path)) {\n+    return path;\n+  }\n+  const baseUrl = import.meta.env.BASE_URL;\n+  const normalizedRemain =\n+    (path?.startsWith('/') ? path : '/' + path) + (addExtension && !path.endsWith('/') ? import.meta.env.VITE_PATH_EXTENSION : '');\n+\n+  if (!baseUrl) {\n+    return normalizedRemain;\n+  }\n+\n+  if (!baseUrl.endsWith('/')) {\n+    return baseUrl + normalizedRemain;\n+  }\n+\n+  const len = baseUrl.length;\n+\n+  return baseUrl.substring(0, len - 1) + normalizedRemain;\n+};\n+\n+runtimeWindow.getCookie = (name: string) => {\n+  if (typeof document === 'undefined') {\n+    return undefined;\n+  }\n+\n+  const cookies: { [name: string]: string } = {};\n+\n+  document.cookie.split(';').forEach((cookie) => {\n+    const [name, value] = cookie.split('=') as [string, string];\n+\n+    cookies[name.trim()] = value;\n+  });",
+        "created_at": "2026-06-24T04:27:53Z",
+        "updated_at": "2026-06-24T04:27:54Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`renderComponent` is invoked for side effects via `forEach.call(...)`. Returning a React fragment from the `else` branch has no effect and is misleading; it also suggests a render path that never happens. Prefer returning `undefined`/early-exit consistently.",
+        "path": "src/react-loader.tsx",
+        "line": 44,
+        "original_line": 44,
+        "diff_hunk": "@@ -0,0 +1,69 @@\n+import { lazy } from 'react';\n+import ReactDOM from 'react-dom/client';\n+import YAML from 'js-yaml';\n+import './scripts/functions.js';\n+import { clientComponents } from 'virtual:alveo/client-components';\n+\n+const blocks: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {\n+  root: lazy(() => import('./root/index.js')),\n+  ...clientComponents,\n+};\n+\n+const SAFE_CONTAINER_TAGS = new Set(['div', 'section']);\n+\n+const getSafeTagName = (tagName: string | null): string => {\n+  const normalizedTag = (tagName ?? '').trim().toLowerCase();\n+\n+  return SAFE_CONTAINER_TAGS.has(normalizedTag) ? normalizedTag : 'section';\n+};\n+\n+const renderComponent = (scriptSection: HTMLScriptElement) => {\n+  const blockType = scriptSection.getAttribute('data-rct');\n+  const data = scriptSection.textContent ? scriptSection.textContent : '{}';\n+  const type = scriptSection.getAttribute('type');\n+\n+  if (!blockType || !data) {\n+    return;\n+  }\n+\n+  const Component = blocks[blockType];\n+\n+  if (Component) {\n+    scriptSection.textContent = null;\n+    const tagName = getSafeTagName(scriptSection.getAttribute('data-tag'));\n+    const section = document.createElement(tagName);\n+\n+    section.className = scriptSection.getAttribute('data-class') ?? '';\n+    scriptSection.replaceWith(section);\n+\n+    const props = type === 'application/json' ? JSON.parse(data) : type === 'application/yaml' ? YAML.load(data) : {};\n+\n+    ReactDOM.createRoot(section).render(<Component {...props} />);\n+  } else {\n+    return <></>;\n+  }",
+        "created_at": "2026-06-24T04:27:53Z",
+        "updated_at": "2026-06-24T04:27:54Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`createSelect` builds HTML strings by interpolating `state.name`, `header`, `option.name`, and `option.value` and later injects them via `innerHTML`. Because this data ultimately comes from fetched JSON (`pl-states.json`), it can introduce XSS if any of those fields contain HTML/attribute-breaking characters. Build DOM nodes with `textContent`/`setAttribute` (or at minimum escape HTML/attributes) before inserting into the document.",
+        "path": "src/scripts/pl-states.entry.ts",
+        "line": 90,
+        "original_line": 90,
+        "diff_hunk": "@@ -0,0 +1,321 @@\n+interface Theme {\n+  value: string;\n+  name: string;\n+}\n+\n+interface StateOption {\n+  name: string;\n+  value: string;\n+}\n+\n+interface State {\n+  name: string;\n+  options?: StateOption[];\n+  multiple?: boolean;\n+}\n+\n+interface StateButton {\n+  parentSelector?: string;\n+  styleModifier: string;\n+  zIndex?: number;\n+}\n+\n+interface ComponentState {\n+  name: string;\n+  selector: string;\n+  button?: StateButton;\n+  states: State[];\n+}\n+\n+let index = 100000;\n+\n+const themes: Theme[] = [\n+  {\n+    value: 'theme-blue-p',\n+    name: 'Blue',\n+  },\n+  {\n+    value: 'theme-white-p',\n+    name: 'White',\n+  },\n+  {\n+    value: 'theme-sand-s',\n+    name: 'Sand',\n+  },\n+  {\n+    value: 'theme-flow-25',\n+    name: 'Flow 25',\n+  },\n+  {\n+    value: 'theme-wave-ac',\n+    name: 'Wave',\n+  },\n+  {\n+    value: 'theme-wave-50',\n+    name: 'Wave 50',\n+  },\n+  {\n+    value: 'theme-pearl-s',\n+    name: 'Pearl',\n+  },\n+  {\n+    value: 'theme-pebble-s',\n+    name: 'Pebble',\n+  },\n+];\n+\n+const newId = () => {\n+  return 'pl-state-id-' + index++;\n+};\n+\n+const createSelect = (state: State, classList: DOMTokenList) => {\n+  if (!state.options) {\n+    return '';\n+  }\n+\n+  const options = state.options;\n+  const name = newId();\n+  const header = state.multiple ? 'Select many...' : (options.find((o) => classList.contains(o.value))?.name ?? '---');\n+  const type = state.multiple ? 'checkbox' : 'radio';\n+\n+  let optionsHtml = '';\n+\n+  options.forEach((option: StateOption) => {\n+    const selectedHtml = classList.contains(option.value) ? 'checked' : '';\n+    const id = newId();\n+\n+    optionsHtml +=\n+      `<input name=\"${name}\" class=\"pl-state-bar__input\" type=\"${type}\" id=\"${id}\" data-name=\"${option.name}\" value=\"${option.value}\" ${selectedHtml}/>` +\n+      `<label class=\"pl-state-bar__label\" for=\"${id}\"><span>${option.name}</span></label>`;\n+  });",
+        "created_at": "2026-06-24T04:27:54Z",
+        "updated_at": "2026-06-24T04:27:54Z"
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/routes.ts",
+        "line": 25,
+        "original_line": 25,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+import _ from 'lodash';\n+import { pages } from 'virtual:alveo/pages';\n+\n+import RootTemplate from './root/template.js';\n+\n+// Auto generates routes from files under consumer's src/pages\n+// https://vitejs.dev/guide/features.html#glob-import\n+\n+const nodes: RootItemModel[] = [];\n+const routesToPrerender: { route: string; name: string }[] = [];\n+\n+Object.keys(pages).forEach((path) => {\n+  const match = path.match(/\\/src\\/pages\\/(.*)\\.\\w+$/);\n+  const name = match ? match[1]! : '';\n+  const normalizedName = name.replaceAll(/^(\\w+)/gi, (_p0, p1: string) => _.lowerCase(p1).replaceAll(' ', '-'));\n+\n+  const page = pages[path] as { [key: string]: any };\n+\n+  if (!page.default.$$name) {\n+    const node = {\n+      type: 'single',\n+      name: _.startCase(_.lowerCase(name)),\n+      path: name === 'Root' ? '/' : `/pages/${normalizedName}`,\n+      component: page.default,\n+    } as SinglePageNode;",
+        "created_at": "2026-06-24T04:29:32Z",
+        "updated_at": "2026-06-24T04:29:32Z",
+        "in_reply_to_id": 3464527839
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/scripts/functions.ts",
+        "line": 63,
+        "original_line": 63,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND.\n+ * Please commit any changes you see here.\n+ */\n+\n+type RuntimeGlobal = typeof globalThis & {\n+  window?: Window & typeof globalThis;\n+  getModifiers?: (model: BasedAtomicModel, baseClass: string) => string;\n+  viteAbsoluteUrl?: (path: string, addExtension?: boolean) => string;\n+};\n+\n+const runtimeGlobal = globalThis as RuntimeGlobal;\n+const runtimeWindow = (typeof window !== 'undefined' ? window : runtimeGlobal) as Window & typeof globalThis;\n+\n+if (typeof window === 'undefined') {\n+  runtimeGlobal.window = runtimeWindow;\n+}\n+\n+runtimeGlobal.getModifiers = (model: BasedAtomicModel, baseClass: string) => {\n+  const classes = [baseClass];\n+\n+  model.globalModifier?.forEach((m) => classes.push(m));\n+  model.styleModifier?.forEach((m) => classes.push(baseClass + '--' + m));\n+\n+  if (model.theme) {\n+    classes.push('theme-' + model.theme);\n+  }\n+\n+  return classes.join(' ');\n+};\n+\n+runtimeGlobal.viteAbsoluteUrl = (path: string, addExtension = false): string => {\n+  if (/^https?:\\/\\//gi.test(path)) {\n+    return path;\n+  }\n+  const baseUrl = import.meta.env.BASE_URL;\n+  const normalizedRemain =\n+    (path?.startsWith('/') ? path : '/' + path) + (addExtension && !path.endsWith('/') ? import.meta.env.VITE_PATH_EXTENSION : '');\n+\n+  if (!baseUrl) {\n+    return normalizedRemain;\n+  }\n+\n+  if (!baseUrl.endsWith('/')) {\n+    return baseUrl + normalizedRemain;\n+  }\n+\n+  const len = baseUrl.length;\n+\n+  return baseUrl.substring(0, len - 1) + normalizedRemain;\n+};\n+\n+runtimeWindow.getCookie = (name: string) => {\n+  if (typeof document === 'undefined') {\n+    return undefined;\n+  }\n+\n+  const cookies: { [name: string]: string } = {};\n+\n+  document.cookie.split(';').forEach((cookie) => {\n+    const [name, value] = cookie.split('=') as [string, string];\n+\n+    cookies[name.trim()] = value;\n+  });",
+        "created_at": "2026-06-24T04:30:32Z",
+        "updated_at": "2026-06-24T04:30:33Z",
+        "in_reply_to_id": 3464527859
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/react-loader.tsx",
+        "line": 44,
+        "original_line": 44,
+        "diff_hunk": "@@ -0,0 +1,69 @@\n+import { lazy } from 'react';\n+import ReactDOM from 'react-dom/client';\n+import YAML from 'js-yaml';\n+import './scripts/functions.js';\n+import { clientComponents } from 'virtual:alveo/client-components';\n+\n+const blocks: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {\n+  root: lazy(() => import('./root/index.js')),\n+  ...clientComponents,\n+};\n+\n+const SAFE_CONTAINER_TAGS = new Set(['div', 'section']);\n+\n+const getSafeTagName = (tagName: string | null): string => {\n+  const normalizedTag = (tagName ?? '').trim().toLowerCase();\n+\n+  return SAFE_CONTAINER_TAGS.has(normalizedTag) ? normalizedTag : 'section';\n+};\n+\n+const renderComponent = (scriptSection: HTMLScriptElement) => {\n+  const blockType = scriptSection.getAttribute('data-rct');\n+  const data = scriptSection.textContent ? scriptSection.textContent : '{}';\n+  const type = scriptSection.getAttribute('type');\n+\n+  if (!blockType || !data) {\n+    return;\n+  }\n+\n+  const Component = blocks[blockType];\n+\n+  if (Component) {\n+    scriptSection.textContent = null;\n+    const tagName = getSafeTagName(scriptSection.getAttribute('data-tag'));\n+    const section = document.createElement(tagName);\n+\n+    section.className = scriptSection.getAttribute('data-class') ?? '';\n+    scriptSection.replaceWith(section);\n+\n+    const props = type === 'application/json' ? JSON.parse(data) : type === 'application/yaml' ? YAML.load(data) : {};\n+\n+    ReactDOM.createRoot(section).render(<Component {...props} />);\n+  } else {\n+    return <></>;\n+  }",
+        "created_at": "2026-06-24T04:30:56Z",
+        "updated_at": "2026-06-24T04:30:56Z",
+        "in_reply_to_id": 3464527878
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/scripts/pl-states.entry.ts",
+        "line": 90,
+        "original_line": 90,
+        "diff_hunk": "@@ -0,0 +1,321 @@\n+interface Theme {\n+  value: string;\n+  name: string;\n+}\n+\n+interface StateOption {\n+  name: string;\n+  value: string;\n+}\n+\n+interface State {\n+  name: string;\n+  options?: StateOption[];\n+  multiple?: boolean;\n+}\n+\n+interface StateButton {\n+  parentSelector?: string;\n+  styleModifier: string;\n+  zIndex?: number;\n+}\n+\n+interface ComponentState {\n+  name: string;\n+  selector: string;\n+  button?: StateButton;\n+  states: State[];\n+}\n+\n+let index = 100000;\n+\n+const themes: Theme[] = [\n+  {\n+    value: 'theme-blue-p',\n+    name: 'Blue',\n+  },\n+  {\n+    value: 'theme-white-p',\n+    name: 'White',\n+  },\n+  {\n+    value: 'theme-sand-s',\n+    name: 'Sand',\n+  },\n+  {\n+    value: 'theme-flow-25',\n+    name: 'Flow 25',\n+  },\n+  {\n+    value: 'theme-wave-ac',\n+    name: 'Wave',\n+  },\n+  {\n+    value: 'theme-wave-50',\n+    name: 'Wave 50',\n+  },\n+  {\n+    value: 'theme-pearl-s',\n+    name: 'Pearl',\n+  },\n+  {\n+    value: 'theme-pebble-s',\n+    name: 'Pebble',\n+  },\n+];\n+\n+const newId = () => {\n+  return 'pl-state-id-' + index++;\n+};\n+\n+const createSelect = (state: State, classList: DOMTokenList) => {\n+  if (!state.options) {\n+    return '';\n+  }\n+\n+  const options = state.options;\n+  const name = newId();\n+  const header = state.multiple ? 'Select many...' : (options.find((o) => classList.contains(o.value))?.name ?? '---');\n+  const type = state.multiple ? 'checkbox' : 'radio';\n+\n+  let optionsHtml = '';\n+\n+  options.forEach((option: StateOption) => {\n+    const selectedHtml = classList.contains(option.value) ? 'checked' : '';\n+    const id = newId();\n+\n+    optionsHtml +=\n+      `<input name=\"${name}\" class=\"pl-state-bar__input\" type=\"${type}\" id=\"${id}\" data-name=\"${option.name}\" value=\"${option.value}\" ${selectedHtml}/>` +\n+      `<label class=\"pl-state-bar__label\" for=\"${id}\"><span>${option.name}</span></label>`;\n+  });",
+        "created_at": "2026-06-24T04:31:24Z",
+        "updated_at": "2026-06-24T04:31:24Z",
+        "in_reply_to_id": 3464527899
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`languageOptions.globals` is built by mapping browser globals to the string `'off'`, but ESLint globals expect boolean values or `'readonly'`/`'writable'`. Using `'off'` here will make the ESLint config invalid (or behave unexpectedly).",
+        "path": "eslint.config.mjs",
+        "line": 58,
+        "original_line": 58,
+        "diff_hunk": "@@ -0,0 +1,165 @@\n+import { defineConfig, globalIgnores } from 'eslint/config';\n+import tsParser from '@typescript-eslint/parser';\n+import typescriptEslint from '@typescript-eslint/eslint-plugin';\n+import react from 'eslint-plugin-react';\n+import reactHooks from 'eslint-plugin-react-hooks';\n+import reactRefresh from 'eslint-plugin-react-refresh';\n+import jsxA11y from 'eslint-plugin-jsx-a11y';\n+import importPlugin from 'eslint-plugin-import';\n+import unusedImports from 'eslint-plugin-unused-imports';\n+import prettierRecommended from 'eslint-plugin-prettier/recommended';\n+import globals from 'globals';\n+\n+export default defineConfig([\n+  globalIgnores([\n+    '.now/*',\n+    '**/*.css',\n+    '**/.changeset',\n+    '**/dist',\n+    'esm/*',\n+    'public/*',\n+    'tests/*',\n+    'scripts/*',\n+    '**/*.config.js',\n+    '**/.DS_Store',\n+    '**/node_modules',\n+    '**/coverage',\n+    '**/.next',\n+    '**/build',\n+    '!**/.commitlintrc.cjs',\n+    '!**/.lintstagedrc.cjs',\n+    '!**/jest.config.js',\n+    '!**/plopfile.js',\n+    '!**/react-shim.js',\n+    '!**/tsup.config.ts',\n+    '**/template/**'\n+  ]),\n+  {\n+    files: ['**/*.{ts,tsx}'],\n+    extends: [\n+      react.configs.flat.recommended,\n+      react.configs.flat['jsx-runtime'],\n+      reactHooks.configs.flat['recommended-latest'],\n+      jsxA11y.flatConfigs.recommended,\n+      prettierRecommended,\n+    ],\n+\n+    plugins: {\n+      '@typescript-eslint': typescriptEslint,\n+      'unused-imports': unusedImports,\n+      'react-refresh': reactRefresh,\n+      import: importPlugin,\n+    },\n+\n+    languageOptions: {\n+      globals: {\n+        ...Object.fromEntries(Object.entries(globals.browser).map(([key]) => [key, 'off'])),\n+        ...globals.node,\n+      },",
+        "created_at": "2026-06-24T04:36:55Z",
+        "updated_at": "2026-06-24T04:36:56Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "The transform hook always generates a sourcemap (`generateMap`) even when `newCode === code` and the plugin returns `undefined`. This adds unnecessary work on every transformed module and can slow builds significantly.",
+        "path": "src/hooks/transform.ts",
+        "line": 35,
+        "original_line": 35,
+        "diff_hunk": "@@ -0,0 +1,40 @@\n+import type { PluginOption } from 'vite';\n+import type { AlveoContext } from './types.js';\n+\n+import MagicString, { SourceMapOptions } from 'magic-string';\n+\n+import { ASSET_HASH_REGEX, createAppendAssetHash, createDefaultAssetHashDependencies } from '../asset-hash.js';\n+\n+const transform = (context: AlveoContext): PluginOption => {\n+  const assetHashDeps = createDefaultAssetHashDependencies(context.projectRoot);\n+  const appendAssetHash = createAppendAssetHash(assetHashDeps);\n+\n+  return {\n+    name: 'alveo-transform',\n+    enforce: 'post',\n+\n+    // eslint-disable-next-line @typescript-eslint/no-unused-vars\n+    transform(code, id, options?) {\n+      const magicString = new MagicString(code);\n+\n+      if (context.mode === 'production' && code.includes('/* ALVEO_BEGIN_DEVELOPMENT_ONLY */')) {\n+        magicString.replaceAll(/\\/\\* ALVEO_BEGIN_DEVELOPMENT_ONLY \\*\\/[\\s\\S]*?\\/\\* ALVEO_END_DEVELOPMENT_ONLY \\*\\//g, '');\n+      }\n+\n+      magicString.replaceAll('VITE_EXTENSION_UNIQUE_ID', context.env.VITE_EXTENSION_UNIQUE_ID ?? '').replaceAll(ASSET_HASH_REGEX, appendAssetHash);\n+\n+      const sourcemapOptions: SourceMapOptions = { source: id, file: id + '.map', includeContent: false, hires: true };\n+      const newCode = magicString.toString();\n+      const map = magicString.generateMap(sourcemapOptions);\n+\n+      return newCode !== code\n+        ? {\n+            code: newCode,\n+            map,\n+          }\n+        : undefined;",
+        "created_at": "2026-06-24T04:36:56Z",
+        "updated_at": "2026-06-24T04:36:56Z"
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/hooks/transform.ts",
+        "line": 35,
+        "original_line": 35,
+        "diff_hunk": "@@ -0,0 +1,40 @@\n+import type { PluginOption } from 'vite';\n+import type { AlveoContext } from './types.js';\n+\n+import MagicString, { SourceMapOptions } from 'magic-string';\n+\n+import { ASSET_HASH_REGEX, createAppendAssetHash, createDefaultAssetHashDependencies } from '../asset-hash.js';\n+\n+const transform = (context: AlveoContext): PluginOption => {\n+  const assetHashDeps = createDefaultAssetHashDependencies(context.projectRoot);\n+  const appendAssetHash = createAppendAssetHash(assetHashDeps);\n+\n+  return {\n+    name: 'alveo-transform',\n+    enforce: 'post',\n+\n+    // eslint-disable-next-line @typescript-eslint/no-unused-vars\n+    transform(code, id, options?) {\n+      const magicString = new MagicString(code);\n+\n+      if (context.mode === 'production' && code.includes('/* ALVEO_BEGIN_DEVELOPMENT_ONLY */')) {\n+        magicString.replaceAll(/\\/\\* ALVEO_BEGIN_DEVELOPMENT_ONLY \\*\\/[\\s\\S]*?\\/\\* ALVEO_END_DEVELOPMENT_ONLY \\*\\//g, '');\n+      }\n+\n+      magicString.replaceAll('VITE_EXTENSION_UNIQUE_ID', context.env.VITE_EXTENSION_UNIQUE_ID ?? '').replaceAll(ASSET_HASH_REGEX, appendAssetHash);\n+\n+      const sourcemapOptions: SourceMapOptions = { source: id, file: id + '.map', includeContent: false, hires: true };\n+      const newCode = magicString.toString();\n+      const map = magicString.generateMap(sourcemapOptions);\n+\n+      return newCode !== code\n+        ? {\n+            code: newCode,\n+            map,\n+          }\n+        : undefined;",
+        "created_at": "2026-06-24T06:49:46Z",
+        "updated_at": "2026-06-24T06:49:46Z",
+        "in_reply_to_id": 3464553323
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "eslint.config.mjs",
+        "line": 58,
+        "original_line": 58,
+        "diff_hunk": "@@ -0,0 +1,165 @@\n+import { defineConfig, globalIgnores } from 'eslint/config';\n+import tsParser from '@typescript-eslint/parser';\n+import typescriptEslint from '@typescript-eslint/eslint-plugin';\n+import react from 'eslint-plugin-react';\n+import reactHooks from 'eslint-plugin-react-hooks';\n+import reactRefresh from 'eslint-plugin-react-refresh';\n+import jsxA11y from 'eslint-plugin-jsx-a11y';\n+import importPlugin from 'eslint-plugin-import';\n+import unusedImports from 'eslint-plugin-unused-imports';\n+import prettierRecommended from 'eslint-plugin-prettier/recommended';\n+import globals from 'globals';\n+\n+export default defineConfig([\n+  globalIgnores([\n+    '.now/*',\n+    '**/*.css',\n+    '**/.changeset',\n+    '**/dist',\n+    'esm/*',\n+    'public/*',\n+    'tests/*',\n+    'scripts/*',\n+    '**/*.config.js',\n+    '**/.DS_Store',\n+    '**/node_modules',\n+    '**/coverage',\n+    '**/.next',\n+    '**/build',\n+    '!**/.commitlintrc.cjs',\n+    '!**/.lintstagedrc.cjs',\n+    '!**/jest.config.js',\n+    '!**/plopfile.js',\n+    '!**/react-shim.js',\n+    '!**/tsup.config.ts',\n+    '**/template/**'\n+  ]),\n+  {\n+    files: ['**/*.{ts,tsx}'],\n+    extends: [\n+      react.configs.flat.recommended,\n+      react.configs.flat['jsx-runtime'],\n+      reactHooks.configs.flat['recommended-latest'],\n+      jsxA11y.flatConfigs.recommended,\n+      prettierRecommended,\n+    ],\n+\n+    plugins: {\n+      '@typescript-eslint': typescriptEslint,\n+      'unused-imports': unusedImports,\n+      'react-refresh': reactRefresh,\n+      import: importPlugin,\n+    },\n+\n+    languageOptions: {\n+      globals: {\n+        ...Object.fromEntries(Object.entries(globals.browser).map(([key]) => [key, 'off'])),\n+        ...globals.node,\n+      },",
+        "created_at": "2026-06-24T06:50:16Z",
+        "updated_at": "2026-06-24T06:50:16Z",
+        "in_reply_to_id": 3464553291
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "This module has import-time side effects (`console.log` and `process.argv` parsing). As a library entrypoint, that can produce unexpected output and makes behavior depend on when the module is imported rather than when `initServer()` is called. Move the mode parsing inside `initServer()` and drop the import-time logging (also add a radix to `parseInt`).",
+        "path": "src/server.ts",
+        "line": 28,
+        "original_line": 28,
+        "diff_hunk": "@@ -0,0 +1,36 @@\n+/* eslint-disable no-console */\n+\n+import { loadEnv } from 'vite';\n+\n+import { startServer } from './create-server.js';\n+\n+console.log('[INIT] server');\n+\n+const argvModeIndex = process.argv.indexOf('--mode');\n+const mode =\n+  argvModeIndex >= 0 && argvModeIndex < process.argv.length - 1 && !process.argv[argvModeIndex + 1]!.startsWith('-')\n+    ? process.argv[argvModeIndex + 1]!\n+    : 'production';\n+\n+/**\n+ * Starts the alveo Express server for the consumer's project.\n+ *\n+ * @param projectRoot - Absolute path to the consumer project's root directory.\n+ *                      When invoked via the CLI, this is resolved from the consumer's cwd.\n+ */\n+export function initServer(projectRoot: string) {\n+  const alveoEnv = loadEnv(mode, projectRoot);\n+  const isTest = !!alveoEnv.VITE_TEST_BUILD || process.env.NODE_ENV === 'test';\n+  const port = alveoEnv.VITE_PORT ? parseInt(alveoEnv.VITE_PORT!) : 5000;\n+\n+  if (!isTest) {\n+    console.log(projectRoot);\n+    startServer({",
+        "created_at": "2026-06-24T07:02:12Z",
+        "updated_at": "2026-06-24T07:02:13Z"
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited xpack/",
+        "path": "src/server.ts",
+        "line": 28,
+        "original_line": 28,
+        "diff_hunk": "@@ -0,0 +1,36 @@\n+/* eslint-disable no-console */\n+\n+import { loadEnv } from 'vite';\n+\n+import { startServer } from './create-server.js';\n+\n+console.log('[INIT] server');\n+\n+const argvModeIndex = process.argv.indexOf('--mode');\n+const mode =\n+  argvModeIndex >= 0 && argvModeIndex < process.argv.length - 1 && !process.argv[argvModeIndex + 1]!.startsWith('-')\n+    ? process.argv[argvModeIndex + 1]!\n+    : 'production';\n+\n+/**\n+ * Starts the alveo Express server for the consumer's project.\n+ *\n+ * @param projectRoot - Absolute path to the consumer project's root directory.\n+ *                      When invoked via the CLI, this is resolved from the consumer's cwd.\n+ */\n+export function initServer(projectRoot: string) {\n+  const alveoEnv = loadEnv(mode, projectRoot);\n+  const isTest = !!alveoEnv.VITE_TEST_BUILD || process.env.NODE_ENV === 'test';\n+  const port = alveoEnv.VITE_PORT ? parseInt(alveoEnv.VITE_PORT!) : 5000;\n+\n+  if (!isTest) {\n+    console.log(projectRoot);\n+    startServer({",
+        "created_at": "2026-06-24T07:13:13Z",
+        "updated_at": "2026-06-24T07:13:14Z",
+        "in_reply_to_id": 3465155717
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`process.env.VITE_DOMAIN` is used to rewrite resource URLs, but this module doesn’t load `.env` via Vite’s `loadEnv()`. `loadEnv()` returns values and does not populate `process.env`, so `.env`-only values won’t be applied here. Either plumb `VITE_DOMAIN` into `_useRenderer` from the server bootstrap (or explicitly assign `Object.assign(process.env, loadEnv(...))` during init) so this behavior works in real consumer setups.",
+        "path": "src/renderer.ts",
+        "line": 56,
+        "original_line": 56,
+        "diff_hunk": "@@ -0,0 +1,154 @@\n+/* eslint-disable no-console */\n+import fs from 'fs';\n+import path from 'path';\n+\n+import { Express } from 'express';\n+import rateLimit from 'express-rate-limit';\n+import { ViteDevServer } from 'vite';\n+import * as cheerio from 'cheerio';\n+import jsBeautify, { CSSBeautifyOptions, HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';\n+\n+import { getPackageRoot } from './paths.js';\n+\n+interface Props {\n+  app: Express;\n+  indexProd: string;\n+  isProd: boolean;\n+  viteDevServer: ViteDevServer | undefined;\n+  resolve: (path: string) => string;\n+}\n+\n+const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOptions = {\n+  indent_size: 2,\n+  indent_char: ' ',\n+  keep_array_indentation: false,\n+  break_chained_methods: false,\n+  indent_scripts: 'normal',\n+  brace_style: 'expand',\n+  space_before_conditional: true,\n+  unescape_strings: false,\n+  jslint_happy: false,\n+  end_with_newline: false,\n+  wrap_line_length: 0,\n+  indent_inner_html: false,\n+  comma_first: false,\n+  e4x: false,\n+  indent_empty_lines: false,\n+  wrap_attributes: 'force',\n+};\n+\n+const rendererRateLimiter = rateLimit({\n+  windowMs: 15 * 60 * 1000,\n+  max: 1000000,\n+  standardHeaders: true,\n+  legacyHeaders: false,\n+});\n+\n+const updateResourcePath = ($: cheerio.CheerioAPI, tagName: string, attr: string) => {\n+  $(tagName).each((_, el) => {\n+    const href = $(el).attr(attr);\n+\n+    if (href && href.startsWith('/')) {\n+      let newPath = href;\n+\n+      if (process.env.VITE_DOMAIN) {\n+        newPath = process.env.VITE_DOMAIN + newPath;\n+      }",
+        "created_at": "2026-06-24T07:40:34Z",
+        "updated_at": "2026-06-24T07:40:36Z"
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "`id.includes('node_modules/')` won’t match Windows paths (which typically use `node_modules\\\\...`). Since this code is already using `slash()` elsewhere for cross-platform normalization, normalize `id` before checking so vendor chunk detection works consistently across OSes.",
+        "path": "src/manual-chunk.ts",
+        "line": 49,
+        "original_line": 49,
+        "diff_hunk": "@@ -0,0 +1,52 @@\n+import path from 'path';\n+\n+import slash from 'slash';\n+\n+import { getAbsolutePath } from './paths.js';\n+\n+type ManualChunkMeta = {\n+  getModuleInfo: (id: string) => ModuleInfo | null;\n+};\n+\n+type ModuleInfo = {\n+  isEntry: boolean;\n+};\n+\n+const getInternalName = (id: string, api: ManualChunkMeta, srcRoot: string, projectRoot: string): string | null | void => {\n+  const moduleInfo = api.getModuleInfo(id);\n+\n+  if (!moduleInfo?.isEntry) {\n+    return;\n+  }\n+\n+  const entryPath = getAbsolutePath(id, projectRoot);\n+\n+  if (entryPath.startsWith(srcRoot)) {\n+    const relativePath = slash(path.relative(srcRoot, entryPath));\n+    const match = /^([a-z0-9.@_-]+?)\\/([a-z0-9.@_-]+?)(\\.[^.]+)$/gi.exec(relativePath);\n+\n+    if (match) {\n+      return match[1] + '~' + match[2];\n+    }\n+  }\n+};\n+\n+const getExternalName = (_: string): string | null | void => {\n+  // Reserved for future vendor chunk splitting\n+};\n+\n+/**\n+ * Creates a `manualChunks` function for Rolldown/Rollup output config.\n+ *\n+ * @param srcRoot - Absolute path to the consumer project's `src/` directory\n+ * @param projectRoot - Absolute path to the consumer project root\n+ */\n+export const createManualChunk =\n+  (srcRoot: string, projectRoot: string) =>\n+  (id: string, api: ManualChunkMeta): string | null | void => {\n+    if (id.includes('node_modules/')) {\n+      return getExternalName(id);\n+    } else {",
+        "created_at": "2026-06-24T07:40:35Z",
+        "updated_at": "2026-06-24T07:40:36Z"
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/scripts/functions.ts",
+        "line": 3,
+        "original_line": 3,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND.\n+ * Please commit any changes you see here.\n+ */",
+        "created_at": "2026-06-24T07:50:57Z",
+        "updated_at": "2026-06-24T07:50:58Z",
+        "in_reply_to_id": 3464086889
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/renderer.ts",
+        "line": 56,
+        "original_line": 56,
+        "diff_hunk": "@@ -0,0 +1,154 @@\n+/* eslint-disable no-console */\n+import fs from 'fs';\n+import path from 'path';\n+\n+import { Express } from 'express';\n+import rateLimit from 'express-rate-limit';\n+import { ViteDevServer } from 'vite';\n+import * as cheerio from 'cheerio';\n+import jsBeautify, { CSSBeautifyOptions, HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';\n+\n+import { getPackageRoot } from './paths.js';\n+\n+interface Props {\n+  app: Express;\n+  indexProd: string;\n+  isProd: boolean;\n+  viteDevServer: ViteDevServer | undefined;\n+  resolve: (path: string) => string;\n+}\n+\n+const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOptions = {\n+  indent_size: 2,\n+  indent_char: ' ',\n+  keep_array_indentation: false,\n+  break_chained_methods: false,\n+  indent_scripts: 'normal',\n+  brace_style: 'expand',\n+  space_before_conditional: true,\n+  unescape_strings: false,\n+  jslint_happy: false,\n+  end_with_newline: false,\n+  wrap_line_length: 0,\n+  indent_inner_html: false,\n+  comma_first: false,\n+  e4x: false,\n+  indent_empty_lines: false,\n+  wrap_attributes: 'force',\n+};\n+\n+const rendererRateLimiter = rateLimit({\n+  windowMs: 15 * 60 * 1000,\n+  max: 1000000,\n+  standardHeaders: true,\n+  legacyHeaders: false,\n+});\n+\n+const updateResourcePath = ($: cheerio.CheerioAPI, tagName: string, attr: string) => {\n+  $(tagName).each((_, el) => {\n+    const href = $(el).attr(attr);\n+\n+    if (href && href.startsWith('/')) {\n+      let newPath = href;\n+\n+      if (process.env.VITE_DOMAIN) {\n+        newPath = process.env.VITE_DOMAIN + newPath;\n+      }",
+        "created_at": "2026-06-24T07:52:40Z",
+        "updated_at": "2026-06-24T07:52:40Z",
+        "in_reply_to_id": 3465377452
+      },
+      {
+        "user": {
+          "login": "coderabbitai[bot]"
+        },
+        "body": "`@dinh-pham-optimizely`, understood — if this file originates from `xpack/` where it's auto-generated, the header is accurate in that upstream context and the \"Please commit any changes you see here\" instruction makes sense (commit upstream-generated changes rather than manually editing). I'll withdraw this comment.\n\n\n\n<!-- <review_comment_withdrawn> -->\n\n---\n\n<details>\n<summary>✏️ Learnings added</summary>\n\n```\nLearnt from: dinh-pham-optimizely\nRepo: precise-alloy/alveo PR: 1\nFile: src/scripts/functions.ts:1-3\nTimestamp: 2026-06-24T07:52:25.924Z\nLearning: In the `precise-alloy/alveo` repository, `src/scripts/functions.ts` is inherited from the `xpack/` upstream project, where it is auto-generated. The `/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND. */` header is intentional and accurate — changes to this file should come from the upstream generator, not manual edits. Do not flag this header as misleading.\n```\n\n> Note: Learnings are effective only in the context of similar code segments. To apply general coding guidelines, please configure [review instructions](https://docs.coderabbit.ai/guides/review-instructions). You can manage existing learnings in the [app](https://app.coderabbit.ai/learnings).\n\n</details>\n\n\n\n<!-- This is an auto-generated reply by CodeRabbit -->",
+        "path": "src/scripts/functions.ts",
+        "line": 3,
+        "original_line": 3,
+        "diff_hunk": "@@ -0,0 +1,66 @@\n+/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND.\n+ * Please commit any changes you see here.\n+ */",
+        "created_at": "2026-06-24T07:54:15Z",
+        "updated_at": "2026-06-24T07:54:16Z",
+        "in_reply_to_id": 3464086889
+      },
+      {
+        "user": {
+          "login": "dinh-pham-optimizely"
+        },
+        "body": "Inherited from xpack/",
+        "path": "src/manual-chunk.ts",
+        "line": 49,
+        "original_line": 49,
+        "diff_hunk": "@@ -0,0 +1,52 @@\n+import path from 'path';\n+\n+import slash from 'slash';\n+\n+import { getAbsolutePath } from './paths.js';\n+\n+type ManualChunkMeta = {\n+  getModuleInfo: (id: string) => ModuleInfo | null;\n+};\n+\n+type ModuleInfo = {\n+  isEntry: boolean;\n+};\n+\n+const getInternalName = (id: string, api: ManualChunkMeta, srcRoot: string, projectRoot: string): string | null | void => {\n+  const moduleInfo = api.getModuleInfo(id);\n+\n+  if (!moduleInfo?.isEntry) {\n+    return;\n+  }\n+\n+  const entryPath = getAbsolutePath(id, projectRoot);\n+\n+  if (entryPath.startsWith(srcRoot)) {\n+    const relativePath = slash(path.relative(srcRoot, entryPath));\n+    const match = /^([a-z0-9.@_-]+?)\\/([a-z0-9.@_-]+?)(\\.[^.]+)$/gi.exec(relativePath);\n+\n+    if (match) {\n+      return match[1] + '~' + match[2];\n+    }\n+  }\n+};\n+\n+const getExternalName = (_: string): string | null | void => {\n+  // Reserved for future vendor chunk splitting\n+};\n+\n+/**\n+ * Creates a `manualChunks` function for Rolldown/Rollup output config.\n+ *\n+ * @param srcRoot - Absolute path to the consumer project's `src/` directory\n+ * @param projectRoot - Absolute path to the consumer project root\n+ */\n+export const createManualChunk =\n+  (srcRoot: string, projectRoot: string) =>\n+  (id: string, api: ManualChunkMeta): string | null | void => {\n+    if (id.includes('node_modules/')) {\n+      return getExternalName(id);\n+    } else {",
+        "created_at": "2026-06-24T08:18:25Z",
+        "updated_at": "2026-06-24T08:18:25Z",
+        "in_reply_to_id": 3465377626
+      },
+      {
+        "user": {
+          "login": "Copilot"
+        },
+        "body": "In dev mode the renderer always `ssrLoadModule()`s `src/entry-server.tsx` from the installed `alveo` package. If the package is published without TS/TSX sources (common, and also implied by the `.npmignore`), this path won't exist and dev SSR will crash for consumers. Prefer loading the compiled `dist/entry-server.js` when present, and falling back to `src/entry-server.tsx` only for local development.",
+        "path": "src/renderer.ts",
+        "line": 111,
+        "original_line": 111,
+        "diff_hunk": "@@ -0,0 +1,154 @@\n+/* eslint-disable no-console */\n+import fs from 'fs';\n+import path from 'path';\n+\n+import { Express } from 'express';\n+import rateLimit from 'express-rate-limit';\n+import { ViteDevServer } from 'vite';\n+import * as cheerio from 'cheerio';\n+import jsBeautify, { CSSBeautifyOptions, HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';\n+\n+import { getPackageRoot } from './paths.js';\n+\n+interface Props {\n+  app: Express;\n+  indexProd: string;\n+  isProd: boolean;\n+  viteDevServer: ViteDevServer | undefined;\n+  resolve: (path: string) => string;\n+}\n+\n+const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOptions = {\n+  indent_size: 2,\n+  indent_char: ' ',\n+  keep_array_indentation: false,\n+  break_chained_methods: false,\n+  indent_scripts: 'normal',\n+  brace_style: 'expand',\n+  space_before_conditional: true,\n+  unescape_strings: false,\n+  jslint_happy: false,\n+  end_with_newline: false,\n+  wrap_line_length: 0,\n+  indent_inner_html: false,\n+  comma_first: false,\n+  e4x: false,\n+  indent_empty_lines: false,\n+  wrap_attributes: 'force',\n+};\n+\n+const rendererRateLimiter = rateLimit({\n+  windowMs: 15 * 60 * 1000,\n+  max: 1000000,\n+  standardHeaders: true,\n+  legacyHeaders: false,\n+});\n+\n+const updateResourcePath = ($: cheerio.CheerioAPI, tagName: string, attr: string) => {\n+  $(tagName).each((_, el) => {\n+    const href = $(el).attr(attr);\n+\n+    if (href && href.startsWith('/')) {\n+      let newPath = href;\n+\n+      if (process.env.VITE_DOMAIN) {\n+        newPath = process.env.VITE_DOMAIN + newPath;\n+      }\n+\n+      if (\n+        href.startsWith('/') &&\n+        !href.startsWith('/assets/vendors/') &&\n+        ['.css', '.ico', '.js', '.webmanifest', '.svg'].includes(path.extname(href).toLowerCase()) &&\n+        !/\\.0x[a-z0-9]{8}\\.\\w+$/gi.test(href)\n+      ) {\n+        newPath += '?v=' + new Date().getTime();\n+      }\n+\n+      if (newPath != href) {\n+        $(el).attr(attr, newPath);\n+      }\n+    }\n+  });\n+};\n+\n+const removeD",
+        "created_at": "2026-06-24T08:24:09Z",
+        "updated_at": "2026-06-24T08:24:09Z"
+      }
+    ]
+  },
+  "issueComments": {
+    "returned": 1,
+    "comments": [
+      {
+        "user": {
+          "login": "coderabbitai[bot]"
+        },
+        "body": "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n[![Review Change Stack](https://storage.googleapis.com/coderabbit_public_assets/review-stack-in-coderabbit-ui.svg)](https://app.coderabbit.ai/change-stack/precise-alloy/alveo/pull/1?utm_source=github_walkthrough&utm_medium=github&utm_campaign=change_stack)\n\n<!-- review_stack_entry_end -->\n<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->\n\n> [!WARNING]\n> ## Review limit reached\n> \n> `@dinh-pham-optimizely`, we couldn't start this review because you've reached your PR review rate limit.\n> \n> More reviews will be available in 47 minutes and 29 seconds. [Learn how PR review limits work](https://docs.coderabbit.ai/management/plans#fair-usage-limits-policy).\n> \n> Your organization has used up its prepaid credits, and credit purchases are no longer available. Enable the **review add-on** in the [billing tab](https://app.coderabbit.ai/settings/billing?tab=usage&orgId=e4b0e31b-b364-47e6-8903-ab1dd71019b7) to keep reviews running — you're only billed for reviews past your plan's rate limits ($0.25/file).\n> \n> <details>\n> <summary>⌛ How to resolve this issue?</summary>\n> \n> After more reviews become available, a review can be triggered using the `@coderabbitai review` command as a PR comment. Alternatively, push new commits to this PR.\n> \n> To avoid repeated limits, reduce automatic review volume by pausing incremental auto-reviews earlier, using label-based review opt-in, excluding WIP or generated PR titles, or requesting reviews manually when the PR is ready. If your team needs uninterrupted high-volume reviews, an organization admin can enable usage-based credits.\n> \n> </details>\n> \n> \n> <details>\n> <summary>🚦 How do rate limits work?</summary>\n> \n> CodeRabbit enforces per-developer PR review limits for each organization. Most developers receive the normal plan review availability.\n> \n> \tFor paid Pro and Pro+ PR reviews, CodeRabbit uses adaptive limits for sustained high-volume activity. When a developer's recent PR review activity reaches the 95th percentile or higher among CodeRabbit users, additional reviews become available more gradually as earlier reviews age out of the rolling window.\n> \n> Please see our [Fair Usage Limits Policy](https://docs.coderabbit.ai/management/plans#fair-usage-limits-policy) for further information.\n> \n> </details>\n> \n> <details>\n> <summary>ℹ️ Review info</summary>\n> \n> <details>\n> <summary>⚙️ Run configuration</summary>\n> \n> **Configuration used**: defaults\n> \n> **Review profile**: CHILL\n> \n> **Plan**: Pro Plus\n> \n> **Run ID**: `6bfa9e9c-66ea-44d3-b757-8692ff565723`\n> \n> </details>\n> \n> <details>\n> <summary>📥 Commits</summary>\n> \n> Reviewing files that changed from the base of the PR and between 77528bbdd7911283ca72a7aca22d94840722b130 and ea3e9b6330dc18d9fe23b894f6939bba25ed3211.\n> \n> </details>\n> \n> <details>\n> <summary>📒 Files selected for processing (2)</summary>\n> \n> * `src/manual-chunk.test.ts`\n> * `src/virtual-modules.test.ts`\n> \n> </details>\n> \n> </details>\n\n<!-- end of auto-generated comment: rate limited by coderabbit.ai -->\n\n<!-- walkthrough_start -->\n\n<details>\n<summary>📝 Walkthrough</summary>\n\n## Walkthrough\n\nThis PR introduces the initial `alveo` framework package: repository tooling, core path and asset utilities, Vite config and plugins, CLI commands, SSR and prerender flows, script/state/style build systems, root UI modules, SCSS assets, and coverage/documentation files.\n\n## Changes\n\n**Alveo Initial Framework Implementation**\n\n|Layer / File(s)|Summary|\n|---|---|\n|**Repository standards and governance baseline** <br> `.browserslistrc`, `.editorconfig`, `.prettierrc.cjs`, `.prettierignore`, `.gitignore`, `.npmignore`, `.npmrc`, `.nvmrc`, `.node-version`, `.git-hooks/...`, `.idea/...`, `README.md`, `docs/test-coverage.md`, `.github/copilot-instructions.md`, `.github/instructions/test-coverage.instructions.md`, `.github/skills/test-coverage/...`, `LICENSE`|Configures browser targets, formatting rules, publish rules, Node version pinning, pre-commit hooks, IDE metadata, onboarding documentation, coverage governance, and license metadata.|\n|**Package manifest and static analysis toolchain** <br> `package.json`, `eslint.config.mjs`, `tsconfig.json`, `vitest.config.ts`, `test/setup.ts`|Defines package metadata, scripts, dependencies, lint rules, TypeScript compiler settings, Vitest coverage settings, and shared test setup.|\n|**Core utilities, Vite plugins, and public contracts** <br> `src/paths.ts`, `src/alias.ts`, `src/cryptography.ts`, `src/text-normalization.ts`, `src/asset-hash.ts`, `src/filename.ts`, `src/manual-chunk.ts`, `src/config.ts`, `src/hooks/types.ts`, `src/hooks/...`, `src/virtual-modules.ts`, `src/index.ts`, `src/alias.test.ts`, `src/cryptography.test.ts`, `src/text-normalization.test.ts`, `src/asset-hash.test.ts`, `src/filename.test.ts`, `src/manual-chunk.test.ts`, `src/hooks/*.test.ts`, `src/virtual-modules.test.ts`|Exports path, alias, hashing, normalization, filename, chunking, Vite config, hook, and virtual-module contracts with their supporting tests.|\n|**Prerender and integration orchestration flows** <br> `src/prerender-core.ts`, `src/prerender.ts`, `src/integration-core.ts`, `src/integration.ts`, `src/prerender-core.test.ts`, `src/integration-core.test.ts`|Implements prerender resource rewriting, duplicate asset cleanup, generated output normalization, asset copying and hashing, output validation, and the integration build pipeline.|\n|**SSR app shell, routes, and server runtime** <br> `src/routes.ts`, `src/app.tsx`, `src/entry-client.tsx`, `src/entry-server.tsx`, `src/create-vite-dev-server.ts`, `src/create-server.ts`, `src/renderer.ts`, `src/server.ts`, `src/root/...`, `src/types.d.ts`|Builds the route model, client/server entries, Express/Vite SSR server, HTML renderer, and root shell UI components and typings.|\n|**Script and state builders plus browser runtime helpers** <br> `src/scripts-core.ts`, `src/scripts.ts`, `src/states.ts`, `src/scripts/functions.ts`, `src/scripts/handle-theme.ts`, `src/scripts/color-mode.entry.ts`, `src/scripts/theme-critical.entry.ts`, `src/scripts/pl-states.entry.ts`, `src/scripts/root.entry.ts`, `src/scripts/mock-browser.ts`, `src/scripts/mock-api.entry.ts`, `src/scripts/functions.test.ts`, `src/scripts/functions.node-env.test.ts`|Adds script compilation, state aggregation, theme/runtime browser helpers, mock service-worker wiring, and root-frame interaction scripts.|\n|**Style compilation engine and source-map normalization** <br> `src/server.ts`, `src/states.ts`, `src/styles-core.ts`, `src/styles.ts`, `src/styles-core.test.ts`|Adds server startup wiring, state aggregation, style compilation helpers, source-map normalization, and the style build runner with tests.|\n|**SCSS tokens, layout styles, and component skins** <br> `src/styles/_px2rem.scss`, `src/styles/_reset.scss`, `src/styles/_theme.scss`, `src/styles/_breakpoint.scss`, `src/styles/_border.scss`, `src/styles/_form.scss`, `src/styles/_alveo-root.scss`, `src/styles/_top-panel.scss`, `src/styles/_icon-list-dialog.scss`, `src/styles/_state-toggle.scss`, `src/styles/pl-states.scss`, `src/styles/root.scss`, `src/deploy/deploy-inte.ts`|Introduces shared SCSS utilities and the layout/component styles for the root shell, state selector, icon dialog, and top panel.|\n|**CLI entrypoint and command orchestration** <br> `bin/cli.js`, `src/cli.ts`, `src/cryptography.ts`, `src/scripts/pl-states.entry.ts`, `src/styles/pl-states.scss`, `eslint.config.mjs`, `package.json`, `tsconfig.json`, `vitest.config.ts`, `.npmignore`|Completes the executable wrapper and command handlers for build, generate, integration, styles, states, server, and project creation flows, together with the package and type/test settings they rely on.|\n\n## Estimated code review effort\n\n🎯 5 (Critical) | ⏱️ ~120 minutes\n\n## Poem\n\n> 🐰 Hop hop, the framework sprang to life,  \n> Hooks, routes, and build paths cut through the strife.  \n> A bunny stitched the shell, the styles, the glue,  \n> With hashes and tests and CLI too.  \n> Now `alveo` shines in a crisp new nest ✨\n\n</details>\n\n<!-- walkthrough_end -->\n<!-- pre_merge_checks_walkthrough_start -->\n\n<details>\n<summary>🚥 Pre-merge checks | ✅ 4 | ❌ 1</summary>\n\n### ❌ Failed checks (1 warning)\n\n|     Check name     | Status     | Explanation                                                                           | Resolution                                                                         |\n| :----------------: | :--------- | :------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------- |\n| Docstring Coverage | ⚠️ Warning | Docstring coverage is 46.67% which is insufficient. The required threshold is 80.00%. | Write docstrings for the functions missing them to satisfy the coverage threshold. |\n\n<details>\n<summary>✅ Passed checks (4 passed)</summary>\n\n|         Check name         | Status   | Explanation                                                                                                          |\n| :------------------------: | :------- | :------------------------------------------------------------------------------------------------------------------- |\n|      Description Check     | ✅ Passed | Check skipped - CodeRabbit’s high-level summary is enabled.                                                          |\n|         Title check        | ✅ Passed | The title accurately reflects a broad initialization of the library and matches the PR's foundational setup changes. |\n|     Linked Issues check    | ✅ Passed | Check skipped because no linked issues were found for this pull request.                                             |\n| Out of Scope Changes check | ✅ Passed | Check skipped because no linked issues were found for this pull request.                                             |\n\n</details>\n\n<sub>✏️ Tip: You can configure your own custom pre-merge checks in the settings.</sub>\n\n</details>\n\n<!-- pre_merge_checks_walkthrough_end -->\n<!-- finishing_touch_checkbox_start -->\n\n<details>\n<summary>✨ Finishing Touches</summary>\n\n<details>\n<summary>🧪 Generate unit tests (beta)</summary>\n\n- [ ] <!-- {\"checkboxId\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\", \"radioGroupId\": \"utg-output-choice-group-unknown_comment_id\"} -->   Create PR with unit tests\n- [ ] <!-- {\"checkboxId\": \"6ba7b810-9dad-11d1-80b4-00c04fd430c8\", \"radioGroupId\": \"utg-output-choice-group-unknown_comment_id\"} -->   Commit unit tests in branch `feat/initialize-library`\n\n</details>\n\n</details>\n\n<!-- finishing_touch_checkbox_end -->\n<!-- tips_start -->\n\n---\n\nThanks for using [CodeRabbit](https://coderabbit.ai?utm_source=oss&utm_medium=github&utm_campaign=precise-alloy/alveo&utm_content=1)! It's free for OSS, and your support helps us grow. If you like it, consider giving us a shout-out.\n\n<details>\n<summary>❤️ Share</summary>\n\n- [X](https://twitter.com/intent/tweet?text=I%20just%20used%20%40coderabbitai%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20the%20proprietary%20code.%20Check%20it%20out%3A&url=https%3A//coderabbit.ai)\n- [Mastodon](https://mastodon.social/share?text=I%20just%20used%20%40coderabbitai%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20the%20proprietary%20code.%20Check%20it%20out%3A%20https%3A%2F%2Fcoderabbit.ai)\n- [Reddit](https://www.reddit.com/submit?title=Great%20tool%20for%20code%20review%20-%20CodeRabbit&text=I%20just%20used%20CodeRabbit%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20proprietary%20code.%20Check%20it%20out%3A%20https%3A//coderabbit.ai)\n- [LinkedIn](https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fcoderabbit.ai&mini=true&title=Great%20tool%20for%20code%20review%20-%20CodeRabbit&summary=I%20just%20used%20CodeRabbit%20for%20my%20code%20review%2C%20and%20it%27s%20fantastic%21%20It%27s%20free%20for%20OSS%20and%20offers%20a%20free%20trial%20for%20proprietary%20code)\n\n</details>\n\n\n<sub>Comment `@coderabbitai help` to get the list of available commands.</sub>\n\n<!-- tips_end -->",
+        "created_at": "2026-06-23T10:47:00Z",
+        "updated_at": "2026-06-24T08:29:57Z"
+      }
+    ]
+  }
+}

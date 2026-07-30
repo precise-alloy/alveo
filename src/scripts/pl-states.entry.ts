@@ -112,6 +112,33 @@ const closeButtonClickHandler = (stateBar: HTMLElement) => {
   window.dispatchEvent(new Event('resize'));
 };
 
+// Registered once (not per state-bar rebuild): collapse any expanded checkbox
+// group when a click lands outside that group and its header. Previously each
+// group added its own document click listener on every rebuild, leaking a new
+// listener each time; this single delegated handler keeps behavior identical.
+const collapseCheckboxGroupsOnOutsideClick = (e: MouseEvent) => {
+  if (!e.target) {
+    return;
+  }
+
+  const node = e.target as Node;
+
+  document.querySelectorAll('.pl-state-bar__group').forEach((group) => {
+    const header = group.querySelector('.pl-state-bar__group-header');
+    const checkboxGroup = group.querySelector('.pl-state-bar__checkbox-group');
+
+    if (!header || !checkboxGroup) {
+      return;
+    }
+
+    if (!checkboxGroup.contains(node) && !header.contains(node)) {
+      checkboxGroup.classList.remove('expand');
+    }
+  });
+};
+
+document.addEventListener('click', collapseCheckboxGroupsOnOutsideClick);
+
 const stateButtonClickHandler = (item: HTMLElement, stateButton: HTMLElement, plState: ComponentState) => {
   deactiveStateButtons();
 
@@ -165,17 +192,6 @@ const stateButtonClickHandler = (item: HTMLElement, stateButton: HTMLElement, pl
       if (stateBarGroupHeader) {
         stateBarGroupHeader.addEventListener('click', () => {
           checkboxGroup.classList.toggle('expand');
-        });
-        document.addEventListener('click', (e: MouseEvent) => {
-          if (!e.target) {
-            return;
-          }
-
-          const node = e.target as Node;
-
-          if (!checkboxGroup.contains(node) && !stateBarGroupHeader.contains(node)) {
-            checkboxGroup.classList.remove('expand');
-          }
         });
       }
 

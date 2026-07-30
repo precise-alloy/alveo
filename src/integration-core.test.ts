@@ -218,7 +218,7 @@ describe('alveo/integration-core.ts', () => {
 
       copyConfiguredItems([{ from: 'sub/file.txt' }], { srcBasePath: '/src', destBasePath: '/dest' }, deps);
 
-      expect(mkdirSync).toHaveBeenCalled();
+      expect(mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     });
 
     it('logs a message for each copied item', () => {

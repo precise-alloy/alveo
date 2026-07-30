@@ -74,7 +74,8 @@ export const copyConfiguredItems = (
       const destDirPath = path.dirname(destPath);
 
       if (!dependencies.existsSync(destDirPath)) {
-        dependencies.mkdirSync(destDirPath);
+        // Recursive create so a missing destination parent does not throw
+        dependencies.mkdirSync(destDirPath, { recursive: true });
       }
 
       dependencies.copyFileSync(srcPath, destPath);

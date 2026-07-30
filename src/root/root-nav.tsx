@@ -13,18 +13,22 @@ export default function RootNav({ routes: routesProp }: Props) {
   const { activeItem } = useRootContext();
   const [show, setShow] = useState(false);
   const navItemRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLAnchorElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [routes, setRoutes] = useState(routesProp);
   const [routesSearch, setRoutesSearch] = useState<RootItemModel[]>([]);
   const [textSearch, setTextSearch] = useState('');
 
-  const closeMenu = () => {
+  // Stable identities (useCallback + useMemo) so useOnClickOutside's effect
+  // does not re-subscribe the document listeners on every render.
+  const closeMenu = useCallback(() => {
     setShow(false);
     setTextSearch('');
-  };
+  }, []);
 
-  useOnClickOutside(navItemRef, closeMenu, [buttonRef]);
+  const clickOutsideRefs = useMemo(() => [buttonRef], []);
+
+  useOnClickOutside(navItemRef, closeMenu, clickOutsideRefs);
 
   const handleClick = () => {
     if (!show && inputRef.current) {
@@ -71,14 +75,21 @@ export default function RootNav({ routes: routesProp }: Props) {
 
   return (
     <>
-      {/*eslint-disable-next-line jsx-a11y/anchor-is-valid, jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions*/}
-      <a ref={buttonRef} className="alveo-o-root__button-close" onClick={handleClick}>
-        <button aria-label={show ? 'Close' : 'Pages'} className="alveo-o-root__control-button alveo-o-root__button-close">
-          <svg className="alveo-o-root__control-svg">
-            <use xlinkHref={viteAbsoluteUrl('/assets/images/root.svg#' + (show ? 'close' : 'list'))} />
-          </svg>
-        </button>
-      </a>
+      {/* Single interactive element: a native <button> is the toggle. It was
+          previously a <button> nested inside an <a>, which is invalid HTML and
+          forced the a11y lint rule off. aria-expanded exposes the open state. */}
+      <button
+        ref={buttonRef}
+        aria-expanded={show}
+        aria-label={show ? 'Close' : 'Pages'}
+        className="alveo-o-root__control-button alveo-o-root__button-close"
+        type="button"
+        onClick={handleClick}
+      >
+        <svg className="alveo-o-root__control-svg">
+          <use xlinkHref={viteAbsoluteUrl('/assets/images/root.svg#' + (show ? 'close' : 'list'))} />
+        </svg>
+      </button>
 
       <p className="alveo-o-root__title">{activeItem?.name}</p>
 

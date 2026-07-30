@@ -102,7 +102,7 @@ describe('alveo/scripts-core.ts', () => {
 
       await compileScript('/project/src/scripts/app.ts', '/project', deps);
 
-      expect(mkdirSync).toHaveBeenCalled();
+      expect(mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     });
 
     it('does not create the output directory if it already exists', async () => {

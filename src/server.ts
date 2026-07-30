@@ -2,14 +2,6 @@ import { loadEnv } from 'vite';
 
 import { startServer } from './create-server.ts';
 
-console.log('[INIT] server');
-
-const argvModeIndex = process.argv.indexOf('--mode');
-const mode =
-  argvModeIndex >= 0 && argvModeIndex < process.argv.length - 1 && !process.argv[argvModeIndex + 1]!.startsWith('-')
-    ? process.argv[argvModeIndex + 1]!
-    : 'production';
-
 /**
  * Starts the alveo Express server for the consumer's project.
  *
@@ -17,9 +9,19 @@ const mode =
  *                      When invoked via the CLI, this is resolved from the consumer's cwd.
  */
 export function initServer(projectRoot: string) {
+  // Kept inside the function (not at import time) so importing this library
+  // entry has no side effects (logging, argv parsing).
+  console.log('[INIT] server');
+
+  const argvModeIndex = process.argv.indexOf('--mode');
+  const mode =
+    argvModeIndex >= 0 && argvModeIndex < process.argv.length - 1 && !process.argv[argvModeIndex + 1]!.startsWith('-')
+      ? process.argv[argvModeIndex + 1]!
+      : 'production';
+
   const alveoEnv = loadEnv(mode, projectRoot);
   const isTest = !!alveoEnv.VITE_TEST_BUILD || process.env.NODE_ENV === 'test';
-  const port = alveoEnv.VITE_PORT ? parseInt(alveoEnv.VITE_PORT!) : 5000;
+  const port = alveoEnv.VITE_PORT ? parseInt(alveoEnv.VITE_PORT!, 10) : 5000;
 
   if (!isTest) {
     console.log(projectRoot);

@@ -39,8 +39,6 @@ const renderComponent = (scriptSection: HTMLScriptElement) => {
     const props = type === 'application/json' ? JSON.parse(data) : type === 'application/yaml' ? YAML.load(data) : {};
 
     ReactDOM.createRoot(section).render(<Component {...props} />);
-  } else {
-    return <></>;
   }
 };
 

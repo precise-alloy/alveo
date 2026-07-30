@@ -23,16 +23,20 @@ const transform = (context: AlveoContext): PluginOption => {
 
       magicString.replaceAll('VITE_EXTENSION_UNIQUE_ID', context.env.VITE_EXTENSION_UNIQUE_ID ?? '').replaceAll(ASSET_HASH_REGEX, appendAssetHash);
 
-      const sourcemapOptions: SourceMapOptions = { source: id, file: id + '.map', includeContent: false, hires: true };
       const newCode = magicString.toString();
-      const map = magicString.generateMap(sourcemapOptions);
 
-      return newCode !== code
-        ? {
-            code: newCode,
-            map,
-          }
-        : undefined;
+      // Skip the expensive source map generation for no-op transforms, where
+      // the map would be discarded together with the unchanged code.
+      if (newCode === code) {
+        return undefined;
+      }
+
+      const sourcemapOptions: SourceMapOptions = { source: id, file: id + '.map', includeContent: false, hires: true };
+
+      return {
+        code: newCode,
+        map: magicString.generateMap(sourcemapOptions),
+      };
     },
   };
 };

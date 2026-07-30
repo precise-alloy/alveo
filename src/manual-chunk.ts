@@ -44,7 +44,9 @@ const getExternalName = (_: string): string | null | void => {
 export const createManualChunk =
   (srcRoot: string, projectRoot: string) =>
   (id: string, api: ManualChunkMeta): string | null | void => {
-    if (id.includes('node_modules/')) {
+    // Normalize backslash paths (Windows) so node_modules is detected the same
+    // way as the rest of this file's slash()-based logic.
+    if (slash(id).includes('node_modules/')) {
       return getExternalName(id);
     } else {
       return getInternalName(id, api, srcRoot, projectRoot);

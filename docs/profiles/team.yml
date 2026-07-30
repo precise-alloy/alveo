@@ -1,0 +1,28 @@
+# Team profile data - filled by setup wizard.
+# Edit this file, then re-run the `setup` skill to regenerate docs/PROJECT_CONTEXT.md.
+# Values like off/no/yes must be quoted: key: "off"
+
+schema_version: 1
+
+# Filled by setup
+team_size: "solo"
+git_platform: "GitHub"
+ticket_providers: []
+git_flow: "PR-based"
+workflow_owner: "developer"
+ticket_format: "none"
+qa_mode: "off"
+
+# Derived by CLI, user can override
+memory_expiry_days: 60
+branch_format: |
+  feat/{slug}       new feature
+  fix/{slug}        bug fix
+  chore/{slug}      tooling, deps, config
+  refactor/{slug}   code restructure, no behavior change
+  docs/{slug}       documentation only
+  test/{slug}       tests only
+tasks_path_convention: "tasks/{NNN-name}.md"
+pr_reviewers: 0
+default_base_branch: "master"
+traceability_policy: "Commit messages only - no ticket ID required"
