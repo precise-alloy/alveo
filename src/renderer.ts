@@ -16,6 +16,7 @@ interface Props {
   isProd: boolean;
   viteDevServer: ViteDevServer | undefined;
   resolve: (path: string) => string;
+  domain?: string;
 }
 
 const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOptions = {
@@ -44,15 +45,17 @@ const rendererRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const updateResourcePath = ($: cheerio.CheerioAPI, tagName: string, attr: string) => {
+const updateResourcePath = ($: cheerio.CheerioAPI, tagName: string, attr: string, domain?: string) => {
   $(tagName).each((_, el) => {
     const href = $(el).attr(attr);
 
     if (href && href.startsWith('/')) {
       let newPath = href;
 
-      if (process.env.VITE_DOMAIN) {
-        newPath = process.env.VITE_DOMAIN + newPath;
+      // `domain` is plumbed from loadEnv(VITE_DOMAIN); loadEnv does not populate
+      // process.env, so reading process.env here would drop a .env-only value.
+      if (domain) {
+        newPath = domain + newPath;
       }
 
       if (
@@ -104,7 +107,7 @@ const removeDuplicateAssets = ($: cheerio.CheerioAPI, selector: string, attr: st
   });
 };
 
-export const _useRenderer = ({ app, indexProd, isProd, viteDevServer, resolve }: Props) => {
+export const _useRenderer = ({ app, indexProd, isProd, viteDevServer, resolve, domain }: Props) => {
   const packageRoot = getPackageRoot();
   const entryServerPath = slash(path.join(packageRoot, 'dist/entry-server.js'));
 
@@ -136,9 +139,9 @@ export const _useRenderer = ({ app, indexProd, isProd, viteDevServer, resolve }:
 
       removeDuplicateAssets($, 'link[data-pl-require][href]', 'href', paths);
       removeDuplicateAssets($, 'script[data-pl-require][src]', 'src', paths);
-      updateResourcePath($, 'link', 'href');
-      updateResourcePath($, 'script', 'src');
-      updateResourcePath($, 'img', 'src');
+      updateResourcePath($, 'link', 'href', domain);
+      updateResourcePath($, 'script', 'src', domain);
+      updateResourcePath($, 'img', 'src', domain);
 
       res
         .status(200)

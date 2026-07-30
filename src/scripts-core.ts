@@ -60,7 +60,8 @@ export const compileScript = async (
       const saveDir = path.dirname(savePath);
 
       if (!dependencies.existsSync(saveDir)) {
-        dependencies.mkdirSync(saveDir);
+        // Recursive create so a missing public/assets parent does not throw
+        dependencies.mkdirSync(saveDir, { recursive: true });
       }
 
       dependencies.writeFileSync(savePath, result.code);

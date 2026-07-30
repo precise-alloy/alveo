@@ -9,7 +9,7 @@ import RootNav from './root-nav.tsx';
 import IconListDialog from './icon-list-dialog.tsx';
 
 export default function Root(props: RootModel) {
-  const [activeItem, setActiveItem] = useState<SinglePageNode | undefined>(typeof window !== 'undefined' ? undefined : undefined);
+  const [activeItem, setActiveItem] = useState<SinglePageNode | undefined>(undefined);
   const [isTopPanel, setTopPanel] = useState<boolean>(() =>
     typeof localStorage !== 'undefined' ? localStorage.getItem('MSG_IS_TOP_PANEL') === 'true' : false
   );

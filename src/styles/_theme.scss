@@ -14,7 +14,10 @@ $scrollbar-thumb-bg: var(--scrollbar-thumb-bg);
 $scrollbar-thumb-hover-bg: var(--scrollbar-thumb-hover-bg);
 
 @mixin light {
-  [data-theme='dark'] & {
+  // Must target the light selector; it was mistakenly scoped to
+  // [data-theme='dark'] (identical to the dark mixin), so light overrides
+  // could never match.
+  [data-theme='light'] & {
     @content;
   }
 }

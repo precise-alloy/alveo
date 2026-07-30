@@ -39,6 +39,16 @@ describe('alveo/manual-chunk.ts', () => {
 
       expect(result).toBeUndefined();
     });
+
+    it('normalizes Windows backslash paths before the node_modules check', () => {
+      const api = makeApi(true);
+      const result = manualChunk('C:\\project\\node_modules\\react\\index.js', api);
+
+      expect(result).toBeUndefined();
+      // With slash() normalization the backslash path is recognized as external,
+      // so the internal-name lookup (getModuleInfo) is never consulted.
+      expect(api.getModuleInfo).not.toHaveBeenCalled();
+    });
   });
 
   describe('non-entry modules', () => {

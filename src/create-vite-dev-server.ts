@@ -16,8 +16,9 @@ const createViteDevServer = ({ root, baseUrl, hmrPort, isTest }: Props): Promise
       middlewareMode: true,
       watch: {
         // During tests we edit the files too fast and sometimes chokidar
-        // misses change events, so enforce polling for consistency
-        usePolling: true,
+        // misses change events, so enforce polling for consistency. Normal dev
+        // watch should not pay the polling cost, so gate it behind isTest.
+        usePolling: isTest,
         interval: 200,
       },
       hmr: {

@@ -1,0 +1,95 @@
+# Project profile data - filled by setup wizard and repo-scan.
+# Edit this file, then re-run the `setup` skill to regenerate docs/PROJECT_CONTEXT.md.
+# Values like off/no/yes must be quoted: key: "off"
+
+schema_version: 2
+
+# Filled by setup
+project_name: "alveo"
+primary_language: "TypeScript"
+framework: "Vite + React SSR"
+
+# Filled by repo-scan - stack detection
+stack:
+  package_manager: "Bun"
+  build_tool: "Vite + tsc (Bun scripts)"
+  test_framework: "Vitest (jsdom, v8 coverage)"
+  frontend_framework: "React 19 (react-router-dom)"
+  css_approach: "SCSS/Sass + LightningCSS"
+  database: "none"
+  orm: "none"
+  deployment_target: "npm package (GitHub Actions tag publish, OIDC provenance)"
+
+# Filled by repo-scan or manual edit
+source_layout:
+  business_logic: "src/*-core.ts (pure logic) + src/*.ts wrappers"
+  web_api: "src/create-server.ts, src/server.ts (local dev/preview Express server)"
+  models: "src/types.d.ts, src/root/_root.d.ts (shared types; no DB models)"
+  integrations: "src/integration.ts, src/integration-core.ts, src/deploy/"
+  frontend: "src/root/ (dev UI), src/*.tsx, src/scripts/, src/styles/"
+  generated: "dist/, coverage/"
+
+documentation:
+  ticket_reviews: ""
+
+authentication:
+  pattern: "none (n/a - build-tooling library; local dev server has no auth)"
+  token_verification: "n/a"
+  tenant_scoping: "n/a"
+  role_model: "n/a"
+
+error_handling: |
+  Pure `*-core` modules receive injected loggers (`log` / `logMissing`) and return result
+  objects (e.g. `{ missing: [] }`) instead of throwing across boundaries. The CLI reports
+  failures with `[alveo]`-prefixed `console.error` and sets `process.exitCode = 1` rather
+  than hard-exiting mid-pipeline. SSR render paths (renderer.ts, entry-server.tsx) wrap
+  rendering in try/catch and degrade gracefully.
+
+testing:
+  pattern: |
+    Vitest with `expect()` assertions and `describe`/`it`. jsdom is the default environment
+    (globals: true); files needing Node override with a `// @vitest-environment node` header.
+    Dependency-injection fakes via `vi.fn()` + local `buildDeps()` factories instead of global
+    fs mocks; MSW for HTTP. `async/await` throughout (no `done()` callbacks). Coverage is v8
+    with an explicit include allowlist in vitest.config.ts.
+  location_conventions: |
+    Tests are co-located next to source as `<module>.test.ts(x)` under src/. Shared setup in
+    test/setup.ts; scratch fixtures under test/temp/.
+
+build_commands:
+  build: "bun run build"
+  typecheck: "bun run typecheck"
+  test: "bun run test"
+  lint: "bun run lint"
+
+project_constraints:
+  - "Package manager is Bun - use `bun`, not `npm` (bun.lock; CI uses `bun install --frozen-lockfile`)."
+  - "Generated assets, sourcemaps, prerendered HTML, and cache-busting hashes must be deterministic across Windows/WSL/Ubuntu - normalize text to LF before hashing/embedding/writing (src/text-normalization.ts); preserve binary bytes unchanged."
+  - "Frontend/layout changes must support both LTR and RTL (logical CSS properties, `$rtl-sign`, `rtl()`)."
+  - "PageSpeed Insights, accessibility, and print output/workflows are first-class requirements for frontend changes."
+  - "Maintain highest-possible Vitest coverage - add matching tests for every logic change (coverage.include allowlist in vitest.config.ts)."
+  - "Publishing is tag-driven: pushing a `vX.Y.Z` tag runs the GitHub Actions npm publish (OIDC provenance); package.json version must match the tag."
+
+module_map:
+  - human_phrase: CLI commands and pipeline orchestration
+    kebab_case_name: cli
+  - human_phrase: Vite plugin build hooks
+    kebab_case_name: vite-hooks
+  - human_phrase: SSR rendering and dev/preview server
+    kebab_case_name: ssr
+  - human_phrase: SCSS style compilation
+    kebab_case_name: styles
+  - human_phrase: Client-side script bundling
+    kebab_case_name: scripts
+  - human_phrase: Asset hashing and cache-busting
+    kebab_case_name: asset-hashing
+  - human_phrase: Backend integration build and deploy
+    kebab_case_name: integration
+  - human_phrase: Static prerendering
+    kebab_case_name: prerender
+  - human_phrase: Component state aggregation
+    kebab_case_name: states
+  - human_phrase: Dev root/preview React UI
+    kebab_case_name: dev-root-ui
+  - human_phrase: Config, routing, aliases, and paths
+    kebab_case_name: config

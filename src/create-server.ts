@@ -23,7 +23,6 @@ const mode =
     ? process.argv[argvModeIndex + 1]!
     : 'production';
 
-process.env.MY_CUSTOM_SECRET = 'API_KEY_4c2928b5a14b475d94c3579cbea06178';
 const isProd = process.env.NODE_ENV === 'production';
 
 const createServer = async ({ root, hmrPort, baseUrl, isTest }: Props) => {
@@ -50,7 +49,11 @@ const createServer = async ({ root, hmrPort, baseUrl, isTest }: Props) => {
   app.use('/assets', serveStatic(resolve('dist/assets'), { index: false }));
   app.use('/samples', serveStatic(resolve('public/samples'), { index: false }));
 
-  _useRenderer({ app, indexProd, isProd, viteDevServer, resolve });
+  // VITE_DOMAIN is read via loadEnv (not process.env, which loadEnv never
+  // populates) and threaded into the renderer so a .env-only domain is applied.
+  const alveoEnv = loadEnv(mode, root);
+
+  _useRenderer({ app, indexProd, isProd, viteDevServer, resolve, domain: alveoEnv.VITE_DOMAIN });
 
   return { app, viteDevServer };
 };

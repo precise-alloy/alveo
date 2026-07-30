@@ -3,3 +3,8 @@ dist/
 coverage/
 *.tsbuildinfo
 .env.local
+test/temp/
+# --- ritus (managed) ---
+/.ritus/.env.local
+/.ritus/attachments/
+/.ritus/.env.example
