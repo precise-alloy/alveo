@@ -52,12 +52,23 @@ describe('alveo/states-core.ts', () => {
       expect(result).toEqual({ output: [{ name: 'a' }, { name: 'z' }], errors: [] });
     });
 
-    it('skips empty state entries', () => {
+    it('skips undefined state entries', () => {
       const deps = createDependencies();
 
       const result = aggregateStates({ '/project/src/a.states.json': undefined }, deps);
 
       expect(result).toEqual({ output: [], errors: [] });
+    });
+
+    it('treats zero-byte state files as parse errors', () => {
+      const deps = createDependencies();
+
+      const result = aggregateStates({ '/project/src/empty.states.json': '' }, deps);
+
+      expect(result.output).toEqual([]);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.filePath).toBe('/project/src/empty.states.json');
+      expect(deps.log).toHaveBeenCalledWith(result.errors[0]?.error);
     });
 
     it('logs malformed JSON and returns parse errors', () => {
@@ -144,6 +155,23 @@ describe('alveo/states-core.ts', () => {
       expect(result.errors[0]?.filePath).toBe(errorInputPath);
       expect(writeFileSync).not.toHaveBeenCalled();
     });
+
+    it('returns a failure result and does not write partial output for zero-byte state files', () => {
+      const emptyInputPath = '/project/src/empty.states.json';
+      const writeFileSync = vi.fn();
+      const deps = createDependencies({
+        globSync: vi.fn().mockReturnValue(['/project/src/good.states.json', emptyInputPath]) as never,
+        readFileSync: vi.fn((inputPath: string) => (inputPath === emptyInputPath ? '' : '{"ok":true}')) as never,
+        writeFileSync: writeFileSync as never,
+      });
+
+      const result = buildStatesOnce('/project', deps);
+
+      expect(result.ok).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.filePath).toBe(emptyInputPath);
+      expect(writeFileSync).not.toHaveBeenCalled();
+    });
   });
 
   describe('watchStates', () => {
@@ -199,6 +227,18 @@ describe('alveo/states-core.ts', () => {
       expect(scheduledBuild).toHaveBeenCalledTimes(4);
       expect(deps.log).toHaveBeenCalledWith(expect.any(SyntaxError));
       expect(writeFileSync).toHaveBeenCalledWith(path.resolve('/project', 'public/pl-states.json'), expect.stringContaining('src/added.states.json'));
+    });
+
+    it('schedules an initial empty output build when no state files are found', () => {
+      const writeFileSync = vi.fn();
+      const deps = createDependencies({
+        globSync: vi.fn().mockReturnValue([]) as never,
+        writeFileSync: writeFileSync as never,
+      });
+
+      watchStates('/project', deps);
+
+      expect(writeFileSync).toHaveBeenCalledWith(path.resolve('/project', 'public/pl-states.json'), '[]');
     });
   });
 

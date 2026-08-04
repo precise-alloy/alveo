@@ -70,7 +70,7 @@ export const aggregateStates = (
     .forEach((filePath) => {
       const state = states[filePath];
 
-      if (!state) {
+      if (state === undefined) {
         return;
       }
 
@@ -139,7 +139,15 @@ export const watchStates = (projectRoot: string, dependencies: StatesCoreDepende
   };
   const globPattern = getStateGlobPattern(projectRoot);
 
-  dependencies.globSync(globPattern).forEach((statePath) => setStates(statePath));
+  const initialStatePaths = dependencies.globSync(globPattern);
+
+  initialStatePaths.forEach((statePath) => setStates(statePath));
+
+  if (initialStatePaths.length === 0) {
+    // Watch mode should still clear stale generated output when a project starts
+    // with no state files; add/change/unlink events keep scheduling later builds.
+    buildStates();
+  }
 
   const watcher = dependencies.createWatcher(globPattern);
 
