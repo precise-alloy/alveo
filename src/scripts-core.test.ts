@@ -135,6 +135,22 @@ describe('alveo/scripts-core.ts', () => {
       expect(log).toHaveBeenCalledWith(error);
       expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/scripts/app.ts', error }] });
     });
+
+    it('logs read errors and returns a failure result', async () => {
+      const log = vi.fn();
+      const error = new Error('file disappeared');
+      const readFileSync = vi.fn(() => {
+        throw error;
+      });
+      const transformWithEsbuild = vi.fn();
+      const deps = buildDeps({ log, readFileSync: readFileSync as never, transformWithEsbuild });
+
+      const result = await compileScript('/project/src/scripts/app.ts', '/project', deps);
+
+      expect(transformWithEsbuild).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledWith(error);
+      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/scripts/app.ts', error }] });
+    });
   });
 
   describe('watchScripts', () => {
@@ -266,6 +282,19 @@ describe('alveo/scripts-core.ts', () => {
       const result = await compileDiscoveredScripts('/project', deps);
 
       expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/b.ts', error }] });
+    });
+
+    it('aggregates read failures in one-shot mode', async () => {
+      const error = new Error('file disappeared');
+      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/a.ts']);
+      const readFileSync = vi.fn(() => {
+        throw error;
+      });
+      const deps = buildDeps({ globSync, readFileSync: readFileSync as never });
+
+      const result = await compileDiscoveredScripts('/project', deps);
+
+      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/a.ts', error }] });
     });
   });
 

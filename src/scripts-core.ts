@@ -61,28 +61,25 @@ export const compileScript = async (
 ): Promise<ScriptBuildResult> => {
   dependencies.log('compile:', slash(inputPath));
 
-  const code = dependencies.readFileSync(inputPath, 'utf8');
+  try {
+    const code = dependencies.readFileSync(inputPath, 'utf8');
+    const result = await dependencies.transformWithEsbuild(code, inputPath, getScriptTransformOptions(inputPath));
+    const savePath = getScriptOutputPath(inputPath, projectRoot);
+    const saveDir = path.dirname(savePath);
 
-  return dependencies
-    .transformWithEsbuild(code, inputPath, getScriptTransformOptions(inputPath))
-    .then((result) => {
-      const savePath = getScriptOutputPath(inputPath, projectRoot);
-      const saveDir = path.dirname(savePath);
+    if (!dependencies.existsSync(saveDir)) {
+      // Recursive create so a missing public/assets parent does not throw
+      dependencies.mkdirSync(saveDir, { recursive: true });
+    }
 
-      if (!dependencies.existsSync(saveDir)) {
-        // Recursive create so a missing public/assets parent does not throw
-        dependencies.mkdirSync(saveDir, { recursive: true });
-      }
+    dependencies.writeFileSync(savePath, result.code);
 
-      dependencies.writeFileSync(savePath, result.code);
+    return { ok: true, errors: [] };
+  } catch (error) {
+    dependencies.log(error);
 
-      return { ok: true, errors: [] };
-    })
-    .catch((error) => {
-      dependencies.log(error);
-
-      return { ok: false, errors: [{ inputPath, error }] };
-    });
+    return { ok: false, errors: [{ inputPath, error }] };
+  }
 };
 
 export const watchScripts = (

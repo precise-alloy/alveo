@@ -66,7 +66,7 @@ describe('alveo/dev-supervisor.ts', () => {
 
   describe('binary resolution', () => {
     it('resolves JS entrypoints instead of shell shims', () => {
-      expect(resolveAlveoCliPath('/package')).toContain('bin/cli.js');
+      expect(resolveAlveoCliPath('/package')).toContain('/bin/cli.js');
       expect(resolveViteCliPath()).toContain('vite');
     });
   });
@@ -160,9 +160,9 @@ describe('alveo/dev-supervisor.ts', () => {
       firstProcess.stdout!.emit('data', Buffer.from('ready\n'));
       secondProcess.stderr!.emit('data', Buffer.from('warn\n'));
       firstProcess.emit('exit', 0, null);
-      secondProcess.emit('exit', 0, null);
+      secondProcess.emit('exit', null, 'SIGTERM');
 
-      await expect(resultPromise).resolves.toBe(0);
+      await expect(resultPromise).resolves.toBe(1);
       expect(deps.spawnProcess).toHaveBeenCalledWith('npx', ['alveo', 'styles'], {
         cwd: undefined,
         env: undefined,
@@ -179,8 +179,29 @@ describe('alveo/dev-supervisor.ts', () => {
       expect((deps.stdoutWrite as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toContain('ready');
       expect((deps.stderrWrite as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toContain('[vite]');
       expect((deps.stderrWrite as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toContain('warn');
+      expect(secondProcess.kill).toHaveBeenCalledWith('SIGTERM');
       expect(deps.processOff).toHaveBeenCalledWith('SIGINT', expect.any(Function));
       expect(deps.processOff).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+    });
+
+    it('logs clean child exits and treats them as fatal while siblings are active', async () => {
+      const exitedProcess = new MockProcess();
+      const siblingProcess = new MockProcess();
+      const deps = buildDependencies([exitedProcess, siblingProcess]);
+      const resultPromise = spawnSupervisor(
+        [
+          { name: 'vite', command: 'node', args: ['/vite.js'] },
+          { name: 'server', command: 'node', args: ['/cli.js', 'server'] },
+        ],
+        deps
+      );
+
+      exitedProcess.emit('exit', 0, null);
+      siblingProcess.emit('exit', null, 'SIGTERM');
+
+      await expect(resultPromise).resolves.toBe(1);
+      expect(deps.stderrWrite).toHaveBeenCalledWith(expect.stringContaining('[vite] exited with code 0'));
+      expect(siblingProcess.kill).toHaveBeenCalledWith('SIGTERM');
     });
 
     it('kills sibling processes and returns non-zero when one process fails', async () => {

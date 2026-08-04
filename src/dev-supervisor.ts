@@ -5,6 +5,7 @@ import { createRequire } from 'module';
 import path from 'path';
 
 import chalk from 'chalk';
+import slash from 'slash';
 
 import { getPackageRoot } from './paths.ts';
 
@@ -76,7 +77,7 @@ export const assertMode = (raw: string): string => {
   return raw;
 };
 
-export const resolveAlveoCliPath = (packageRoot = getPackageRoot()): string => path.resolve(packageRoot, 'bin/cli.js');
+export const resolveAlveoCliPath = (packageRoot = getPackageRoot()): string => slash(path.resolve(packageRoot, 'bin/cli.js'));
 
 export const resolveViteCliPath = (): string => {
   // Dev uses alveo's declared Vite dependency instead of a consumer-local npx
@@ -214,15 +215,19 @@ export const spawnSupervisor = (
         resolve(exitCode);
       }
     };
-    const recordExit = (processRef: SpawnedDevProcess, code: number): void => {
+    const recordExit = (spec: DevProcessSpec, processRef: SpawnedDevProcess, code: number): void => {
       if (!activeProcesses.has(processRef)) {
         return;
       }
 
       activeProcesses.delete(processRef);
+      dependencies.stderrWrite(formatProcessOutput(spec.name, spec.prefixColor, `exited with code ${code}`));
 
       if (code !== 0 && exitCode === 0) {
         exitCode = code;
+        terminateProcesses(processRef);
+      } else if (code === 0 && activeProcesses.size > 0 && !signalRequested && exitCode === 0) {
+        exitCode = 1;
         terminateProcesses(processRef);
       }
 
@@ -243,10 +248,10 @@ export const spawnSupervisor = (
         childProcess.stderr?.on('data', (chunk) => dependencies.stderrWrite(formatProcessOutput(spec.name, spec.prefixColor, chunk)));
         childProcess.on('error', (error) => {
           dependencies.stderrWrite(formatProcessOutput(spec.name, spec.prefixColor, String(error)));
-          recordExit(childProcess, 1);
+          recordExit(spec, childProcess, 1);
         });
         childProcess.on('exit', (code, signal) => {
-          recordExit(childProcess, code ?? (signal ? 1 : 0));
+          recordExit(spec, childProcess, code ?? (signal ? 1 : 0));
         });
       });
     } catch (error) {
