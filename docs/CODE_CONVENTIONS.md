@@ -15,15 +15,15 @@
 
 ## Naming
 
-| Artifact | Convention |
-|---|---|
-| Files | kebab-case (`asset-hash.ts`, `inject-functions-core.ts`); entry scripts end `.entry.ts` |
-| Classes / types | PascalCase (`AssetHashDependencies`); React components PascalCase |
-| Functions / methods | camelCase; factory helpers prefixed `create*` |
-| Variables | camelCase; unused args prefixed `_` |
-| Constants | UPPER_SNAKE_CASE (`ASSET_HASH_REGEX`) |
-| DB columns | n/a (no database) |
-| URL paths | n/a (CLI / build tooling) |
+| Artifact            | Convention                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| Files               | kebab-case (`asset-hash.ts`, `inject-functions-core.ts`); entry scripts end `.entry.ts` |
+| Classes / types     | PascalCase (`AssetHashDependencies`); React components PascalCase                       |
+| Functions / methods | camelCase; factory helpers prefixed `create*`                                           |
+| Variables           | camelCase; unused args prefixed `_`                                                     |
+| Constants           | UPPER_SNAKE_CASE (`ASSET_HASH_REGEX`)                                                   |
+| DB columns          | n/a (no database)                                                                       |
+| URL paths           | n/a (CLI / build tooling)                                                               |
 
 ## Module structure
 
@@ -36,16 +36,16 @@
 
 ## Error handling
 
-| Context | Rule |
-|---|---|
-| API handlers | n/a - no public API. The local dev/preview server (`create-server.ts`) is unauthenticated. |
-| Background jobs | Pipeline steps return result objects (e.g. `{ missing: [] }`); the CLI sets `process.exitCode = 1` on failure instead of hard-exiting. |
-| General | Don't throw across module boundaries; surface failures via injected loggers and result values. Wrap SSR render in try/catch and degrade gracefully. |
+| Context         | Rule                                                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API handlers    | n/a - no public API. The local dev/preview server (`create-server.ts`) is unauthenticated.                                                          |
+| Background jobs | Pipeline steps return result objects (e.g. `{ missing: [] }`); the CLI sets `process.exitCode = 1` on failure instead of hard-exiting.              |
+| General         | Don't throw across module boundaries; surface failures via injected loggers and result values. Wrap SSR render in try/catch and degrade gracefully. |
 
 ## Logging
 
 - Unstructured `console.log` / `console.error`, with `[alveo]`-prefixed messages in the CLI.
-- `chalk` for colorized dev-server output; per-command prefix colors via `concurrently`.
+- `chalk` for colorized dev-server output; per-command prefix colors via `src/dev-supervisor.ts`.
 - Loggers are injected as dependencies (`log`, `logMissing`) so pure modules stay testable; no
   structured logger or correlation IDs.
 

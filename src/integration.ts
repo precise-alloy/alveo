@@ -7,7 +7,7 @@ import { glob } from 'glob';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { CopyItem, FileExistCheck, parseIntegrationArgs, runIntegrationBuild } from './integration-core.ts';
+import { CopyItem, FileExistCheck, parseIntegrationArgs, runIntegrationBuild, validateDestinations } from './integration-core.ts';
 
 export interface IntegrationBuildOptions {
   projectRoot: string;
@@ -33,6 +33,11 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
   const srcBasePath = toAbsolute('dist/static/assets');
   const destBasePath = toAbsolute(alveoEnv.VITE_INTE_ASSET_DIR ?? '');
   const patternPath = alveoEnv.VITE_INTE_PATTERN_DIR ? toAbsolute(alveoEnv.VITE_INTE_PATTERN_DIR) : undefined;
+  const destinationValidation = validateDestinations(alveoEnv.VITE_INTE_ASSET_DIR?.trim() ? destBasePath : '', patternPath, projectRoot);
+
+  if (!destinationValidation.ok) {
+    return { isValid: false, missing: destinationValidation.reasons };
+  }
 
   const copyItems: CopyItem[] = [
     { from: 'css' },

@@ -14,8 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:ci": "bun run typecheck && vitest run --coverage",
     "lint": "eslint --fix",
-    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "prepublishOnly": "bun run typecheck && bun run test:ci && bun run build",
     "prepare": "git config core.hooksPath .git-hooks"
   },
   "bin": {
@@ -39,7 +40,6 @@
     "cheerio": "^1.2.0",
     "chokidar": "^4.0.3",
     "commander": "^13.1.0",
-    "concurrently": "^9.2.0",
     "debounce": "^3.0.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.4.1",

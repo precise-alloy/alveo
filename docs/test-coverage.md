@@ -2,12 +2,12 @@
 
 ## Purpose
 
-This repository now has a real automated test gate for the most failure-prone frontend logic that was previously unprotected. The current rollout focuses on modules where silent regressions are expensive:
+This repository now has a real automated test gate for the most failure-prone frontend build and integration logic that was previously unprotected. The current rollout focuses on modules where silent regressions are expensive:
 
-- runtime URL and API behavior
-- asset include helpers used by rendered pages
-- contact-form submission and error handling
-- alveo script compilation and chunk/file naming rules
+- path, alias, filename, and hash behavior
+- build-time script, stylesheet, prerender, and integration transforms
+- generated asset normalization and virtual module contracts
+- hook helpers that rewrite generated HTML and dynamic imports
 
 The immediate goal is not a vanity repo-wide percentage. The immediate goal is a hard gate around the logic that breaks builds, runtime asset loading, or form submission when changed carelessly.
 
@@ -33,24 +33,24 @@ After `bun install`, the repo also installs a local `pre-push` hook through `sim
 
 The current hard-threshold gate applies to the following modules:
 
-| Area                    | File                                     | Why it is gated now                                                                                   |
-| ----------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| API wrapper             | `src/_api/avatar.ts`                     | Protects endpoint delegation for avatar data                                                          |
-| API wrapper             | `src/_api/contact-form.ts`               | Protects endpoint delegation for contact form submission                                              |
-| Theme helper            | `src/_helpers/handleTheme.ts`            | Protects localStorage and document theme state                                                        |
-| Render helper           | `src/_helpers/ReactSection.tsx`          | Protects JSON payload script output and CSS inclusion                                                 |
-| Asset helper            | `src/_helpers/RequireCss.tsx`            | Protects stylesheet path normalization                                                                |
-| Asset helper            | `src/_helpers/RequireJs.tsx`             | Protects script path normalization and attributes                                                     |
-| Runtime API             | `src/assets/scripts/main/api.ts`         | Protects URL building, HTTP method mapping, body handling, and fallback origin behavior               |
-| Runtime helper          | `alveo/scripts/functions.ts`             | Protects `getModifiers`, `viteAbsoluteUrl`, cookies, paging, and numeric formatting                   |
-| Mission-critical form   | `src/organisms/contact/contact-form.tsx` | Protects payload mapping, success/failure alerts, and reset behavior                                  |
-| alveo output naming     | `alveo/filename.ts`                      | Protects asset, entry, and chunk naming conventions                                                   |
-| alveo integration core  | `alveo/integration-core.ts`              | Protects asset copying, hash manifest generation, pattern normalization, and required-file validation |
-| alveo chunk naming      | `alveo/manual-chunk.ts`                  | Protects internal entry chunk naming                                                                  |
-| alveo prerender core    | `alveo/prerender-core.ts`                | Protects prerender URL building, duplicate asset relocation, and cache-busting rules                  |
-| alveo script build core | `alveo/scripts-core.ts`                  | Protects esbuild options, output writes, watch wiring, and error logging                              |
-| alveo styles core       | `alveo/styles-core.ts`                   | Protects injected SCSS prelude handling, sourcemap line shifting, and output naming                   |
-| alveo text normalizer   | `alveo/text-normalization.ts`            | Protects platform-independent LF normalization for text assets, sourcemaps, and generated outputs     |
+| Area                  | File                                 | Why it is gated now                                                                                   |
+| --------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Alias helper          | `src/alias.ts`                       | Protects alias normalization and Vite alias generation                                                |
+| Asset hashing         | `src/asset-hash.ts`                  | Protects asset hash lookup and missing-file behavior                                                  |
+| Cryptography          | `src/cryptography.ts`                | Protects stable hashing helpers                                                                       |
+| Dev supervisor        | `src/dev-supervisor.ts`              | Protects argv-array dev process launch, validation, prefixed output, and kill-on-failure behavior     |
+| Output naming         | `src/filename.ts`                    | Protects asset, entry, and chunk naming conventions                                                   |
+| HTML hook             | `src/hooks/inject-functions.ts`      | Protects generated script injection wiring                                                            |
+| HTML hook core        | `src/hooks/inject-functions-core.ts` | Protects generated function injection transforms                                                      |
+| Integration core      | `src/integration-core.ts`            | Protects asset copying, hash manifest generation, pattern normalization, and required-file validation |
+| Chunk naming          | `src/manual-chunk.ts`                | Protects internal entry chunk naming                                                                  |
+| Stylesheet precompile | `src/precompile-styles.ts`           | Protects package stylesheet precompilation                                                            |
+| Prerender core        | `src/prerender-core.ts`              | Protects prerender URL building, duplicate asset relocation, and cache-busting rules                  |
+| Script build core     | `src/scripts-core.ts`                | Protects esbuild options, output writes, watch wiring, and one-shot failure signaling                 |
+| State build core      | `src/states-core.ts`                 | Protects deterministic state aggregation, output writes, and one-shot parse failure signaling         |
+| Styles core           | `src/styles-core.ts`                 | Protects injected SCSS prelude handling, sourcemap line shifting, and output naming                   |
+| Text normalizer       | `src/text-normalization.ts`          | Protects platform-independent LF normalization for text assets, sourcemaps, and generated outputs     |
+| Virtual modules       | `src/virtual-modules.ts`             | Protects virtual module IDs and resolution                                                            |
 
 These files are intentionally enforced with hard thresholds now because they are already covered by explicit tests. The next rollout phases will expand this gate to additional alveo build modules after their side effects are split into testable cores.
 
@@ -70,76 +70,31 @@ The branches threshold sits at 95% because a single defensive `||` operand in `r
 
 ## Implemented Test Contracts
 
-### Theme and Rendering Helpers
+### Build Helpers
 
 Current tests protect these rules:
 
-- `handleTheme.ts` must default to light mode when storage is empty.
-- `handleTheme.ts` must store the selected theme and update `document.documentElement[data-theme]`.
-- `handleTheme.ts` must treat stored `light` values case-insensitively.
-- `handleTheme.ts` must toggle light and dark predictably.
-- `RequireCss.tsx` must map local component names into `/assets/css/*.css`.
-- `RequireCss.tsx` must map vendor assets into `/assets/vendors/*.css`.
-- `RequireCss.tsx` must preserve absolute URLs.
-- `RequireJs.tsx` must map local component names into `/assets/js/*.js`.
-- `RequireJs.tsx` must map vendor assets into `/assets/vendors/*.js`.
-- `RequireJs.tsx` must preserve `async`, `defer`, `data-pl-inplace`, and `type` attributes.
-- `ReactSection.tsx` must emit JSON script payloads with `data-rct`.
-- `ReactSection.tsx` must add one stylesheet per declared CSS dependency.
-
-If one of these helpers changes path rules, removes attributes, or changes the rendered payload shape, the corresponding test fails with the exact contract name.
-
-### Runtime Browser Helpers
-
-Current tests protect these rules:
-
-- `alveo/scripts/functions.ts` must compose classes from base, global modifiers, style modifiers, and theme.
-- `alveo/scripts/functions.ts` must preserve absolute URLs in `viteAbsoluteUrl`.
-- `alveo/scripts/functions.ts` must normalize relative URLs and append the configured page extension only when requested.
-- `alveo/scripts/functions.ts` must support base URLs with and without trailing slashes.
-- `alveo/scripts/functions.ts` must read cookies by trimmed key name.
-- `alveo/scripts/functions.ts` must generate paging windows correctly at the beginning, middle, end, and short-range cases.
-- `alveo/scripts/functions.ts` must reject non-number input in `roundNumber` and format numeric input to the requested precision.
-- `api.ts` must build API URLs from `VITE_APP_API_URL` when present.
-- `api.ts` must fall back to `window.location.origin` when no API base is configured.
-- `api.ts` must serialize only defined query params and stringify booleans.
-- `api.ts` must send JSON bodies and headers for body-bearing requests.
-- `api.ts` must return the raw response when `skipResponseBody` is true.
-- `api.ts` must expose `GET`, `POST`, `PUT`, `PATCH`, and `DELETE` with the expected HTTP methods.
-- `api.ts` must reject with the documented wrapped error shape when URL construction fails.
-
-If runtime URL, cookie, or request-building behavior changes, the failure output points at the broken rule rather than just reporting a snapshot diff.
-
-### Contact Form
-
-Current tests protect these rules:
-
-- the form must render only the fields configured by the model
-- the submit payload must map field values to `name`, `email`, and `message`
-- successful submission must alert the success message and reset the form
-- unsuccessful API responses with a message must surface as an `Error`
-- rejected API promises must be alerted back to the user
-- omitted optional fields must not crash submission
-
-This is the most user-visible mission-critical suite currently enforced.
-
-### alveo Build Helpers
-
-Current tests protect these rules:
-
+- `alias.ts` must normalize path aliases into Vite-compatible entries.
+- `asset-hash.ts` must resolve asset hash records, preserve `/assets/...` URLs, and log missing files consistently.
+- `cryptography.ts` must produce stable content hashes.
+- `dev-supervisor.ts` must validate dev CLI mode/port values, build argv-array process specs, and terminate sibling watchers when one fails.
+- `filename.ts` must preserve the current hashed and unhashed filename conventions.
+- `manual-chunk.ts` must keep the current internal entry chunk naming convention.
+- `precompile-styles.ts` must normalize generated CSS and source-map content to LF and preserve source-map fallback behavior.
+- `virtual-modules.ts` must keep virtual module IDs and resolution behavior stable.
 - `scripts-core.ts` must disable sourcemaps for `critical` script filenames and use external sourcemaps otherwise
 - `scripts-core.ts` must write output into `public/assets/js/<name>.js`
 - `scripts-core.ts` must create the output directory when missing
 - `scripts-core.ts` must compile every discovered script in batch mode
 - `scripts-core.ts` must wire `add`, `change`, and `unlink` handlers in watch mode
 - `scripts-core.ts` must log transform errors instead of throwing and stopping the process abruptly
-- `filename.ts` must preserve the current hashed and unhashed filename conventions
-- `manual-chunk.ts` must keep the current internal entry chunk naming convention
+- `states-core.ts` must sort state files deterministically, fail one-shot builds on parse errors, and keep debounced watch output behavior
 - `prerender-core.ts` must preserve the current hashed-filename detection rule, `VITE_DOMAIN` prefixing, cache-busting eligibility, and duplicate asset relocation behavior
 - `prerender-core.ts` must keep `style-base` removal on the root route logic intact
-- `integration-core.ts` must preserve asset copy behavior, hash manifest generation, pattern output normalization, and required-file validation without relying on `process.exit`
+- `integration-core.ts` must preserve destination validation, asset copy behavior, hash manifest generation, pattern output normalization, and required-file validation without relying on `process.exit`
 - `styles-core.ts` must preserve shared `@use` prelude injection, sourcemap prelude stripping, and CSS output naming
 - `text-normalization.ts` must normalize text to LF, normalize source-map `sourcesContent`, detect text-like extensionless content, and leave binary bytes unchanged
+- `hooks/inject-functions.ts` and `hooks/inject-functions-core.ts` must preserve generated function injection behavior.
 
 Generated integration output must not depend on `.gitattributes`, `core.autocrlf`, or the local OS checkout style. When this area changes, run `bun inte` and confirm there is no content diff under `../PreciseAlloy.Patterns` and `../PreciseAlloy.Web/wwwroot/assets` with `git diff --quiet -- ../PreciseAlloy.Patterns ../PreciseAlloy.Web/wwwroot/assets`. On Windows, `git status` can still list LF-normalized generated text files when the paths are `text=auto`; the content diff check is the source of truth.
 

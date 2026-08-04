@@ -42,6 +42,59 @@ export interface IntegrationConfig {
   checkExistFileList: FileExistCheck[];
 }
 
+export interface DestinationValidationResult {
+  ok: boolean;
+  reasons: string[];
+}
+
+const isSameOrAncestorPath = (candidatePath: string, projectRoot: string): 'same' | 'ancestor' | undefined => {
+  const resolvedCandidate = slash(path.resolve(candidatePath));
+  const resolvedRoot = slash(path.resolve(projectRoot));
+  const relativePath = slash(path.relative(resolvedCandidate, resolvedRoot));
+
+  if (relativePath === '') {
+    return 'same';
+  }
+
+  if (relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+    return 'ancestor';
+  }
+
+  return undefined;
+};
+
+export const validateDestinations = (destBasePath: string, patternPath: string | undefined, projectRoot: string): DestinationValidationResult => {
+  const reasons: string[] = [];
+  const assetDestination = destBasePath.trim();
+
+  if (!assetDestination) {
+    reasons.push('VITE_INTE_ASSET_DIR is empty');
+  } else {
+    const assetPathRisk = isSameOrAncestorPath(assetDestination, projectRoot);
+
+    if (assetPathRisk === 'same') {
+      reasons.push('VITE_INTE_ASSET_DIR resolves to project root');
+    } else if (assetPathRisk === 'ancestor') {
+      reasons.push('VITE_INTE_ASSET_DIR is an ancestor of project root');
+    }
+  }
+
+  if (patternPath !== undefined) {
+    const patternPathRisk = isSameOrAncestorPath(patternPath, projectRoot);
+
+    if (patternPathRisk === 'same') {
+      reasons.push('VITE_INTE_PATTERN_DIR resolves to project root');
+    } else if (patternPathRisk === 'ancestor') {
+      reasons.push('VITE_INTE_PATTERN_DIR is an ancestor of project root');
+    }
+  }
+
+  return {
+    ok: reasons.length === 0,
+    reasons,
+  };
+};
+
 export const parseIntegrationArgs = (argv: string[]) => {
   return {
     mode: parsePrerenderArgs(argv).mode,

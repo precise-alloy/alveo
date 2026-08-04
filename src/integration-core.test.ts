@@ -12,6 +12,7 @@ import {
   normalizeGeneratedTextFiles,
   copyPatternArtifacts,
   normalizePatternFiles,
+  validateDestinations,
   validateExpectedFiles,
   runIntegrationBuild,
   IntegrationDependencies,
@@ -150,6 +151,50 @@ describe('alveo/integration-core.ts', () => {
       const result = parseIntegrationArgs(['node', 'script', '--mode', '--other']);
 
       expect(result.mode).toBe('production');
+    });
+  });
+
+  describe('validateDestinations', () => {
+    it('rejects an empty asset destination', () => {
+      const result = validateDestinations('', undefined, '/project');
+
+      expect(result).toEqual({ ok: false, reasons: ['VITE_INTE_ASSET_DIR is empty'] });
+    });
+
+    it('rejects an asset destination that resolves to the project root', () => {
+      const result = validateDestinations('/project', undefined, '/project');
+
+      expect(result).toEqual({ ok: false, reasons: ['VITE_INTE_ASSET_DIR resolves to project root'] });
+    });
+
+    it('rejects an asset destination that is an ancestor of the project root', () => {
+      const result = validateDestinations('/workspace', undefined, '/workspace/project');
+
+      expect(result).toEqual({ ok: false, reasons: ['VITE_INTE_ASSET_DIR is an ancestor of project root'] });
+    });
+
+    it('rejects a set pattern destination that resolves to the project root', () => {
+      const result = validateDestinations('/output', '/project', '/project');
+
+      expect(result).toEqual({ ok: false, reasons: ['VITE_INTE_PATTERN_DIR resolves to project root'] });
+    });
+
+    it('rejects a set pattern destination that is an ancestor of the project root', () => {
+      const result = validateDestinations('/output', '/workspace', '/workspace/project');
+
+      expect(result).toEqual({ ok: false, reasons: ['VITE_INTE_PATTERN_DIR is an ancestor of project root'] });
+    });
+
+    it('allows an unset pattern destination', () => {
+      const result = validateDestinations('/workspace/output', undefined, '/workspace/project');
+
+      expect(result).toEqual({ ok: true, reasons: [] });
+    });
+
+    it('allows destinations outside the project root ancestry', () => {
+      const result = validateDestinations('/workspace/output/assets', '/workspace/output/patterns', '/workspace/project');
+
+      expect(result).toEqual({ ok: true, reasons: [] });
     });
   });
 
@@ -345,6 +390,31 @@ describe('alveo/integration-core.ts', () => {
       normalizeGeneratedTextFiles('/dest', deps);
 
       expect(writeFileSync).toHaveBeenCalledWith('/dest/file.css', 'line1\nline2\n');
+    });
+
+    it('leaves binary generated assets byte-for-byte while normalizing text files', () => {
+      const extensionlessBinary = Buffer.from([0x00, 0x01, 0x02, 0xff]);
+      const pngBinary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const woff2Binary = Buffer.from([0x77, 0x4f, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const files = ['/dest/assets/blob', '/dest/assets/image.png', '/dest/assets/font.woff2', '/dest/assets/app.js'];
+      const fileContents: Record<string, Buffer> = {
+        '/dest/assets/blob': extensionlessBinary,
+        '/dest/assets/image.png': pngBinary,
+        '/dest/assets/font.woff2': woff2Binary,
+        '/dest/assets/app.js': Buffer.from('const value = 1;\r\n'),
+      };
+      const globSync = vi.fn().mockReturnValue(files);
+      const readFileSync = vi.fn((file: string) => fileContents[file]);
+      const writeFileSync = vi.fn();
+      const deps = buildDeps({ globSync, readFileSync: readFileSync as never, writeFileSync });
+
+      normalizeGeneratedTextFiles('/dest', deps);
+
+      expect(writeFileSync).toHaveBeenCalledTimes(1);
+      expect(writeFileSync).toHaveBeenCalledWith('/dest/assets/app.js', 'const value = 1;\n');
+      expect(fileContents['/dest/assets/blob']).toBe(extensionlessBinary);
+      expect(fileContents['/dest/assets/image.png']).toBe(pngBinary);
+      expect(fileContents['/dest/assets/font.woff2']).toBe(woff2Binary);
     });
   });
 
