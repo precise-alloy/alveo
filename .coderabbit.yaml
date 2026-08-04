@@ -1,0 +1,285 @@
+language: en-US
+tone_instructions: 'Be concise, specific, and prioritize correctness, test coverage, determinism, accessibility, and release safety.'
+
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+  planning:
+    enabled: false
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: '@coderabbitai summary'
+  high_level_summary_in_walkthrough: true
+  auto_title_placeholder: '@coderabbitai'
+  review_status: true
+  review_details: true
+  review_progress: true
+  fail_commit_status: false
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: false
+  suggested_reviewers: true
+  in_progress_fortune: false
+  poem: false
+  enable_prompt_for_ai_agents: true
+  abort_on_close: true
+
+  path_filters:
+    - '!coverage/**'
+    - '!dist/**'
+    - '!node_modules/**'
+    - '!.istari/**'
+    - '!**/*.map'
+    - '!**/*.tsbuildinfo'
+
+  path_instructions:
+    - path: 'src/**/*.{ts,tsx}'
+      instructions: |
+        This is an ESM TypeScript/Bun package. Prefer named exports, explicit .ts/.tsx relative imports, dependency-injected core helpers, and result objects over process.exit or throwing across module boundaries. Any logic, branch, path handling, or error-handling change must include matching Vitest coverage and keep `bun run test:ci` passing.
+    - path: 'src/**/*.test.{ts,tsx}'
+      instructions: |
+        Tests use Vitest. Keep tests behavior-focused and deterministic. For watcher/event-emitter behavior, invoke captured callbacks directly so inline branches and functions are covered. For SSR guards, use sibling node-environment tests instead of mutating jsdom globals.
+    - path: 'src/**/*-core.ts'
+      instructions: |
+        Core modules should stay side-effect-light and testable through explicit dependency objects. Preserve deterministic output contracts, LF text normalization, binary pass-through, and stable path behavior across Linux, macOS, Windows, and WSL.
+    - path: 'src/text-normalization.ts'
+      instructions: |
+        Treat generated text normalization as release-critical. Text outputs, sourcemap sourcesContent, prerendered HTML, and copied generated text assets must normalize to LF before hashing or writing; binary bytes must remain unchanged.
+    - path: 'src/integration-core.ts'
+      instructions: |
+        Integration builds can delete and overwrite destination folders. Review destination validation, required-file checks, asset copying, manifest generation, and pattern writes for destructive-path safety and deterministic LF output.
+    - path: 'src/dev-supervisor.ts'
+      instructions: |
+        Dev orchestration should validate mode and port inputs, spawn commands with argv arrays rather than shell-interpolated strings, prefix output predictably, and terminate sibling processes when one command fails.
+    - path: 'src/styles/**/*.scss'
+      instructions: |
+        Frontend styles must preserve accessibility, print behavior, and LTR/RTL support. Prefer logical properties plus the existing RTL helpers over hard-coded left/right assumptions.
+    - path: 'template/**/*.{ts,tsx,scss,html,json}'
+      instructions: |
+        Template changes affect generated consumer projects. Preserve the scaffold contract documented in README.md, Bun usage, React 19 compatibility, accessibility, print workflows, and cross-platform path behavior.
+    - path: 'vitest.config.ts'
+      instructions: |
+        Keep the enforced coverage gate strict and synchronized with docs/test-coverage.md plus the Copilot coverage policy files. Any new testable src/** module added to coverage.include needs matching tests and documentation updates.
+    - path: 'package.json'
+      instructions: |
+        This package is Bun-first. Preserve Bun script usage, the prepublishOnly validation chain, the published files/bin/export contract, and peer dependency compatibility for React and TypeScript.
+    - path: '.github/workflows/*.{yml,yaml}'
+      instructions: |
+        Workflow changes should keep Bun installs frozen, publish provenance intact, least-privilege permissions, and the project validation path aligned with package.json scripts.
+    - path: 'docs/test-coverage.md'
+      instructions: |
+        Keep this document synchronized with vitest.config.ts, .github/instructions/test-coverage.instructions.md, and .github/skills/test-coverage/SKILL.md whenever coverage scope, thresholds, or validation commands change.
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+    drafts: false
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+
+  pre_merge_checks:
+    docstrings:
+      mode: 'off'
+    title:
+      mode: warning
+      requirements: 'Use a concise, descriptive title that names the affected workflow, command, or module.'
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+    custom_checks:
+      - name: 'Bun validation evidence'
+        mode: warning
+        instructions: |
+          For changes to src/**, vitest.config.ts, package.json, bun.lock, workflows, or coverage policy docs, verify the PR preserves the Bun-first validation path. Logic changes should include relevant tests and evidence for `bun run test:ci`; package-output or release changes should also account for `bun run build`.
+      - name: 'Coverage scope parity'
+        mode: warning
+        instructions: |
+          When new testable logic is introduced under src/**, verify that the module is either covered by an existing enforced module or added to vitest.config.ts coverage.include with matching tests. Coverage scope, thresholds, docs/test-coverage.md, .github/copilot-instructions.md, .github/instructions/test-coverage.instructions.md, and .github/skills/test-coverage/SKILL.md should stay aligned.
+      - name: 'Deterministic outputs'
+        mode: warning
+        instructions: |
+          For build, prerender, integration, style, script, or text-normalization changes, verify generated text is normalized to LF before hashing or writing, sourcemap sourcesContent is normalized, and binary assets remain byte-preserved.
+      - name: 'Publish safety'
+        mode: warning
+        instructions: |
+          For package.json, bin/**, template/**, dist output, or workflow changes, verify the package export/bin/files contract, Bun-first scripts, npm provenance publish step, and tag/version validation remain coherent.
+
+  tools:
+    ast-grep:
+      essential_rules: false
+      packages: []
+      rule_dirs: []
+      util_dirs: []
+    eslint:
+      enabled: true
+      e18e:
+        enabled: true
+    oxc:
+      enabled: true
+    reactDoctor:
+      enabled: true
+    markdownlint:
+      enabled: true
+    languagetool:
+      enabled: true
+      enabled_only: false
+      level: default
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 900000
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+    trufflehog:
+      enabled: true
+    osvScanner:
+      enabled: true
+    semgrep:
+      enabled: false
+    opengrep:
+      enabled: true
+    checkov:
+      enabled: true
+    dotenvLint:
+      enabled: true
+    htmlhint:
+      enabled: true
+    stylelint:
+      enabled: true
+    biome:
+      enabled: false
+    ruff:
+      enabled: false
+    flake8:
+      enabled: false
+    fbinfer:
+      enabled: false
+    fortitudeLint:
+      enabled: false
+    pylint:
+      enabled: false
+    clippy:
+      enabled: false
+    swiftlint:
+      enabled: false
+    phpstan:
+      enabled: false
+    phpmd:
+      enabled: false
+    phpcs:
+      enabled: false
+    golangci-lint:
+      enabled: false
+    hadolint:
+      enabled: false
+    detekt:
+      enabled: false
+    rubocop:
+      enabled: false
+    buf:
+      enabled: false
+    regal:
+      enabled: false
+    pmd:
+      enabled: false
+    clang:
+      enabled: false
+    cppcheck:
+      enabled: false
+    circleci:
+      enabled: false
+    sqlfluff:
+      enabled: false
+    squawk:
+      enabled: false
+    prismaLint:
+      enabled: false
+    shopifyThemeCheck:
+      enabled: false
+    luacheck:
+      enabled: false
+    brakeman:
+      enabled: false
+    checkmake:
+      enabled: false
+    tflint:
+      enabled: false
+    trivy:
+      enabled: false
+    oasdiff:
+      enabled: false
+    presidio:
+      enabled: false
+    blinter:
+      enabled: false
+    smartyLint:
+      enabled: false
+    emberTemplateLint:
+      enabled: false
+    skillspector:
+      enabled: true
+    psscriptanalyzer:
+      enabled: false
+
+chat:
+  auto_reply: true
+  art: false
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - '.github/copilot-instructions.md'
+      - '.github/instructions/*.instructions.md'
+      - '.github/skills/**/SKILL.md'
+      - 'docs/CODE_CONVENTIONS.md'
+      - 'docs/TEST_CONVENTIONS.md'
+      - 'docs/test-coverage.md'
+      - 'docs/ARCHITECTURE.md'
+      - '**/AGENT.md'
+      - '**/AGENTS.md'
+      - '**/CLAUDE.md'
+      - '**/GEMINI.md'
+      - '**/REVIEW.md'
+      - '**/.cursorrules'
+      - '**/.cursor/rules/*'
+      - '**/.windsurfrules'
+      - '**/.clinerules/*'
+      - '**/.rules/*'
+  learnings:
+    scope: local
+    approval_delay: 7
+  pull_requests:
+    scope: local
