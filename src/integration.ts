@@ -31,9 +31,11 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
 
   const staticBasePath = toAbsolute('dist/static');
   const srcBasePath = toAbsolute('dist/static/assets');
-  const destBasePath = toAbsolute(alveoEnv.VITE_INTE_ASSET_DIR ?? '');
-  const patternPath = alveoEnv.VITE_INTE_PATTERN_DIR ? toAbsolute(alveoEnv.VITE_INTE_PATTERN_DIR) : undefined;
-  const destinationValidation = validateDestinations(alveoEnv.VITE_INTE_ASSET_DIR?.trim() ? destBasePath : '', patternPath, projectRoot);
+  const assetDir = alveoEnv.VITE_INTE_ASSET_DIR?.trim() ?? '';
+  const patternDir = alveoEnv.VITE_INTE_PATTERN_DIR?.trim();
+  const destBasePath = assetDir ? toAbsolute(assetDir) : '';
+  const patternPath = patternDir ? toAbsolute(patternDir) : undefined;
+  const destinationValidation = validateDestinations(destBasePath, patternPath, projectRoot);
 
   if (!destinationValidation.ok) {
     return { isValid: false, missing: destinationValidation.reasons };
