@@ -155,7 +155,7 @@ export const formatProcessOutput = (name: string, prefixColor: DevProcessSpec['p
     return '';
   }
 
-  const lines = text.split(/\r?\n/);
+  const lines = text.split(/\r\n|\r|\n/);
   const hasTrailingLineEnding = text.endsWith('\n') || text.endsWith('\r');
   const visibleLines = hasTrailingLineEnding ? lines.slice(0, -1) : lines;
 
