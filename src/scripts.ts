@@ -1,7 +1,9 @@
-import { runScriptBuild } from './scripts-core.ts';
+import type { ScriptBuildResult } from './scripts-core.ts';
+
+import { compileDiscoveredScripts } from './scripts-core.ts';
 
 export { runScriptBuild } from './scripts-core.ts';
-export type { ScriptCoreDependencies } from './scripts-core.ts';
+export type { ScriptBuildResult, ScriptCoreDependencies } from './scripts-core.ts';
 
 /**
  * Runs the script build pipeline for a consumer project.
@@ -10,6 +12,6 @@ export type { ScriptCoreDependencies } from './scripts-core.ts';
  *
  * @param projectRoot - Absolute path to the consumer's project root
  */
-export const runScripts = async (projectRoot: string): Promise<void> => {
-  await runScriptBuild(projectRoot);
+export const runScripts = async (projectRoot: string): Promise<ScriptBuildResult> => {
+  return compileDiscoveredScripts(projectRoot);
 };

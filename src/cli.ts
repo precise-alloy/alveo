@@ -65,42 +65,18 @@ program
   .option('--mode <mode>', 'Vite mode', 'development')
   .action(async (options: { root?: string; port?: string; mode: string }) => {
     const projectRoot = resolveRoot(options.root);
-    const concurrently = (await import('concurrently')).default;
-
-    const portArgs = options.port ? ` --port ${options.port}` : '';
-    const npxCmd = 'npx';
-
-    const { result } = concurrently(
-      [
-        {
-          command: `${npxCmd} alveo styles --watch --root "${projectRoot}"`,
-          name: 'styles',
-          prefixColor: 'blue',
-        },
-        {
-          command: `${npxCmd} alveo states --watch --root "${projectRoot}"`,
-          name: 'states',
-          prefixColor: 'green',
-        },
-        {
-          command: `${npxCmd} vite build --mode ${options.mode} --watch`,
-          name: 'vite',
-          prefixColor: 'yellow',
-          cwd: projectRoot,
-          env: { ...process.env, scriptOnly: 'true' },
-        },
-        {
-          command: `${npxCmd} alveo server --mode ${options.mode}${portArgs} --root "${projectRoot}"`,
-          name: 'server',
-          prefixColor: 'magenta',
-        },
-      ],
-      { killOthersOn: ['failure'] }
-    );
+    const { assertMode, buildDevProcesses, parsePort, spawnSupervisor } = await import('./dev-supervisor.ts');
 
     try {
-      await result;
-    } catch {
+      const mode = assertMode(options.mode);
+      const port = options.port ? parsePort(options.port) : undefined;
+      const exitCode = await spawnSupervisor(buildDevProcesses({ projectRoot, mode, port }));
+
+      if (exitCode !== 0) {
+        process.exitCode = exitCode;
+      }
+    } catch (error) {
+      console.error('[alveo] Dev command failed:', error instanceof Error ? error.message : error);
       process.exitCode = 1;
     }
   });
@@ -138,7 +114,14 @@ program
     const { runStyleBuild } = await import('./styles.ts');
 
     console.log('[alveo] Running states...');
-    runStatesBuild({ projectRoot });
+    const stateResult = runStatesBuild({ projectRoot });
+
+    if ('ok' in stateResult && !stateResult.ok) {
+      console.error('[alveo] States build failed:', stateResult.errors);
+      process.exitCode = 1;
+
+      return;
+    }
 
     console.log('[alveo] Running styles...');
     await runStyleBuild({ projectRoot });
@@ -198,6 +181,23 @@ program
     runStyleBuild({ projectRoot, isWatch: options.watch });
   });
 
+// ── scripts ──────────────────────────────────────────────────────────
+program
+  .command('scripts')
+  .description('Compile asset scripts')
+  .option('--root <path>', 'project root directory')
+  .option('--watch', 'watch for changes')
+  .action(async (options: { root?: string; watch?: boolean }) => {
+    const projectRoot = resolveRoot(options.root);
+    const { runScriptBuild } = await import('./scripts.ts');
+    const result = await runScriptBuild(projectRoot, options.watch ? ['--watch'] : []);
+
+    if (!options.watch && 'ok' in result && !result.ok) {
+      console.error('[alveo] Scripts build failed:', result.errors);
+      process.exitCode = 1;
+    }
+  });
+
 // ── states ───────────────────────────────────────────────────────────
 program
   .command('states')
@@ -208,7 +208,12 @@ program
     const projectRoot = resolveRoot(options.root);
     const { runStatesBuild } = await import('./states.ts');
 
-    runStatesBuild({ projectRoot, isWatch: options.watch });
+    const stateResult = runStatesBuild({ projectRoot, isWatch: options.watch });
+
+    if (!options.watch && 'ok' in stateResult && !stateResult.ok) {
+      console.error('[alveo] States build failed:', stateResult.errors);
+      process.exitCode = 1;
+    }
   });
 
 // ── server ───────────────────────────────────────────────────────────

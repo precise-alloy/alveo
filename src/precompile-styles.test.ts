@@ -177,6 +177,43 @@ describe('precompile-styles', () => {
       expect(parsed.sourcesContent).toBeUndefined();
     });
   });
+
+  it('skips sources normalization when sources is missing', () => {
+    const { deps, written } = createMockDeps();
+
+    (deps.compile as ReturnType<typeof vi.fn>).mockReturnValue({
+      css: 'a{color:red}',
+      sourceMap: {
+        version: 3,
+        sourcesContent: ['a { color: red; }'],
+        mappings: 'AAAA',
+      },
+    });
+    expect(() => compileStyles('/project', deps)).not.toThrow();
+    const mapFiles = Object.keys(written).filter((k) => k.endsWith('.css.map'));
+
+    mapFiles.forEach((f) => {
+      const parsed = JSON.parse(written[f]!);
+
+      expect(parsed.sources).toBeUndefined();
+    });
+  });
+
+  it('writes an empty source map object when sass does not return a source map', () => {
+    const { deps, written } = createMockDeps();
+
+    (deps.compile as ReturnType<typeof vi.fn>).mockReturnValue({
+      css: 'a{color:red}',
+      sourceMap: undefined,
+    });
+    compileStyles('/project', deps);
+    const mapFiles = Object.keys(written).filter((k) => k.endsWith('.css.map'));
+
+    mapFiles.forEach((f) => {
+      expect(JSON.parse(written[f]!)).toEqual({});
+    });
+  });
+
   it('preserves non-string (null) sourcesContent entries', () => {
     const { deps, written } = createMockDeps();
 

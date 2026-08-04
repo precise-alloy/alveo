@@ -19,6 +19,16 @@ export interface ScriptCoreDependencies {
   log: (message?: unknown, ...optionalParams: unknown[]) => void;
 }
 
+export interface ScriptError {
+  inputPath: string;
+  error: unknown;
+}
+
+export interface ScriptBuildResult {
+  ok: boolean;
+  errors: ScriptError[];
+}
+
 export const defaultScriptCoreDependencies: ScriptCoreDependencies = {
   existsSync: fs.existsSync,
   mkdirSync: fs.mkdirSync,
@@ -48,7 +58,7 @@ export const compileScript = async (
   inputPath: string,
   projectRoot: string,
   dependencies: ScriptCoreDependencies = defaultScriptCoreDependencies
-): Promise<void> => {
+): Promise<ScriptBuildResult> => {
   dependencies.log('compile:', slash(inputPath));
 
   const code = dependencies.readFileSync(inputPath, 'utf8');
@@ -65,9 +75,13 @@ export const compileScript = async (
       }
 
       dependencies.writeFileSync(savePath, result.code);
+
+      return { ok: true, errors: [] };
     })
     .catch((error) => {
       dependencies.log(error);
+
+      return { ok: false, errors: [{ inputPath, error }] };
     });
 };
 
@@ -89,22 +103,25 @@ export const watchScripts = (
 export const compileDiscoveredScripts = async (
   projectRoot: string,
   dependencies: ScriptCoreDependencies = defaultScriptCoreDependencies
-): Promise<void> => {
-  const pool: Promise<unknown>[] = [];
+): Promise<ScriptBuildResult> => {
+  const pool: Promise<ScriptBuildResult>[] = [];
   const globPattern = slash(path.resolve(projectRoot, 'src/assets/scripts/**/*.{js,jsx,ts,tsx}'));
 
   dependencies.globSync(globPattern).forEach((inputPath) => {
     pool.push(compileScript(inputPath, projectRoot, dependencies));
   });
 
-  await Promise.all(pool);
+  const results = await Promise.all(pool);
+  const errors = results.flatMap((result) => result.errors);
+
+  return { ok: errors.length === 0, errors };
 };
 
 export const runScriptBuild = async (
   projectRoot: string,
   argv = process.argv,
   dependencies: ScriptCoreDependencies = defaultScriptCoreDependencies
-): Promise<ReturnType<typeof chokidar.watch> | void> => {
+): Promise<ReturnType<typeof chokidar.watch> | ScriptBuildResult> => {
   if (argv.includes('--watch')) {
     return watchScripts(projectRoot, dependencies);
   }

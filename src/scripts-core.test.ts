@@ -124,15 +124,16 @@ describe('alveo/scripts-core.ts', () => {
       expect(log).toHaveBeenCalledWith('compile:', expect.stringContaining('app.ts'));
     });
 
-    it('logs errors when transform fails instead of throwing', async () => {
+    it('logs errors when transform fails and returns a failure result', async () => {
       const log = vi.fn();
       const error = new Error('transform failed');
       const transformWithEsbuild = vi.fn().mockRejectedValue(error);
       const deps = buildDeps({ log, transformWithEsbuild });
 
-      await compileScript('/project/src/scripts/app.ts', '/project', deps);
+      const result = await compileScript('/project/src/scripts/app.ts', '/project', deps);
 
       expect(log).toHaveBeenCalledWith(error);
+      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/scripts/app.ts', error }] });
     });
   });
 
@@ -250,9 +251,21 @@ describe('alveo/scripts-core.ts', () => {
       const transformWithEsbuild = vi.fn();
       const deps = buildDeps({ globSync, transformWithEsbuild });
 
-      await compileDiscoveredScripts('/project', deps);
+      const result = await compileDiscoveredScripts('/project', deps);
 
       expect(transformWithEsbuild).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: true, errors: [] });
+    });
+
+    it('aggregates transform failures in one-shot mode', async () => {
+      const error = new Error('transform failed');
+      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/a.ts', '/project/src/assets/scripts/b.ts']);
+      const transformWithEsbuild = vi.fn().mockResolvedValueOnce({ code: 'compiled;', map: null }).mockRejectedValueOnce(error);
+      const deps = buildDeps({ globSync, transformWithEsbuild });
+
+      const result = await compileDiscoveredScripts('/project', deps);
+
+      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/b.ts', error }] });
     });
   });
 
@@ -274,9 +287,21 @@ describe('alveo/scripts-core.ts', () => {
       const globSync = vi.fn().mockReturnValue([]);
       const deps = buildDeps({ globSync });
 
-      await runScriptBuild('/project', ['node', 'script'], deps);
+      const result = await runScriptBuild('/project', ['node', 'script'], deps);
 
       expect(globSync).toHaveBeenCalled();
+      expect(result).toEqual({ ok: true, errors: [] });
+    });
+
+    it('returns a failed result when one-shot compilation fails', async () => {
+      const error = new Error('transform failed');
+      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/app.ts']);
+      const transformWithEsbuild = vi.fn().mockRejectedValue(error);
+      const deps = buildDeps({ globSync, transformWithEsbuild });
+
+      const result = await runScriptBuild('/project', ['node', 'script'], deps);
+
+      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/app.ts', error }] });
     });
   });
 });
