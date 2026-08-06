@@ -9,6 +9,13 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    // Embed the original TypeScript source into each `.js.map` via `sourcesContent`.
+    // Only `dist` is published (see package.json "files"), so the `../src/*.ts`
+    // paths referenced by `sources` do not exist in the installed package. Without
+    // inlined content Vite's dev server tries to read those missing files and logs
+    // "Sourcemap for ... points to missing source files". Inlining the source keeps
+    // sourcemaps usable for consumers while silencing that warning.
+    "inlineSources": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
