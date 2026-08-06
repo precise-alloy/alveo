@@ -1,5 +1,6 @@
-import type { PluginOption } from 'vite';
+import type { PluginOption, ResolvedConfig } from 'vite';
 
+import fs from 'fs';
 import path from 'path';
 
 import slash from 'slash';
@@ -14,15 +15,67 @@ const RESOLVED_VIRTUAL_CLIENT_COMPONENTS_ID = '\0' + VIRTUAL_CLIENT_COMPONENTS_I
 const RESOLVED_VIRTUAL_SVG_SPRITES_ID = '\0' + VIRTUAL_SVG_SPRITES_ID;
 
 /**
+ * Sub-path (relative to the consumer's Vite `publicDir`) that holds the SVG
+ * sprite sheets consumed by the icon-list dialog. Files here are served from the
+ * site root (e.g. `<publicDir>/assets/images/icons.svg` → `/assets/images/icons.svg`).
+ */
+const SVG_SPRITES_SUBDIR = 'assets/images';
+
+/**
+ * Builds the source for the `virtual:alveo/svg-sprites` module.
+ *
+ * Historically this used `import.meta.glob(['/public/assets/images/*.svg'], …)`.
+ * Because those files live in Vite's `publicDir`, importing them from JavaScript
+ * makes Vite emit "Assets in public directory cannot be imported from JavaScript"
+ * on every dev request. Public assets are already served from the site root, so
+ * instead of importing them we fetch each one at runtime by its public URL. The
+ * `import.meta.env.BASE_URL` prefix keeps the URLs correct when the site is served
+ * under a non-root base. The generated shape stays `Record<string, () => Promise<string>>`
+ * (see `src/types.d.ts`) so the consuming `icon-list-dialog` component is unchanged.
+ *
+ * @param spriteFiles - SVG file names discovered in the consumer's public sprites folder
+ */
+function buildSvgSpritesModule(spriteFiles: string[]): string {
+  // Serialize as root-relative public paths (e.g. `assets/images/icons.svg`).
+  const relativePaths = spriteFiles.map((file) => `${SVG_SPRITES_SUBDIR}/${file}`);
+
+  return `const files = ${JSON.stringify(relativePaths)};
+const base = (import.meta.env.BASE_URL || '/').replace(/\\/$/, '');
+export const sprites = Object.fromEntries(
+  files.map((file) => [
+    '/' + file,
+    () =>
+      fetch(base + '/' + file).then((res) => {
+        if (!res.ok) {
+          throw new Error('Failed to load SVG sprite "' + file + '" (' + res.status + ')');
+        }
+
+        return res.text();
+      }),
+  ]),
+);
+`;
+}
+
+/**
  * Vite plugin that provides virtual modules for consumer project assets:
  * - `virtual:alveo/pages` — glob-imports consumer's `src/pages/*.tsx`
  * - `virtual:alveo/client-components` — re-exports consumer's `src/client-components.tsx`
- * - `virtual:alveo/svg-sprites` — glob-imports consumer's `public/assets/images/*.svg` as raw strings
+ * - `virtual:alveo/svg-sprites` — fetches the consumer's `public/assets/images/*.svg` files at runtime
  */
 export function virtualModules(): PluginOption {
+  // Absolute path to the consumer's public sprites folder, captured from the
+  // resolved Vite config so we honour a customised `publicDir`.
+  let spritesDir: string | undefined;
+
   return {
     name: 'alveo-virtual-modules',
     enforce: 'pre',
+
+    configResolved(config: ResolvedConfig) {
+      // `publicDir` is `''` when the consumer disables the public directory.
+      spritesDir = config.publicDir ? path.resolve(config.publicDir, SVG_SPRITES_SUBDIR) : undefined;
+    },
 
     resolveId(id) {
       if (id === VIRTUAL_PAGES_ID) {
@@ -59,7 +112,20 @@ export function virtualModules(): PluginOption {
       }
 
       if (id === RESOLVED_VIRTUAL_SVG_SPRITES_ID) {
-        return "export const sprites = import.meta.glob(['/public/assets/images/*.svg'], { query: '?raw', import: 'default' });";
+        // Enumerate the SVG sprite sheets from the consumer's public folder and
+        // generate runtime `fetch` loaders (see buildSvgSpritesModule). Reading the
+        // directory lazily here keeps the sprite list in sync whenever the virtual
+        // module is (re)loaded, and avoids importing public assets from JavaScript.
+        let spriteFiles: string[] = [];
+
+        if (spritesDir && fs.existsSync(spritesDir)) {
+          spriteFiles = fs
+            .readdirSync(spritesDir)
+            .filter((file) => file.toLowerCase().endsWith('.svg'))
+            .sort();
+        }
+
+        return buildSvgSpritesModule(spriteFiles);
       }
 
       return undefined;
@@ -67,4 +133,4 @@ export function virtualModules(): PluginOption {
   };
 }
 
-export { VIRTUAL_PAGES_ID, VIRTUAL_CLIENT_COMPONENTS_ID, VIRTUAL_SVG_SPRITES_ID };
+export { VIRTUAL_PAGES_ID, VIRTUAL_CLIENT_COMPONENTS_ID, VIRTUAL_SVG_SPRITES_ID, buildSvgSpritesModule };
