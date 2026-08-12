@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import ReactDOM from 'react-dom/client';
-import YAML from 'js-yaml';
+import { load } from 'js-yaml';
 import './scripts/functions.ts';
 import { clientComponents } from 'virtual:alveo/client-components';
 
@@ -36,7 +36,7 @@ const renderComponent = (scriptSection: HTMLScriptElement) => {
     section.className = scriptSection.getAttribute('data-class') ?? '';
     scriptSection.replaceWith(section);
 
-    const props = type === 'application/json' ? JSON.parse(data) : type === 'application/yaml' ? YAML.load(data) : {};
+    const props = type === 'application/json' ? JSON.parse(data) : type === 'application/yaml' ? load(data) : {};
 
     ReactDOM.createRoot(section).render(<Component {...props} />);
   }

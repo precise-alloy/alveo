@@ -114,6 +114,7 @@ describe('alveo/virtual-modules.ts', () => {
     it('lists SVG files from the resolved publicDir sprites folder', () => {
       const publicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-sprites-'));
       const imagesDir = path.join(publicDir, 'assets', 'images');
+
       fs.mkdirSync(imagesDir, { recursive: true });
       fs.writeFileSync(path.join(imagesDir, 'icons.svg'), '<svg></svg>');
       fs.writeFileSync(path.join(imagesDir, 'logo.svg'), '<svg></svg>');
@@ -121,6 +122,7 @@ describe('alveo/virtual-modules.ts', () => {
       fs.writeFileSync(path.join(imagesDir, 'notes.txt'), 'ignore me');
 
       const instance = virtualModules() as TestPlugin;
+
       instance.configResolved({ publicDir } as ResolvedConfig);
       const code = instance.load('\0' + VIRTUAL_SVG_SPRITES_ID);
 
@@ -133,6 +135,7 @@ describe('alveo/virtual-modules.ts', () => {
 
     it('emits an empty sprite list when the public directory is disabled', () => {
       const instance = virtualModules() as TestPlugin;
+
       instance.configResolved({ publicDir: '' } as ResolvedConfig);
       const code = instance.load('\0' + VIRTUAL_SVG_SPRITES_ID);
 
@@ -143,6 +146,7 @@ describe('alveo/virtual-modules.ts', () => {
       const publicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-sprites-'));
 
       const instance = virtualModules() as TestPlugin;
+
       instance.configResolved({ publicDir } as ResolvedConfig);
       const code = instance.load('\0' + VIRTUAL_SVG_SPRITES_ID);
 

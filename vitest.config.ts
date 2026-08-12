@@ -1,10 +1,19 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
+
+const clientComponentsFixture = fileURLToPath(new URL('./test/client-components.ts', import.meta.url));
 
 export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./test/setup.ts'],
+    alias: {
+      // Consumer projects supply this virtual module; tests use an empty fixture
+      // so loader behavior can run without project-specific Vite configuration.
+      'virtual:alveo/client-components': clientComponentsFixture,
+    },
     include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',

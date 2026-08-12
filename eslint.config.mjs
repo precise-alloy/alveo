@@ -87,6 +87,9 @@ export default defineConfig([
       'unused-imports/no-unused-vars': 'off',
       'unused-imports/no-unused-imports': 'warn',
       'react-refresh/only-export-components': 'error',
+      // TypeScript permits synthetic defaults for established CommonJS imports,
+      // but browser ESM dependencies still need a real default export at runtime.
+      'import/default': 'error',
       'no-new': 'error',
       complexity: ['error', 15],
       'max-depth': ['error', 4],
