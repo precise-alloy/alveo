@@ -50,9 +50,9 @@ declare module 'virtual:alveo/svg-sprites' {
 }
 
 declare module 'virtual:alveo/client-components' {
-  import { LazyExoticComponent, ComponentType } from 'react';
+  import type { ClientComponents } from './client-components.ts';
 
-  export const clientComponents: Record<string, LazyExoticComponent<ComponentType<any>>>;
+  export const clientComponents: ClientComponents;
 }
 
 // Global functions injected by alveo/scripts/functions.ts at runtime.
