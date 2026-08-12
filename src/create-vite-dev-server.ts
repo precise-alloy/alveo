@@ -21,7 +21,9 @@ const createViteDevServer = ({ root, baseUrl, hmrPort, isTest }: Props): Promise
         usePolling: isTest,
         interval: 200,
       },
-      hmr: {
+      // Vite 8 moved WebSocket transport configuration out of the deprecated
+      // HMR options; retain the externally configured development socket port.
+      ws: {
         port: hmrPort,
       },
     },
