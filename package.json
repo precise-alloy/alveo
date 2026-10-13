@@ -1,13 +1,13 @@
 {
   "name": "alveo",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "private": false,
   "repository": {
     "url": "https://github.com/precise-alloy/alveo"
   },
   "scripts": {
-    "build": "bun check --project tsconfig.json && bun run build:styles",
+    "build": "tsc --project tsconfig.json && bun run build:styles",
     "build:styles": "bun src/precompile-styles.ts",
     "prestart": "bun upgrade",
     "typecheck": "bun check --noEmit",

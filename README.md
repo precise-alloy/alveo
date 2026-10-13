@@ -180,12 +180,22 @@ bun install
 bun run build
 ```
 
+The package build uses `tsc` to emit JavaScript and type declarations into `dist`.
+Do not replace it with `bun check`: that command checks types without emitting the
+files required by the package exports and CLI.
+
 ### Test
 
 ```bash
 bun run test
 bun run test:coverage
+bun run test:ci
 ```
+
+The package regression test builds and packs a clean temporary checkout, checks
+the published entry points, and verifies a consumer's type and runtime imports.
+This runs in the prepublish test gate so stale local `dist` files cannot hide a
+broken release build.
 
 ### Typecheck
 
