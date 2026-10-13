@@ -1,10 +1,12 @@
 // @vitest-environment node
 
 import path from 'path';
+import { Script } from 'node:vm';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  defaultScriptCoreDependencies,
   getScriptTransformOptions,
   getScriptOutputPath,
   compileScript,
@@ -27,6 +29,53 @@ const buildDeps = (overrides: Partial<ScriptCoreDependencies> = {}): ScriptCoreD
 });
 
 describe('alveo/scripts-core.ts', () => {
+  describe('installed compiler', () => {
+    // Mocked orchestration tests cannot detect missing optional Vite compilers.
+    // Exercise the default implementation too, preserving minification, ESM,
+    // JSX handling, and the absence of sourcemaps for critical inline scripts.
+    it('compiles TypeScript to minified standalone JavaScript with an external sourcemap', async () => {
+      const inputPath = '/project/src/assets/scripts/app.ts';
+      const result = await defaultScriptCoreDependencies.transformWithEsbuild(
+        'globalThis.answer = (value: number) => value + 1;',
+        inputPath,
+        getScriptTransformOptions(inputPath)
+      );
+      const context: Record<string, (value: number) => number> = {};
+
+      new Script(result.code).runInNewContext(context);
+
+      expect(context['answer']!(41)).toBe(42);
+      expect(result.code.trim()).not.toContain('\n');
+      expect(result.code).not.toContain('sourceMappingURL');
+      expect(result.map).toMatchObject({ version: 3, sourcesContent: ['globalThis.answer = (value: number) => value + 1;'] });
+    });
+
+    it.each(['jsx', 'tsx'])('transforms %s syntax and preserves ESM exports', async (extension) => {
+      const inputPath = `/project/src/assets/scripts/view.${extension}`;
+      const result = await defaultScriptCoreDependencies.transformWithEsbuild(
+        'export const View = () => <div>Example</div>;',
+        inputPath,
+        getScriptTransformOptions(inputPath)
+      );
+
+      expect(result.code).not.toContain('<div>');
+      expect(result.code).toContain('export');
+      expect(result.code).toContain('View');
+    });
+
+    it('omits sourcemaps for critical scripts', async () => {
+      const inputPath = '/project/src/assets/scripts/critical.ts';
+      const result = await defaultScriptCoreDependencies.transformWithEsbuild(
+        'globalThis.ready = true;',
+        inputPath,
+        getScriptTransformOptions(inputPath)
+      );
+
+      expect(result.map).toEqual({ mappings: '' });
+      expect(result.code).not.toContain('sourceMappingURL');
+    });
+  });
+
   describe('getScriptTransformOptions', () => {
     it('returns minify: true', () => {
       const options = getScriptTransformOptions('/any/file.ts');

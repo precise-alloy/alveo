@@ -192,10 +192,14 @@ bun run test:coverage
 bun run test:ci
 ```
 
-The package regression test builds and packs a clean temporary checkout, checks
-the published entry points, and verifies a consumer's type and runtime imports.
-This runs in the prepublish test gate so stale local `dist` files cannot hide a
-broken release build.
+The package regression test builds and packs a clean temporary checkout, installs
+the tarball with production dependencies in an isolated consumer, and verifies
+entry points, shared peers, CLI script compilation, and TypeScript imports.
+It starts with a separate empty Bun cache and fetches missing registry metadata
+and packages, so this check requires registry access. It never links the
+maintainer's development dependencies into the consumer. This runs in the
+prepublish test gate so stale output, hoisted development tools, or a warmed
+developer cache cannot hide a broken release.
 
 ### Typecheck
 
@@ -203,11 +207,32 @@ broken release build.
 bun run typecheck
 ```
 
+### Dependency Ownership
+
+Alveo ships unbundled JavaScript, so tools its CLI invokes in consumer projects
+belong in `dependencies`, even when Alveo itself is installed as a dev dependency.
+This includes Vite, Sass, Lightning CSS, esbuild, and the server utilities.
+Vite 8 makes esbuild optional, but Alveo's standalone script compiler still needs
+it for minified ESM output and its existing sourcemap behavior. MSW is also a
+runtime dependency because non-production builds include Alveo's mock entry.
+
+React, React DOM, and React Router are peer dependencies so the application and
+framework share component and routing contexts. Development copies support
+Alveo's own build and tests. TypeScript is an optional peer: TypeScript consumers
+install it and their React/Node typings as dev dependencies, while JavaScript
+consumers do not need a compiler at runtime.
+
+The starter keeps Alveo in `devDependencies` for static and prerendered deployment.
+Install development dependencies during the build, then deploy the generated
+assets. If a deployed Node server uses `alveo server`, keep Alveo in that
+application's `dependencies` instead so production-only installs retain it.
+
 ## Requirements
 
-- Node.js >= 20 or Bun
-- React 19
-- TypeScript 5+
+- Node.js >= 22.12.0; the starter project requires Node.js >= 24
+- Bun for repository and starter install/test scripts
+- React >= 19.2.8 within version 19, and React Router >= 7.18.2 within version 7
+- TypeScript 6 for TypeScript consumers; optional for JavaScript consumers
 
 ## License
 

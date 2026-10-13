@@ -4,6 +4,7 @@ import { createRequire } from 'module';
 
 import { Command } from 'commander';
 
+import { resolveViteCliPath } from './dev-supervisor.ts';
 import { getPackageRoot } from './paths.ts';
 
 const require = createRequire(import.meta.url);
@@ -20,20 +21,22 @@ function resolveRoot(root?: string): string {
 
 const isWindows = process.platform === 'win32';
 
-// Windows needs shell:true because executables like npx are .cmd wrappers that
-// execFileSync cannot run directly (ENOENT/EINVAL). Unix doesn't need it.
+// Package-manager commands may use .cmd wrappers on Windows. Vite is launched
+// directly through Node below, so its path never depends on shell resolution.
 function exec(command: string, options: ExecSyncOptions, args?: string[]): void {
   execFileSync(command, args, { stdio: 'inherit', shell: isWindows, ...options });
 }
 
 function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: string): void {
-  const args = ['vite', 'build', '--outDir', outDir, '--mode', mode];
+  const args = [resolveViteCliPath(), 'build', '--outDir', outDir, '--mode', mode];
 
   if (ssr) {
     args.push('--ssr', ssr);
   }
 
-  exec('npx', { cwd: projectRoot }, args);
+  // A consumer using isolated dependencies has no top-level Vite executable.
+  // Use Alveo's declared version without npx downloads or a consumer override.
+  execFileSync(process.execPath, args, { cwd: projectRoot, stdio: 'inherit' });
 }
 
 async function runPrerender(projectRoot: string, mode: string, { addHash = false } = {}): Promise<boolean> {

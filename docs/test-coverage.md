@@ -70,6 +70,29 @@ The branches threshold sits at 95% because a single defensive `||` operand in `r
 
 ## Implemented Test Contracts
 
+### Package Distribution
+
+`src/package.test.ts` builds a clean temporary checkout and packs the result,
+then installs the tarball with `bun install --prefer-offline --production
+--ignore-scripts --linker isolated` using a separate empty cache. Registry access
+is required: the workflow's frozen-lockfile install can cache package archives
+without the registry manifests needed to resolve this new consumer's ranges.
+Both consumer installs fetch missing metadata rather than assuming an offline
+cache is complete. The consumer does not link to the maintainer's `node_modules`,
+so missing runtime dependencies cannot be hidden by development tools.
+
+The test checks exported files, runtime imports, installed esbuild and MSW,
+shared React/router peers, and actual CLI script compilation. It first proves
+that TypeScript and test/lint tools are absent, then adds TypeScript and typings
+to verify the consumer's `ClientComponents` import. Manifest checks also preserve
+the static starter's dependency ownership and load its lint config without
+Next.js packages.
+
+`src/scripts-core.test.ts` exercises the installed compiler as well as injected
+mocks, covering minified TypeScript, JSX/TSX, ESM exports, and critical-script
+sourcemap suppression. These checks run inside the existing `test:ci` and
+prepublish gates without weakening coverage thresholds.
+
 ### Build Helpers
 
 Current tests protect these rules:

@@ -4,7 +4,7 @@ A minimal project demonstrating how to use `alveo` as a framework dependency.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) (recommended) or Node.js >= 24
+- Node.js >= 24 and [Bun](https://bun.sh/) for the supplied scripts
 - `alveo` installed (linked via monorepo or published to npm)
 
 ## Install
@@ -12,6 +12,16 @@ A minimal project demonstrating how to use `alveo` as a framework dependency.
 ```bash
 bun install
 ```
+
+Alveo is a dev dependency because this starter builds static and prerendered
+assets. Install development dependencies in your build environment, then deploy
+the generated output. The compatible Alveo version range avoids automatically
+adopting a new minor release of the pre-1.0 framework.
+
+If your deployed Node process runs `alveo server`, move Alveo to `dependencies`
+so a production-only install includes the framework. Keep React, React DOM, and
+React Router as application dependencies to share their runtime instances with
+Alveo. TypeScript and lint/test tools remain development dependencies.
 
 ## Development
 
