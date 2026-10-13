@@ -12,7 +12,7 @@ framework: "Vite + React SSR"
 # Filled by repo-scan - stack detection
 stack:
   package_manager: "Bun"
-  build_tool: "Vite + tsc (Bun scripts)"
+  build_tool: "Vite + bun check (Bun scripts)"
   test_framework: "Vitest (jsdom, v8 coverage)"
   frontend_framework: "React 19 (react-router-dom)"
   css_approach: "SCSS/Sass + LightningCSS"

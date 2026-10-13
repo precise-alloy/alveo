@@ -12,7 +12,7 @@
     "inte": "alveo inte",
     "styles": "alveo styles",
     "lint": "eslint --fix",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
