@@ -1,5 +1,5 @@
 import path from 'path';
-import { execFileSync, type ExecSyncOptions } from 'child_process';
+import { execFileSync } from 'child_process';
 import { createRequire } from 'module';
 
 import { Command } from 'commander';
@@ -17,14 +17,6 @@ function resolveRoot(root?: string): string {
   }
 
   return process.cwd();
-}
-
-const isWindows = process.platform === 'win32';
-
-// Package-manager commands may use .cmd wrappers on Windows. Vite is launched
-// directly through Node below, so its path never depends on shell resolution.
-function exec(command: string, options: ExecSyncOptions, args?: string[]): void {
-  execFileSync(command, args, { stdio: 'inherit', shell: isWindows, ...options });
 }
 
 function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: string): void {
@@ -147,7 +139,14 @@ program
   .action(async (options: { root?: string; mode: string }) => {
     const projectRoot = resolveRoot(options.root);
     const { runStyleBuild } = await import('./styles.ts');
+    const { runStatesBuild } = await import('./states.ts');
     const { runIntegration } = await import('./integration.ts');
+
+    const stateResult = runStatesBuild({ projectRoot });
+
+    if ('ok' in stateResult && !stateResult.ok) {
+      throw new Error('States build failed.', { cause: stateResult.errors });
+    }
 
     console.log('[alveo] Running styles...');
     await runStyleBuild({ projectRoot });
@@ -159,7 +158,7 @@ program
     if (!(await runPrerender(projectRoot, options.mode))) return;
 
     console.log('[alveo] Running integration...');
-    const result = runIntegration({ projectRoot });
+    const result = runIntegration({ projectRoot, argv: ['--mode', options.mode] });
 
     if (!result.isValid) {
       console.error('[alveo] Integration validation failed. Missing files:', result.missing);
@@ -181,7 +180,7 @@ program
     const projectRoot = resolveRoot(options.root);
     const { runStyleBuild } = await import('./styles.ts');
 
-    runStyleBuild({ projectRoot, isWatch: options.watch });
+    await runStyleBuild({ projectRoot, isWatch: options.watch });
   });
 
 // ── scripts ──────────────────────────────────────────────────────────
@@ -222,28 +221,15 @@ program
 // ── server ───────────────────────────────────────────────────────────
 program
   .command('server')
-  .description('Start the Express SSR server')
+  .description('Start the development-only Express SSR server')
   .option('--root <path>', 'project root directory')
-  .option('--mode <mode>', 'Vite mode', 'production')
+  .option('--mode <mode>', 'non-production Vite mode', 'development')
   .option('--port <port>', 'server port')
   .action(async (options: { root?: string; mode: string; port?: string }) => {
     const projectRoot = resolveRoot(options.root);
     const { initServer } = await import('./server.ts');
 
-    // Ensure mode is available in process.argv for initServer
-    if (options.mode) {
-      const modeIdx = process.argv.indexOf('--mode');
-
-      if (modeIdx === -1) {
-        process.argv.push('--mode', options.mode);
-      }
-    }
-
-    if (options.port) {
-      process.env.VITE_PORT = options.port;
-    }
-
-    initServer(projectRoot);
+    await initServer(projectRoot, { mode: options.mode, port: options.port });
   });
 
 // ── create ──────────────────────────────────────────────────────────
@@ -251,69 +237,21 @@ program
   .command('create')
   .description('Scaffold a new alveo project from the starter template')
   .argument('<project-name>', 'name of the project directory to create')
-  .option('--install', 'run package manager install after scaffolding')
+  .option('--install', 'run bun install after scaffolding (requires Bun)')
   .action(async (projectName: string, options: { install?: boolean }) => {
-    const fs = await import('fs');
-    const targetDir = path.resolve(process.cwd(), projectName);
+    const { scaffoldProject } = await import('./scaffold.ts');
+    const targetDir = scaffoldProject(projectName, options);
 
-    if (fs.existsSync(targetDir)) {
-      const entries = fs.readdirSync(targetDir);
+    console.log(`[alveo] Project scaffolded in ${targetDir}.\n`);
 
-      if (entries.length > 0) {
-        console.error(`[alveo] Directory "${projectName}" already exists and is not empty.`);
-        process.exitCode = 1;
-
-        return;
-      }
-    }
-
-    const templateDir = path.resolve(getPackageRoot(), 'template');
-
-    if (!fs.existsSync(templateDir)) {
-      console.error('[alveo] Template directory not found. Ensure the alveo package includes the template/ directory.');
-      process.exitCode = 1;
-
-      return;
-    }
-
-    console.log(`[alveo] Creating project in ${targetDir}...`);
-    fs.cpSync(templateDir, targetDir, { recursive: true });
-
-    const pkgJsonPath = path.join(targetDir, 'package.json');
-
-    // Use a file descriptor to read-then-write atomically on the same handle,
-    // avoiding a TOCTOU race between separate readFileSync/writeFileSync calls.
-    // Truncate before writing because the replaced content may be shorter.
-    try {
-      const fd = fs.openSync(pkgJsonPath, fs.constants.O_RDWR);
-
-      try {
-        const content = fs.readFileSync(fd, 'utf-8');
-        const updated = content.replace('{{PROJECT_NAME}}', projectName);
-
-        fs.ftruncateSync(fd);
-        fs.writeSync(fd, updated, 0, 'utf-8');
-      } finally {
-        fs.closeSync(fd);
-      }
-    } catch {
-      console.log('[alveo] cannot write template files');
-      process.exitCode = 1;
-
-      return;
-    }
-
-    console.log('[alveo] Project scaffolded successfully!\n');
-
-    if (options.install) {
-      console.log('[alveo] Installing dependencies...');
-      exec('bun', { cwd: targetDir }, ['install']);
-    } else {
-      console.log('Next steps:');
-      console.log(`  cd ${projectName}`);
+    if (!options.install) {
+      console.log('Next steps in the new project directory:');
       console.log('  bun install');
       console.log('  bun run dev');
     }
   });
 
-program.parse();
+await program.parseAsync().catch((error: unknown) => {
+  console.error('[alveo] Command failed:', error);
+  process.exitCode = 1;
+});

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import rootSprite from '../assets/root.svg?url';
 
 const MIN_FRAME_SIZE = 350;
 const MSG_IFRAME_SIZE = 'MSG_IFRAME_SIZE';
@@ -9,7 +11,23 @@ const randomIntFromInterval = (min: number, max: number): number => {
 };
 
 export default function FrameControls() {
-  const [discoTimer, setDiscoTimer] = useState<NodeJS.Timeout>();
+  const discoTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const [isDisco, setDisco] = useState(false);
+  const stopDisco = useCallback(() => {
+    clearInterval(discoTimer.current);
+    discoTimer.current = undefined;
+    setDisco(false);
+  }, []);
+
+  useEffect(() => {
+    // Freeze automated viewport changes for print and release timers on unmount.
+    window.addEventListener('beforeprint', stopDisco);
+
+    return () => {
+      window.removeEventListener('beforeprint', stopDisco);
+      clearInterval(discoTimer.current);
+    };
+  }, [stopDisco]);
 
   const setIFrameWidth = (width?: number) => {
     const wrapper = document.getElementById('root-iframe-wrapper');
@@ -27,9 +45,7 @@ export default function FrameControls() {
   };
 
   const handleMobileClick = () => {
-    if (discoTimer) {
-      clearInterval(discoTimer);
-    }
+    stopDisco();
 
     const width = randomIntFromInterval(MIN_FRAME_SIZE, 768);
 
@@ -37,9 +53,7 @@ export default function FrameControls() {
   };
 
   const handleTabletClick = () => {
-    if (discoTimer) {
-      clearInterval(discoTimer);
-    }
+    stopDisco();
 
     const width = randomIntFromInterval(768, 1024);
 
@@ -47,9 +61,7 @@ export default function FrameControls() {
   };
 
   const handleDesktopClick = () => {
-    if (discoTimer) {
-      clearInterval(discoTimer);
-    }
+    stopDisco();
 
     const maxWidth = document.body.clientWidth - 300;
 
@@ -59,44 +71,38 @@ export default function FrameControls() {
   };
 
   const handleFullClick = () => {
-    if (discoTimer) {
-      clearInterval(discoTimer);
-    }
+    stopDisco();
 
     setIFrameWidth(undefined);
     sessionStorage.removeItem(MSG_IFRAME_SIZE);
   };
 
   const handleRandomClick = () => {
-    if (discoTimer) {
-      clearInterval(discoTimer);
-    }
+    stopDisco();
 
     const maxWidth = document.body.clientWidth - 300;
 
     const width = randomIntFromInterval(MIN_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, maxWidth));
 
     setIFrameWidth(width);
-    sessionStorage.setItem(MSG_IFRAME_SIZE, width + '');
   };
 
   const handleDiscoClick = () => {
-    if (discoTimer) {
-      clearInterval(discoTimer);
+    if (discoTimer.current !== undefined) {
+      stopDisco();
 
       return;
     }
 
-    const timer = setInterval(() => {
+    discoTimer.current = setInterval(() => {
       const maxWidth = document.body.clientWidth - 300;
 
       const width = randomIntFromInterval(MIN_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, maxWidth));
 
       setIFrameWidth(width);
-      sessionStorage.setItem(MSG_IFRAME_SIZE, width + '');
     }, 2000);
 
-    setDiscoTimer(timer);
+    setDisco(true);
   };
 
   return (
@@ -105,32 +111,38 @@ export default function FrameControls() {
       <div className="alveo-o-root__controls">
         <button aria-label="Mobile View" className="alveo-o-root__control-button" title="Mobile View" onClick={handleMobileClick}>
           <svg className="alveo-o-root__control-svg" viewBox="0 0 24 24">
-            <use xlinkHref="/assets/images/root.svg#phone" />
+            <use href={`${rootSprite}#phone`} />
           </svg>
         </button>
         <button aria-label="Tablet View" className="alveo-o-root__control-button" title="Tablet View" onClick={handleTabletClick}>
           <svg className="alveo-o-root__control-svg" viewBox="0 0 24 24">
-            <use xlinkHref="/assets/images/root.svg#tablet" />
+            <use href={`${rootSprite}#tablet`} />
           </svg>
         </button>
         <button aria-label="Desktop View" className="alveo-o-root__control-button" title="Desktop View" onClick={handleDesktopClick}>
           <svg className="alveo-o-root__control-svg" viewBox="0 0 24 24">
-            <use xlinkHref="/assets/images/root.svg#desktop" />
+            <use href={`${rootSprite}#desktop`} />
           </svg>
         </button>
         <button aria-label="Full Width View" className="alveo-o-root__control-button" title="Full Width View" onClick={handleFullClick}>
           <svg className="alveo-o-root__control-svg" viewBox="0 0 24 24">
-            <use xlinkHref="/assets/images/root.svg#hay" />
+            <use href={`${rootSprite}#hay`} />
           </svg>
         </button>
         <button aria-label="Random Width View" className="alveo-o-root__control-button" title="Random Width View" onClick={handleRandomClick}>
           <svg className="alveo-o-root__control-svg" viewBox="0 0 24 24">
-            <use xlinkHref="/assets/images/root.svg#random" />
+            <use href={`${rootSprite}#random`} />
           </svg>
         </button>
-        <button aria-label="Disco Mode View" className="alveo-o-root__control-button" title="Disco Mode View" onClick={handleDiscoClick}>
+        <button
+          aria-label="Disco Mode View"
+          aria-pressed={isDisco}
+          className="alveo-o-root__control-button"
+          title="Disco Mode View"
+          onClick={handleDiscoClick}
+        >
           <svg className="alveo-o-root__control-svg" viewBox="0 0 24 24">
-            <use xlinkHref="/assets/images/root.svg#disco-ball" />
+            <use href={`${rootSprite}#disco-ball`} />
           </svg>
         </button>
       </div>

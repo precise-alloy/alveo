@@ -128,7 +128,6 @@ describe('alveo/integration-core.ts', () => {
     writeFileSync: vi.fn() as never,
     readdirSync: vi.fn().mockReturnValue([]) as never,
     globSync: vi.fn().mockReturnValue([]) as never,
-    nodeFsCpSync: vi.fn() as never,
     log: vi.fn() as never,
     warn: vi.fn((value: string) => value) as never,
     ...overrides,
@@ -438,26 +437,26 @@ describe('alveo/integration-core.ts', () => {
       expect(copyFileSync).toHaveBeenCalled();
     });
 
-    it('copies directories using nodeFsCpSync for recursive targets', () => {
+    it('copies directories using cpSync for recursive targets', () => {
       const globSync = vi.fn().mockReturnValue(['/static/organisms/hero/index.html']);
-      const nodeFsCpSync = vi.fn();
-      const deps = buildDeps({ globSync, nodeFsCpSync });
+      const cpSync = vi.fn();
+      const deps = buildDeps({ globSync, cpSync });
 
       copyPatternArtifacts('/patterns', '/static', deps);
 
-      expect(nodeFsCpSync).toHaveBeenCalledWith(expect.any(String), expect.any(String), { recursive: true });
+      expect(cpSync).toHaveBeenCalledWith(expect.any(String), expect.any(String), { recursive: true });
     });
 
     it('skips files that produce no valid copy target', () => {
       const globSync = vi.fn().mockReturnValue(['/static/file.html']);
       const copyFileSync = vi.fn();
-      const nodeFsCpSync = vi.fn();
-      const deps = buildDeps({ globSync, copyFileSync, nodeFsCpSync });
+      const cpSync = vi.fn();
+      const deps = buildDeps({ globSync, copyFileSync, cpSync });
 
       copyPatternArtifacts('/patterns', '/static', deps);
 
       expect(copyFileSync).not.toHaveBeenCalled();
-      expect(nodeFsCpSync).not.toHaveBeenCalled();
+      expect(cpSync).not.toHaveBeenCalled();
     });
   });
 

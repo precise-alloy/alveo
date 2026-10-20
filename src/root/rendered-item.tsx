@@ -1,3 +1,5 @@
+import type { SinglePageNode } from './models.ts';
+
 import { MouseEvent } from 'react';
 
 import { useRootContext } from './root-context.ts';

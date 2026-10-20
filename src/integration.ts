@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import nodeFs from 'node:fs';
 
 import slash from 'slash';
 import { glob } from 'glob';
@@ -38,6 +37,8 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
   const destinationValidation = validateDestinations(destBasePath, patternPath, projectRoot);
 
   if (!destinationValidation.ok) {
+    console.error('[alveo] Unsafe integration destinations:', destinationValidation.reasons);
+
     return { isValid: false, missing: destinationValidation.reasons };
   }
 
@@ -54,7 +55,7 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
 
   const checkExistFileList: FileExistCheck[] = [
     { fileName: 'hashes.json' },
-    { fileName: /react-loader\.0x[a-z0-9_-]{8,12}\.js/gi, folder: 'js' },
+    { fileName: /react-loader\.0x[a-z0-9_-]{8,12}\.js/i, folder: 'js' },
     { fileName: 'main.js', folder: 'js' },
   ];
 
@@ -80,7 +81,6 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
       writeFileSync: fs.writeFileSync,
       readdirSync: fs.readdirSync,
       globSync: glob.sync,
-      nodeFsCpSync: nodeFs.cpSync,
       log,
       warn: (value: string) => chalk.yellow(value),
     }

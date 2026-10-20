@@ -1,76 +1,53 @@
-import fs from 'fs';
-import path from 'path';
+import type { RawSourceMap } from 'source-map-js';
+
+import fs from 'node:fs';
+import path from 'node:path';
 
 import * as sass from 'sass';
+import browserslist from 'browserslist';
+import { browserslistToTargets } from 'lightningcss';
 
-interface StyleEntry {
-  input: string;
-  output: string;
-}
-
-const entries: StyleEntry[] = [
-  { input: 'src/styles/root.scss', output: 'dist/styles/root.css' },
-  { input: 'src/styles/pl-states.scss', output: 'dist/styles/pl-states.css' },
-];
-
-// Normalize line endings to LF so output is consistent across Windows and Unix
-const normalizeLf = (text: string): string => text.replace(/\r\n?/g, '\n');
+import { stripInjectedPreludeFromSourceMap, transformStyleCss } from './styles-core.ts';
 
 export interface CompileDependencies {
   compile: typeof sass.compile;
   mkdirSync: typeof fs.mkdirSync;
   writeFileSync: typeof fs.writeFileSync;
+  transformCss: typeof transformStyleCss;
 }
 
 const defaultDependencies: CompileDependencies = {
   compile: sass.compile,
   mkdirSync: fs.mkdirSync,
   writeFileSync: fs.writeFileSync,
+  transformCss: transformStyleCss,
 };
 
-/**
- * Compiles SCSS entries to CSS with embedded source maps.
- * Source maps include original SCSS content (sourceMapIncludeSources)
- * so consumers don't need the raw .scss files.
- */
 export function compileStyles(rootDir: string, deps: CompileDependencies = defaultDependencies): void {
-  for (const { input, output } of entries) {
-    const inputPath = path.resolve(rootDir, input);
-    const outputPath = path.resolve(rootDir, output);
+  const targets = browserslistToTargets(browserslist(undefined, { path: rootDir }));
 
-    deps.mkdirSync(path.dirname(outputPath), { recursive: true });
-
-    const result = deps.compile(inputPath, {
-      style: 'compressed',
+  for (const name of ['root', 'pl-states']) {
+    const input = `src/styles/${name}.scss`;
+    const output = path.resolve(rootDir, `dist/styles/${name}.css`);
+    const result = deps.compile(path.resolve(rootDir, input), {
+      // Preserve cross-module mappings; LightningCSS performs final minification.
+      style: 'expanded',
       sourceMap: true,
       sourceMapIncludeSources: true,
     });
 
-    const mapFileName = path.basename(output) + '.map';
-    const cssOut = normalizeLf(result.css);
+    if (!result.sourceMap) throw new Error(`Sass did not produce a source map for ${input}`);
+    const map = stripInjectedPreludeFromSourceMap(result.sourceMap as RawSourceMap, undefined, { projectRoot: rootDir });
+    const transformed = deps.transformCss(result.css, map, input, targets);
 
-    // Normalize CRLF in embedded source content for cross-platform consistency
-    const sourceMap = result.sourceMap as unknown as { sources?: string[]; sourcesContent?: Array<string | null> };
-
-    if (Array.isArray(sourceMap?.sources)) {
-      sourceMap.sources = sourceMap.sources.map((s) => (path.isAbsolute(s) ? path.relative(rootDir, s) : s).replace(/\\/g, '/'));
-    }
-
-    if (Array.isArray(sourceMap?.sourcesContent)) {
-      sourceMap.sourcesContent = sourceMap.sourcesContent.map((c) => (typeof c === 'string' ? normalizeLf(c) : c));
-    }
-
-    const sourceMapJson = JSON.stringify(sourceMap ?? {});
-
-    // Append sourceMappingURL so browsers/dev tools can locate the .map file
-    deps.writeFileSync(outputPath, cssOut + `\n/*# sourceMappingURL=${mapFileName} */`);
-    deps.writeFileSync(outputPath + '.map', sourceMapJson);
-
-    console.log(`compiled: ${input} → ${output}`);
+    deps.mkdirSync(path.dirname(output), { recursive: true });
+    deps.writeFileSync(output, transformed.css + `\n/*# sourceMappingURL=${name}.css.map */`);
+    deps.writeFileSync(output + '.map', transformed.map);
+    console.log(`compiled: ${input} -> dist/styles/${name}.css`);
   }
 }
 
-/* v8 ignore next 4 -- exercised via `bun src/precompile-styles.ts`, not via unit tests */
+/* v8 ignore next 3 -- exercised by the packed-package test */
 if (import.meta.main) {
   compileStyles(path.resolve(import.meta.dirname, '..'));
 }

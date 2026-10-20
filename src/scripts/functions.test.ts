@@ -70,4 +70,12 @@ describe('alveo/scripts/functions.ts', () => {
     expect(window.getCookie('theme')).toBe('dark');
     expect(window.getCookie('missing')).toBeUndefined();
   });
+
+  it('preserves equals signs in cookie values and ignores non-cookie segments', async () => {
+    await importFunctionsModule();
+    vi.spyOn(document, 'cookie', 'get').mockReturnValue('token=a=b==; invalid; empty=');
+    expect(window.getCookie('token')).toBe('a=b==');
+    expect(window.getCookie('empty')).toBe('');
+    expect(window.getCookie('invalid')).toBeUndefined();
+  });
 });

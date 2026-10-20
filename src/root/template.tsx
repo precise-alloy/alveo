@@ -1,5 +1,6 @@
-import RequireJs from '@helpers/RequireJs';
-import ReactSection from '@helpers/ReactSection';
+import type { RootModel } from './models.ts';
+
+import { RequireJs, ReactSection } from '../helpers.tsx';
 
 export default function Template(model: RootModel) {
   return (

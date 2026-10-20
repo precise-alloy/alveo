@@ -1,67 +1,24 @@
 import { lazy } from 'react';
-import ReactDOM from 'react-dom/client';
-import { load } from 'js-yaml';
 import './scripts/functions.ts';
 import { clientComponents } from 'virtual:alveo/client-components';
 
-const blocks: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
+import { createComponentRenderer } from './react-loader-core.tsx';
+
+const renderComponent = createComponentRenderer({
   root: lazy(() => import('./root/index.tsx')),
   ...clientComponents,
-};
+});
 
-const SAFE_CONTAINER_TAGS = new Set(['div', 'section']);
-
-const getSafeTagName = (tagName: string | null): string => {
-  const normalizedTag = (tagName ?? '').trim().toLowerCase();
-
-  return SAFE_CONTAINER_TAGS.has(normalizedTag) ? normalizedTag : 'section';
-};
-
-const renderComponent = (scriptSection: HTMLScriptElement) => {
-  const blockType = scriptSection.getAttribute('data-rct');
-  const data = scriptSection.textContent ? scriptSection.textContent : '{}';
-  const type = scriptSection.getAttribute('type');
-
-  if (!blockType || !data) {
-    return;
-  }
-
-  const Component = blocks[blockType];
-
-  if (Component) {
-    scriptSection.textContent = null;
-    const tagName = getSafeTagName(scriptSection.getAttribute('data-tag'));
-    const section = document.createElement(tagName);
-
-    section.className = scriptSection.getAttribute('data-class') ?? '';
-    scriptSection.replaceWith(section);
-
-    const props = type === 'application/json' ? JSON.parse(data) : type === 'application/yaml' ? load(data) : {};
-
-    ReactDOM.createRoot(section).render(<Component {...props} />);
-  }
-};
-
-const renderComponents = () => {
-  // rct stands for 'react component type'
-  const scriptSections = document.querySelectorAll('script[data-rct]');
-
-  [].forEach.call(scriptSections, renderComponent);
+const renderComponents = async (): Promise<void> => {
+  await Promise.all(Array.from(document.querySelectorAll<HTMLScriptElement>('script[data-rct]'), renderComponent));
 };
 
 window.renderComponents = renderComponents;
-renderComponents();
-window.addEventListener('load', () => renderComponents());
+void renderComponents();
+window.addEventListener('load', () => {
+  void renderComponents();
+});
 
-// Post a custom event to notify that the renderComponents function is ready to be used
-// Usage:
-// if (window.renderComponents) {
-//   window.renderComponents();
-// } else {
-//   window.addEventListener('react-loaded', () => {
-//     window.renderComponents();
-//   });
-// }
-const event = new CustomEvent('react-loaded');
-
-window.dispatchEvent(event);
+// This is an API-readiness event, not a React commit or YAML-completion event.
+// Callers may safely invoke renderComponents while another batch is in flight.
+window.dispatchEvent(new CustomEvent('react-loaded'));

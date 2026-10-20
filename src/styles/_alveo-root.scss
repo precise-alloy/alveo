@@ -265,6 +265,9 @@
 
   &__active-item-options {
     display: block;
+    // Visibility follows the responsive layout: collapsed on mobile, persistent
+    // in the desktop sidebar. JS-only inert/aria-hidden would disable that sidebar.
+    visibility: hidden;
     max-width: var(--navbar-max-width);
     background-color: $body-bg;
     position: fixed;
@@ -275,12 +278,14 @@
 
     &.show {
       display: block;
+      visibility: visible;
       box-shadow: 0 px2rem(2px) px2rem(4px) #a6a6a6;
       transform: translateX(0);
     }
 
     @include lg {
       display: block;
+      visibility: visible;
       position: relative;
       transform: translateX(0);
       top: 0;

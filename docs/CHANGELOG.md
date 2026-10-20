@@ -1,7 +1,6 @@
 # <Project> - Changelog
 
-Log completed EPICs and significant changes here.
-Delete memory file after logging.
+Log completed EPICs and significant changes here. Delete memory file after logging.
 
 ## Format
 
@@ -12,3 +11,15 @@ Summary: <what was built>
 ```
 
 <!-- Add entries below -->
+
+### 2026-10-20 - Package and runtime review corrections
+
+- Made packed declarations self-contained, added `alveo/helpers` and `alveo/types`, fixed scaffold naming/versioning/ignore files, cleaned package output, and guarded Git hook installation without swallowing setup errors.
+- Standardized on Node 24+ and Bun-first tooling. The Express server is now explicitly development-only; static generation/integration remain the production deployment paths.
+- Removed SSR window pollution and success-shaped empty error renders. Pipelines await styles, generate integration state data, fail before later stages, and carry the resolved Vite base into prerendering.
+- Corrected real asset extensions, unified content versions, preserved literal dollar patterns, deep-merged configuration, and protected external integration destinations against project overlap and symlink aliases.
+- Fixed Sass module ownership and sourcemaps, deferred minification to LightningCSS, applied consumer browser targets to framework CSS, eliminated one-shot sleeps and duplicate watch startup work, and bundled script entries with usable maps.
+- Isolated component payload failures, escaped embedded JSON/state markup, deferred YAML and icon loading, removed browser Cheerio/lodash dependencies, repaired catalog fallback, and stabilized settings refs and print-safe timers.
+- Expanded critical-module coverage and installed-package regression tests, including strict TypeScript modes, actual generated HTML, client bundle graph checks, and LF/CRLF integration byte comparisons. Cross-platform package tests now gate publishing.
+
+See the README migration notes before upgrading consumers with copied helpers, old standalone script filenames, production server usage, or cached hash values.

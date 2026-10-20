@@ -1,3 +1,5 @@
+import type { SinglePageNode } from './root/models.ts';
+
 import { Route, Routes } from 'react-router-dom';
 import { createElement, ReactElement } from 'react';
 
@@ -13,12 +15,12 @@ const App = () => {
 
         return;
       }
-      const multiplePageNode = node as MultiplePageNode;
-
-      multiplePageNode.items.forEach((item: SinglePageNode) => {
-        if (item.component)
-          result.push(<Route key={item.path} element={createElement(item.component, { routes: nodes })} path={viteAbsoluteUrl(item.path, true)} />);
-      });
+      if (node.type === 'collection') {
+        node.items.forEach((item: SinglePageNode) => {
+          if (item.component)
+            result.push(<Route key={item.path} element={createElement(item.component, { routes: nodes })} path={viteAbsoluteUrl(item.path, true)} />);
+        });
+      }
     });
 
     return result;

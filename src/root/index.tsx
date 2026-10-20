@@ -1,7 +1,10 @@
 'use client';
 
+import type { RootModel, SinglePageNode } from './models.ts';
+
 import { useEffect, useMemo, useState } from 'react';
 
+import { getCatalogRoutes, getInitialCatalogRoute } from './catalog.ts';
 import { RootContext, RootData } from './root-context.ts';
 import FrameControls from './frame-controls.tsx';
 import ActiveItemOptions from './active-item-options.tsx';
@@ -39,44 +42,11 @@ export default function Root(props: RootModel) {
     setRtl,
   };
 
-  const routes = useMemo(() => {
-    const result: SinglePageNode[] = [];
-
-    props.routes.forEach((route) => {
-      if (route.type === 'single') {
-        result.push({
-          path: route.path,
-          name: route.name,
-          type: 'single',
-        });
-
-        return;
-      }
-      route.items.forEach((item) => {
-        result.push({
-          path: item.path,
-          name: item.name,
-          type: 'single',
-        });
-      });
-    });
-
-    return result;
-  }, [props.routes]);
+  const routes = useMemo(() => getCatalogRoutes(props.routes), [props.routes]);
 
   useEffect(() => {
-    const hash = window.location.hash;
-    const activePath = hash && hash.startsWith('#/') ? hash.substring(1) : '/pages/home';
-    const activeIndex = routes.findIndex((r) => r.path === activePath);
-
-    if (activeIndex >= 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveItem(routes[activeIndex]);
-    } else {
-      const homeIndex = routes.findIndex((r) => r.path === '/pages/home');
-
-      setActiveItem(routes[homeIndex]);
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveItem(getInitialCatalogRoute(routes, window.location.hash));
   }, [routes]);
 
   const handleStorageChange = (event: StorageEvent) => {
@@ -106,7 +76,7 @@ export default function Root(props: RootModel) {
     }
 
     const applyDir = () => {
-      frame.contentDocument?.documentElement.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
+      frame.contentDocument?.documentElement?.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
     };
 
     applyDir();
@@ -117,16 +87,20 @@ export default function Root(props: RootModel) {
     };
   }, [isRtl]);
 
-  return routes ? (
+  return (
     <RootContext.Provider value={rootData}>
       <div className={`alveo-o-root ${isTopPanel ? 'top-panel' : ''}`}>
-        <RootNav routes={props.routes} />
-        <FrameControls />
-        <ActiveItemOptions />
-        <IconListDialog />
+        {routes.length === 0 ? (
+          <p role="status">No pages or components are available in this project.</p>
+        ) : (
+          <>
+            <RootNav routes={props.routes} />
+            <FrameControls />
+            <ActiveItemOptions />
+            <IconListDialog />
+          </>
+        )}
       </div>
     </RootContext.Provider>
-  ) : (
-    <></>
   );
 }

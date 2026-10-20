@@ -8,6 +8,7 @@ import {
   assertMode,
   buildDevProcesses,
   colorizePrefix,
+  createProcessOutputFormatter,
   DevProcessSpec,
   DevSupervisorDependencies,
   formatProcessOutput,
@@ -19,6 +20,14 @@ import {
 } from './dev-supervisor.ts';
 
 class MockProcess extends EventEmitter implements SpawnedDevProcess {
+  override emit(event: string | symbol, ...args: unknown[]): boolean {
+    const result = super.emit(event, ...args);
+
+    // The fixture has no OS pipes, so an exit can immediately complete stdio.
+    if (event === 'exit') super.emit('close', ...args);
+
+    return result;
+  }
   stdout: NodeJS.ReadableStream | null = new EventEmitter() as NodeJS.ReadableStream;
   stderr: NodeJS.ReadableStream | null = new EventEmitter() as NodeJS.ReadableStream;
   killed = false;
@@ -126,6 +135,20 @@ describe('alveo/dev-supervisor.ts', () => {
   });
 
   describe('formatProcessOutput', () => {
+    it('buffers partial lines, split CRLF and split UTF-8 independently', () => {
+      const output = createProcessOutputFormatter('vite', undefined);
+      const emoji = Buffer.from('\u{1f680}');
+
+      expect(output.write('hel')).toBe('');
+      expect(output.write('lo\r')).toBe('');
+      expect(output.write('\nnext\rthird\n')).toBe('[vite] hello\n[vite] next\n[vite] third\n');
+      expect(output.write(emoji.subarray(0, 2))).toBe('');
+      expect(output.write(emoji.subarray(2))).toBe('');
+      expect(output.end()).toBe('[vite] \u{1f680}\n');
+      expect(output.end()).toBe('');
+      expect(output.write('last\r')).toBe('');
+      expect(output.end()).toBe('[vite] last\n');
+    });
     it('prefixes each output line', () => {
       expect(formatProcessOutput('vite', undefined, 'one\ntwo\n')).toBe('[vite] one\n[vite] two\n');
     });
@@ -143,6 +166,21 @@ describe('alveo/dev-supervisor.ts', () => {
   });
 
   describe('spawnSupervisor', () => {
+    it('flushes unfinished stdout and stderr lines before resolving a closed child', async () => {
+      const child = new MockProcess();
+      const dependencies = buildDependencies([child]);
+      const result = spawnSupervisor([{ name: 'dev', command: 'node', args: [] }], dependencies);
+
+      child.stdout!.emit('data', Buffer.from('partial'));
+      child.stderr!.emit('data', Buffer.from('warning'));
+      expect(dependencies.stdoutWrite).not.toHaveBeenCalled();
+      child.stdout!.emit('end');
+      child.stderr!.emit('end');
+      child.emit('close', 0, null);
+      await expect(result).resolves.toBe(0);
+      expect(dependencies.stdoutWrite).toHaveBeenCalledWith('[dev] partial\n');
+      expect(dependencies.stderrWrite).toHaveBeenCalledWith('[dev] warning\n');
+    });
     it('returns zero when there are no process specs', async () => {
       await expect(spawnSupervisor([], buildDependencies([]))).resolves.toBe(0);
     });

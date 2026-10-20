@@ -2,9 +2,9 @@ import { worker } from './mock-browser.ts';
 
 worker.start({
   serviceWorker: {
-    url: `${import.meta.env.VITE_BASE_URL}mockServiceWorker.js`,
+    url: `${import.meta.env.BASE_URL}mockServiceWorker.js`,
     options: {
-      scope: `${import.meta.env.VITE_BASE_URL}`,
+      scope: import.meta.env.BASE_URL,
     },
   },
   onUnhandledRequest: 'bypass',

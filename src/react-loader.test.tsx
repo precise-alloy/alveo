@@ -1,48 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import ReactDOM from 'react-dom/client';
 
-const { createRoot, render } = vi.hoisted(() => {
-  const render = vi.fn();
+const { mount } = vi.hoisted(() => ({ mount: vi.fn().mockResolvedValue(undefined) }));
 
-  return {
-    createRoot: vi.fn(() => ({ render })),
-    render,
-  };
-});
-
-vi.mock('react-dom/client', () => ({
-  default: { createRoot },
-}));
-
+vi.mock('./react-loader-core.tsx', () => ({ createComponentRenderer: vi.fn(() => mount) }));
 vi.mock('./scripts/functions.ts', () => ({}));
+vi.mock('virtual:alveo/client-components', () => ({ clientComponents: {} }));
 
-vi.mock('virtual:alveo/client-components', () => ({
-  clientComponents: {},
-}));
-
-describe('react loader', () => {
+describe('browser loader entry', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.mocked(ReactDOM.createRoot).mockClear();
-    render.mockClear();
-    document.body.innerHTML = '';
+    mount.mockClear();
+    document.body.innerHTML = '<script data-rct="root" type="application/json">{}</script>';
   });
-
-  it("parses YAML component props through js-yaml's ESM load export", async () => {
-    document.body.innerHTML = `
-      <script data-rct="root" type="application/yaml">
-        heading: Example
-        enabled: true
-      </script>
-    `;
+  it('publishes readiness and supports initial, manual, and load-event batches', async () => {
+    const dispatch = vi.spyOn(window, 'dispatchEvent');
+    const listeners = vi.spyOn(window, 'addEventListener');
 
     await import('./react-loader.tsx');
+    expect(mount).toHaveBeenCalledOnce();
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'react-loaded' }));
+    await window.renderComponents();
+    const listener = listeners.mock.calls.find(([event]) => event === 'load')?.[1];
 
-    expect(ReactDOM.createRoot).toHaveBeenCalledTimes(1);
-    expect(render).toHaveBeenCalledWith(
-      expect.objectContaining({
-        props: { heading: 'Example', enabled: true },
-      })
-    );
+    if (typeof listener !== 'function') throw new Error('Missing load listener');
+    listener(new Event('load'));
+    window.removeEventListener('load', listener);
+    expect(mount).toHaveBeenCalledTimes(3);
   });
 });

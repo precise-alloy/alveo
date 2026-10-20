@@ -1,19 +1,13 @@
-/* AUTO-GENERATED FILE — DO NOT EDIT BY HAND.
- * Please commit any changes you see here.
- */
-
 type RuntimeGlobal = typeof globalThis & {
-  window?: Window & typeof globalThis;
   getModifiers?: (model: BasedAtomicModel, baseClass: string) => string;
   viteAbsoluteUrl?: (path: string, addExtension?: boolean) => string;
+  getCookie?: (name: string) => string | undefined;
 };
 
 const runtimeGlobal = globalThis as RuntimeGlobal;
-const runtimeWindow = (typeof window !== 'undefined' ? window : runtimeGlobal) as Window & typeof globalThis;
-
-if (typeof window === 'undefined') {
-  runtimeGlobal.window = runtimeWindow;
-}
+// SSR needs the helpers, not a fake DOM. Synthesizing window defeats browser
+// guards in consumer components and third-party libraries.
+const runtimeWindow = typeof window !== 'undefined' ? window : runtimeGlobal;
 
 runtimeGlobal.getModifiers = (model: BasedAtomicModel, baseClass: string) => {
   const classes = [baseClass];
@@ -34,7 +28,7 @@ runtimeGlobal.viteAbsoluteUrl = (path: string, addExtension = false): string => 
   }
   const baseUrl = import.meta.env.BASE_URL;
   const normalizedRemain =
-    (path?.startsWith('/') ? path : '/' + path) + (addExtension && !path.endsWith('/') ? import.meta.env.VITE_PATH_EXTENSION : '');
+    (path?.startsWith('/') ? path : '/' + path) + (addExtension && !path.endsWith('/') ? (import.meta.env.VITE_PATH_EXTENSION ?? '') : '');
 
   if (!baseUrl) {
     return normalizedRemain;
@@ -57,9 +51,9 @@ runtimeWindow.getCookie = (name: string) => {
   const cookies: { [name: string]: string } = {};
 
   document.cookie.split(';').forEach((cookie) => {
-    const [name, value] = cookie.split('=') as [string, string];
+    const separator = cookie.indexOf('=');
 
-    cookies[name.trim()] = value;
+    if (separator >= 0) cookies[cookie.slice(0, separator).trim()] = cookie.slice(separator + 1);
   });
 
   return cookies[name];

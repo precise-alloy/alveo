@@ -1,42 +1,25 @@
-import fs from 'fs';
-import path from 'path';
+import type { Express } from 'express';
+import type { ViteDevServer } from 'vite';
+import type { RenderOutput } from './entry-server.tsx';
 
-import { Express } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+
 import rateLimit from 'express-rate-limit';
-import { ViteDevServer } from 'vite';
 import * as cheerio from 'cheerio';
-import jsBeautify, { CSSBeautifyOptions, HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';
+import jsBeautify from 'js-beautify';
 import slash from 'slash';
 
 import { getPackageRoot } from './paths.ts';
+import { beautifyOptions, removeDuplicateAssets, replacePlaceholder, updateResourcePath } from './prerender-core.ts';
 
 interface Props {
-  app: Express;
-  indexProd: string;
-  isProd: boolean;
-  viteDevServer: ViteDevServer | undefined;
+  app: Pick<Express, 'use'>;
+  viteDevServer: Pick<ViteDevServer, 'transformIndexHtml' | 'ssrLoadModule' | 'ssrFixStacktrace'>;
   resolve: (path: string) => string;
+  baseUrl: string;
   domain?: string;
 }
-
-const beautifyOptions: HTMLBeautifyOptions | JSBeautifyOptions | CSSBeautifyOptions = {
-  indent_size: 2,
-  indent_char: ' ',
-  keep_array_indentation: false,
-  break_chained_methods: false,
-  indent_scripts: 'normal',
-  brace_style: 'expand',
-  space_before_conditional: true,
-  unescape_strings: false,
-  jslint_happy: false,
-  end_with_newline: false,
-  wrap_line_length: 0,
-  indent_inner_html: false,
-  comma_first: false,
-  e4x: false,
-  indent_empty_lines: false,
-  wrap_attributes: 'force',
-};
 
 const rendererRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -45,111 +28,44 @@ const rendererRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const updateResourcePath = ($: cheerio.CheerioAPI, tagName: string, attr: string, domain?: string) => {
-  $(tagName).each((_, el) => {
-    const href = $(el).attr(attr);
-
-    if (href && href.startsWith('/')) {
-      let newPath = href;
-
-      // `domain` is plumbed from loadEnv(VITE_DOMAIN); loadEnv does not populate
-      // process.env, so reading process.env here would drop a .env-only value.
-      if (domain) {
-        newPath = domain + newPath;
-      }
-
-      if (
-        href.startsWith('/') &&
-        !href.startsWith('/assets/vendors/') &&
-        ['.css', '.ico', '.js', '.webmanifest', '.svg'].includes(path.extname(href).toLowerCase()) &&
-        !/\.0x[a-z0-9]{8}\.\w+$/gi.test(href)
-      ) {
-        newPath += '?v=' + new Date().getTime();
-      }
-
-      if (newPath != href) {
-        $(el).attr(attr, newPath);
-      }
-    }
-  });
-};
-
-const removeDuplicateAssets = ($: cheerio.CheerioAPI, selector: string, attr: string, paths: string[]) => {
-  $(selector).each((_, el) => {
-    if ($(el).attr('data-pl-inplace') === 'true') {
-      return;
-    }
-
-    const resourcePath = $(el).attr(attr);
-
-    if (!resourcePath) {
-      return;
-    }
-
-    const index = $(el).index();
-    const parent = $(el).parent().clone();
-    const child = parent.children()[index]!;
-
-    parent.empty();
-    parent.append(child);
-    const html = parent.html();
-
-    $(el).after('\n<!-- ' + html + ' -->');
-
-    if (paths.includes(resourcePath)) {
-      $(el).remove();
-
-      return;
-    }
-
-    paths.push(resourcePath);
-    $('head').append(el);
-  });
-};
-
-export const _useRenderer = ({ app, indexProd, isProd, viteDevServer, resolve, domain }: Props) => {
-  const packageRoot = getPackageRoot();
-  const entryServerPath = slash(path.join(packageRoot, 'dist/entry-server.js'));
+export const _useRenderer = ({ app, viteDevServer, resolve, baseUrl, domain }: Props) => {
+  const entryServerPath = slash(path.join(getPackageRoot(), 'dist/entry-server.js'));
 
   app.use(rendererRateLimiter, async (req, res) => {
     try {
-      let template, render;
-
-      if (!isProd) {
-        // always read fresh template in dev
-        template = fs.readFileSync(resolve('index.html'), 'utf-8');
-        template = await viteDevServer!.transformIndexHtml(req.originalUrl, template);
-        render = (await viteDevServer!.ssrLoadModule(entryServerPath)).render;
-      } else {
-        template = indexProd;
-        render = (await import(resolve('dist/server/entry-server.js'))).render;
-      }
-
-      const context: { url?: string } = {};
-      const output = render(req.originalUrl);
-
-      if (context.url) {
-        // Somewhere a `<Redirect>` was rendered
-        return res.redirect(301, context.url);
-      }
-
-      const html = template.replace('<!--app-html-->', output.html);
-      const $ = cheerio.load(html);
+      const template = await viteDevServer.transformIndexHtml(req.originalUrl, fs.readFileSync(resolve('index.html'), 'utf8'));
+      const { render } = (await viteDevServer.ssrLoadModule(entryServerPath)) as { render: (url: string) => RenderOutput | Promise<RenderOutput> };
+      const output = await render(req.originalUrl);
+      const $ = cheerio.load(replacePlaceholder(template, '<!--app-html-->', output.html));
       const paths: string[] = [];
 
       removeDuplicateAssets($, 'link[data-pl-require][href]', 'href', paths);
       removeDuplicateAssets($, 'script[data-pl-require][src]', 'src', paths);
-      updateResourcePath($, 'link', 'href', domain);
-      updateResourcePath($, 'script', 'src', domain);
-      updateResourcePath($, 'img', 'src', domain);
+      // Development must refresh stable filenames without requiring completed
+      // disk output from the parallel watcher. Prerender uses deterministic
+      // content hashes instead; both paths share URL and asset-relocation rules.
+      const resourceOptions = {
+        addHash: false,
+        baseUrl,
+        domain,
+        toAbsolute: resolve,
+        existsSync: fs.existsSync,
+        readFileSync: fs.readFileSync,
+        cacheVersion: String(Date.now()),
+      };
 
-      res
-        .status(200)
-        .set({ 'Content-Type': 'text/html' })
-        .end(jsBeautify.html_beautify($.html(), beautifyOptions).replace('/* app-styles */', output.styles));
-    } catch (e: any) {
-      !isProd && viteDevServer!.ssrFixStacktrace(e);
-      console.log(e.stack);
+      updateResourcePath($, 'link', 'href', resourceOptions);
+      updateResourcePath($, 'script', 'src', resourceOptions);
+      updateResourcePath($, 'img', 'src', resourceOptions);
+
+      const html = replacePlaceholder(jsBeautify.html_beautify($.html(), beautifyOptions), '/* app-styles */', output.styles);
+
+      res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause : new Error(String(cause));
+
+      viteDevServer.ssrFixStacktrace(error);
+      console.error('[alveo] SSR request failed:', error);
       res.status(500).end('Internal Server Error');
     }
   });

@@ -1,4 +1,6 @@
-import { createRef, MouseEvent, useState } from 'react';
+import { MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import rootSprite from '../assets/root.svg?url';
 
 import { useRootContext } from './root-context.ts';
 import { useOnClickOutside } from './use-click-outside.ts';
@@ -8,12 +10,27 @@ export default function ActiveItemOptions() {
   const { activeItem, isTopPanel, isRtl } = useRootContext();
   const key = 'pl-show-state-selector';
   const keyExist = localStorage.getItem(key);
-  const optionItemsRef = createRef<HTMLDivElement>();
-  const buttonRef = createRef<HTMLButtonElement>();
+  const optionItemsRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const [show, setShow] = useState(false);
 
-  useOnClickOutside(optionItemsRef, () => setShow(false), [buttonRef]);
+  const closeMenu = useCallback(() => setShow(false), []);
+  const outsideRefs = useMemo(() => [buttonRef], []);
+
+  useOnClickOutside(optionItemsRef, closeMenu, outsideRefs);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && show) {
+        setShow(false);
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [show]);
 
   const handleStateToggle = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -63,16 +80,18 @@ export default function ActiveItemOptions() {
     <div>
       <button
         ref={buttonRef}
+        aria-controls="alveo-settings"
+        aria-expanded={show}
         aria-label={show ? 'Close' : 'Settings'}
         className={`alveo-o-root__control-button alveo-o-root__button-${show ? 'close' : 'setting'}`}
         onClick={handleClick}
       >
         <svg className="alveo-o-root__control-svg" viewBox="0 0 30 30">
-          <use xlinkHref={show ? '/assets/images/root.svg#close' : '/assets/images/root.svg#setting'} />
+          <use href={`${rootSprite}#${show ? 'close' : 'setting'}`} />
         </svg>
       </button>
 
-      <div ref={optionItemsRef} className={`alveo-o-root__active-item-options ${show ? 'show' : ''}`}>
+      <div ref={optionItemsRef} className={`alveo-o-root__active-item-options ${show ? 'show' : ''}`} id="alveo-settings">
         <button className="alveo-o-root__nav-item pl-state-toggle" onClick={handleStateToggle}>
           <StateAnimationHtml keyExist={!!keyExist} />
           {toggleCtaText}
@@ -87,7 +106,7 @@ export default function ActiveItemOptions() {
         </button>
 
         <button className="alveo-o-root__nav-item panel-position" onClick={handleChangePanelPosition}>
-          {isTopPanel ? 'Set left panel' : 'Set top panel'}
+          {isTopPanel ? 'Set side panel' : 'Set top panel'}
         </button>
 
         <a className="alveo-o-root__nav-item" href={viteAbsoluteUrl(activeItem.path, true)} rel="noreferrer" target="_blank">
@@ -109,7 +128,7 @@ export default function ActiveItemOptions() {
         <a className="alveo-o-root__nav-item" href="https://tuyen.blog/optimizely-cms/frontend/get-started/" rel="noreferrer" target="_blank">
           About this library
           <svg className="alveo-o-root__control-svg" viewBox="0 0 30 30">
-            <use xlinkHref="/assets/images/root.svg#external" />
+            <use href={`${rootSprite}#external`} />
           </svg>
         </a>
       </div>

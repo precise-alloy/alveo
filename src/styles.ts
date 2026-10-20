@@ -2,24 +2,26 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
-import { watch } from 'chokidar';
+import { watch, type FSWatcher } from 'chokidar';
 import * as sass from 'sass';
 import slash from 'slash';
 import debounce from 'debounce';
 import { glob } from 'glob';
 import browserslist from 'browserslist';
-import { browserslistToTargets, transform as lightningTransform, type Targets } from 'lightningcss';
+import { browserslistToTargets, type Targets } from 'lightningcss';
 import { RawSourceMap } from 'source-map-js';
 
 import {
   createStyleCompileQueue,
   createScssImporterResult,
+  createStyleBundleSource,
   getStyleCompileConcurrency,
   getStyleWatchOptions,
   getStylesOutputFileName,
   prepareCssFileContent,
   sortStylePaths,
   stripInjectedPreludeFromSourceMap,
+  transformStyleCss,
 } from './styles-core.ts';
 import { getPackageRoot } from './paths.ts';
 
@@ -43,7 +45,7 @@ export interface StyleBuildOptions {
  * @param options.projectRoot - Absolute path to the consumer's project root
  * @param options.isWatch - Whether to watch for changes (defaults to false)
  */
-export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> => {
+export const runStyleBuild = async (options: StyleBuildOptions): Promise<void | FSWatcher> => {
   const { projectRoot, isWatch = false } = options;
   const packageRoot = getPackageRoot();
 
@@ -89,13 +91,14 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
   const log = console.log.bind(console);
 
   const compileQueue = createStyleCompileQueue(getStyleCompileConcurrency());
+  const failures: unknown[] = [];
+  const schedule = (compile: (isReady: boolean) => void) => (isWatch ? debounce(compile, DEBOUNCE_DELAY_MS) : compile);
 
   const reportStyleFailure = (file: string, kind: 'sass' | 'lightningcss-error' | 'lightningcss-warning', detail: unknown): void => {
-    log('\n[styles:FAIL]', kind, '-', file);
-    log(detail);
+    console.error('\n[styles:FAIL]', kind, '-', file, detail);
 
     if (!isWatch) {
-      process.exitCode = 1;
+      failures.push(detail);
     }
   };
 
@@ -156,7 +159,10 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
       sourceMap: true,
       sourceMapIncludeSources: true,
       syntax: 'scss',
-      style: 'compressed',
+      // Sass's compressed output can collapse cross-module mappings onto the
+      // first source. Keep its intermediate map detailed and minify only once,
+      // in LightningCSS after source identities and prelude offsets are fixed.
+      style: 'expanded',
       url: pathToFileURL(path.resolve(srcFile)),
       importer: {
         canonicalize(url, context) {
@@ -198,49 +204,17 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     return options;
   };
 
-  const postcssProcess = (result: sass.CompileResult, from: string, to: string): void => {
+  const postcssProcess = (result: Pick<sass.CompileResult, 'css' | 'sourceMap'>, from: string, to: string): void => {
+    if (!result.sourceMap) throw new Error(`Sass did not produce a source map for ${from}`);
     const inputMap = stripInjectedPreludeFromSourceMap(result.sourceMap as RawSourceMap, undefined, { projectRoot });
 
-    let output;
-    const cssInput = result.css.charCodeAt(0) === 0xfeff ? result.css.slice(1) : result.css;
-
     try {
-      output = lightningTransform({
-        filename: slash(path.relative(projectRoot, from)),
-        code: Buffer.from(cssInput),
-        minify: true,
-        sourceMap: true,
-        inputSourceMap: JSON.stringify(inputMap),
-        targets: lightningTargets,
-        errorRecovery: true,
-      });
+      const output = transformStyleCss(result.css, inputMap, path.relative(projectRoot, from), lightningTargets);
+
+      fs.writeFileSync(path.join(outDir, to), output.css + `\n/*# sourceMappingURL=${to}.map */`);
+      fs.writeFileSync(path.join(outDir, to + '.map'), output.map);
     } catch (error) {
       reportStyleFailure(from, 'lightningcss-error', error);
-
-      return;
-    }
-
-    if (output.warnings && output.warnings.length > 0) {
-      output.warnings.forEach((warning) => {
-        reportStyleFailure(from, 'lightningcss-warning', warning);
-      });
-    }
-
-    const cssOutput = Buffer.from(output.code).toString('utf-8');
-    const mapString = output.map ? Buffer.from(output.map).toString('utf-8') : undefined;
-
-    // Detect Sass functions that survived into the compiled CSS.
-    const SCSS_FUNCTION_LEAK_PATTERN = /\b(?:px2rem|px2em|rtl|str-replace|div)\(/g;
-    const leaks = cssOutput.match(SCSS_FUNCTION_LEAK_PATTERN);
-
-    if (leaks && leaks.length > 0) {
-      reportStyleFailure(from, 'lightningcss-warning', `unevaluated SCSS function(s) leaked into output: ${[...new Set(leaks)].join(', ')}`);
-    }
-
-    fs.writeFileSync(path.join(outDir, to), cssOutput + (mapString ? `\n/*# sourceMappingURL=${to}.map */` : ''));
-
-    if (mapString) {
-      fs.writeFileSync(path.join(outDir, to + '.map'), mapString);
     }
   };
 
@@ -258,35 +232,23 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
 
     const outFile = (compileOptions.prefix ?? '') + name;
 
-    // Queue the whole Sass + lightningcss job so one-shot builds do not start
-    // every stylesheet at once. Bun's async Sass path can retain enough native
-    // work at high fan-out to make clean `bun styles` runs flaky; using sync
-    // Sass inside a bounded queue keeps memory pressure predictable while still
-    // letting watch mode coalesce quick edit bursts through the existing
-    // debounced entry points.
+    // This queue bounds pending work and provides a drain contract; synchronous
+    // Sass does not gain CPU parallelism from its concurrency setting.
     void compileQueue.add(() => {
       try {
-        const cssStrings = getCssSourceContent(srcFile, 'compile');
+        let contents: string;
+        const stringOptions = getStringOptions<'sync'>(srcFile);
 
-        if (srcFile.includes('style-base') || srcFile.includes('style-all')) {
-          sortStylePaths(glob.sync(slash(path.resolve(projectRoot, 'src/atoms/**/*.scss')))).forEach((atomPath) => {
-            if (!path.basename(atomPath).startsWith('_')) {
-              cssStrings.push(
-                sass.compileString(prepareCssFileContent({ srcFile: atomPath, projectRoot }).join(''), getStringOptions<'sync'>(atomPath)).css
-              );
-            }
-          });
+        if (['style-base.scss', 'style-all.scss'].includes(path.basename(srcFile))) {
+          const bundle = createStyleBundleSource(srcFile, glob.sync(slash(path.resolve(projectRoot, 'src/{atoms,molecules}/**/*.scss'))));
 
-          sortStylePaths(glob.sync(slash(path.resolve(projectRoot, 'src/molecules/**/*.scss')))).forEach((molPath) => {
-            if (!path.basename(molPath).startsWith('_')) {
-              cssStrings.push(
-                sass.compileString(prepareCssFileContent({ srcFile: molPath, projectRoot }).join(''), getStringOptions<'sync'>(molPath)).css
-              );
-            }
-          });
+          contents = bundle.contents;
+          stringOptions.url = bundle.url;
+        } else {
+          contents = getCssSourceContent(srcFile, 'compile').join('');
         }
 
-        const result = sass.compileString(cssStrings.join(''), getStringOptions<'sync'>(srcFile));
+        const result = sass.compileString(contents, stringOptions);
 
         postcssProcess(result, srcFile, outFile);
       } catch (error) {
@@ -295,37 +257,37 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     });
   };
 
-  const styleOrganisms = debounce((isReady: boolean) => {
+  const styleOrganisms = schedule((isReady: boolean) => {
     const paths = sortStylePaths(glob.sync(slash(path.resolve(projectRoot, 'src/organisms/**/*.scss')), { nodir: true }));
 
     paths.forEach((p) => styleOrganism(p, isReady));
-  }, DEBOUNCE_DELAY_MS);
+  });
 
-  const styleTemplates = debounce((isReady: boolean) => {
+  const styleTemplates = schedule((isReady: boolean) => {
     const paths = sortStylePaths(glob.sync(slash(path.resolve(projectRoot, 'src/templates/**/*.scss')), { nodir: true }));
 
     paths.forEach((p) => styleTemplate(p, isReady));
-  }, DEBOUNCE_DELAY_MS);
+  });
 
-  const styleBase = debounce(
-    (isReady: boolean) => compile(path.resolve(projectRoot, 'src/assets/styles/style-base.scss'), { isReady }),
-    DEBOUNCE_DELAY_MS
-  );
-  // Copy precompiled CSS + source map from dist/styles/ to the output directory
+  const styleBase = schedule((isReady: boolean) => compile(path.resolve(projectRoot, 'src/assets/styles/style-base.scss'), { isReady }));
+  // Published CSS still needs the consumer's browser targets. Embedded map
+  // sources let the same LightningCSS path work without shipping raw SCSS.
   const copyPrecompiledStyle = (cssFile: string, outName: string): void => {
     try {
-      fs.copyFileSync(cssFile, path.join(outDir, outName));
-      const mapFile = cssFile + '.map';
-
-      if (fs.existsSync(mapFile)) {
-        fs.copyFileSync(mapFile, path.join(outDir, outName + '.map'));
-      }
+      postcssProcess(
+        {
+          css: fs.readFileSync(cssFile, 'utf8').replace(/\n?\/\*# sourceMappingURL=.*?\*\/\s*$/, ''),
+          sourceMap: JSON.parse(fs.readFileSync(cssFile + '.map', 'utf8')),
+        },
+        cssFile,
+        outName
+      );
     } catch (error) {
       reportStyleFailure(cssFile, 'sass', error);
     }
   };
 
-  const stylePlState = debounce((isReady: boolean) => {
+  const buildPlState = (isReady: boolean) => {
     const precompiled = path.join(alveoDistStyles, 'pl-states.css');
 
     if (usePrecompiled && fs.existsSync(precompiled)) {
@@ -333,9 +295,10 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     } else {
       compile(path.resolve(packageRoot, 'src/styles/pl-states.scss'), { isReady });
     }
-  }, DEBOUNCE_DELAY_MS);
+  };
+  const stylePlState = schedule(buildPlState);
 
-  const styleRoot = debounce((isReady: boolean) => {
+  const buildRoot = (isReady: boolean) => {
     const precompiled = path.join(alveoDistStyles, 'root.css');
 
     if (usePrecompiled && fs.existsSync(precompiled)) {
@@ -343,7 +306,8 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     } else {
       compile(path.resolve(packageRoot, 'src/styles/root.scss'), { isReady });
     }
-  }, DEBOUNCE_DELAY_MS);
+  };
+  const styleRoot = schedule(buildRoot);
   const styleOrganism = (srcFile: string, isReady: boolean): void => compile(srcFile, { prefix: ORGANISM_PREFIX, isReady });
   const styleTemplate = (srcFile: string, isReady: boolean): void => compile(srcFile, { prefix: TEMPLATE_PREFIX, isReady });
 
@@ -351,14 +315,19 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     const p = slash(inputPath);
     const relPath = slash(path.relative(projectRoot, inputPath));
 
-    if (relPath.startsWith(SRC_ABSTRACTS_PREFIX) || relPath.startsWith(SRC_FUNCTIONS_PREFIX) || relPath.startsWith(SRC_MIXINS_PREFIX)) {
+    if ([SRC_ABSTRACTS_PREFIX, SRC_FUNCTIONS_PREFIX, SRC_MIXINS_PREFIX].some((prefix) => relPath.startsWith(prefix))) {
       styleBase(isReady);
       styleOrganisms(isReady);
       styleTemplates(isReady);
       stylePlState(isReady);
     }
 
-    if (relPath.startsWith(SRC_ATOMS_PREFIX) || relPath.startsWith(SRC_MOLECULES_PREFIX) || relPath.startsWith(SRC_BASE_PREFIX)) {
+    if (
+      relPath === 'src/assets/styles/style-base.scss' ||
+      relPath.startsWith(SRC_ATOMS_PREFIX) ||
+      relPath.startsWith(SRC_MOLECULES_PREFIX) ||
+      relPath.startsWith(SRC_BASE_PREFIX)
+    ) {
       styleBase(isReady);
     }
 
@@ -367,7 +336,7 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
         sortStylePaths(glob.sync(path.dirname(p) + '/*.scss', { nodir: true }))
           .filter((f) => !path.basename(f).startsWith('_'))
           .forEach((f) => styleOrganism(f, isReady));
-      } else {
+      } else if (fs.existsSync(p)) {
         styleOrganism(p, isReady);
       }
     }
@@ -377,7 +346,7 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
         sortStylePaths(glob.sync(path.dirname(p) + '/*.scss', { nodir: true }))
           .filter((f) => !path.basename(f).startsWith('_'))
           .forEach((f) => styleTemplate(f, isReady));
-      } else {
+      } else if (fs.existsSync(p)) {
         styleTemplate(p, isReady);
       }
     }
@@ -406,6 +375,15 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
     if (fs.existsSync(mapPath)) fs.unlinkSync(mapPath);
   };
 
+  const buildAll = () => {
+    compile(path.resolve(projectRoot, 'src/assets/styles/style-base.scss'), { isReady: true });
+    buildPlState(true);
+    buildRoot(true);
+    sortStylePaths(glob.sync(slash(path.resolve(projectRoot, 'src/{organisms,templates}/**/*.scss'))))
+      .filter((file) => !path.basename(file).startsWith('_'))
+      .forEach((file) => sassCompile(file, true));
+  };
+
   if (isWatch) {
     const watchPaths = [slash(path.resolve(projectRoot, 'src'))];
 
@@ -413,17 +391,13 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
       watchPaths.push(slash(path.resolve(packageRoot, 'src/styles')));
     }
 
-    // Seed precompiled framework CSS so it's available before any file events
-    if (usePrecompiled) {
-      stylePlState(false);
-      styleRoot(false);
-    }
-
     const watcher = watch(watchPaths, getStyleWatchOptions());
     let ready = false;
 
     watcher
-      .on('ready', () => {
+      .on('ready', async () => {
+        buildAll();
+        await compileQueue.drain();
         log('SCSS ready!');
         ready = true;
       })
@@ -432,32 +406,13 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void> =
       .on('unlink', (f) => {
         log(`File ${f} has been removed`);
         cleanUpOutput(f);
+        sassCompile(f, ready);
       });
+
+    return watcher;
   } else {
-    styleBase(true);
-    stylePlState(true);
-    styleRoot(true);
-
-    const consumerGlob = slash(path.resolve(projectRoot, 'src/{organisms,templates}/**/*.scss'));
-    const globs = [consumerGlob];
-
-    if (!usePrecompiled) {
-      globs.push(slash(path.resolve(packageRoot, 'src/styles/**/*.scss')));
-    }
-
-    sortStylePaths(glob.sync(globs))
-      .filter((f) => !path.basename(f).startsWith('_'))
-      .forEach((f) => sassCompile(f, true));
-
-    // Drain every queued compile before exiting so `reportStyleFailure()` calls
-    // reliably set `process.exitCode` BEFORE Bun terminates. Without this drain
-    // the script returns synchronously, failures fire late, and the exit code is
-    // racy (0 vs. 1 across consecutive runs).
-    //
-    // The compile entry points are debounced, so we wait one debounce tick
-    // first to let queued debounced calls invoke `compile()` and enter the
-    // bounded queue.
-    await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_DELAY_MS + 50));
+    buildAll();
     await compileQueue.drain();
+    if (failures.length > 0) throw new AggregateError(failures, 'Styles build failed; subsequent build stages were not run.');
   }
 };

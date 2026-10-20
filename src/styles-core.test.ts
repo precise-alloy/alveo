@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createStyleCompileQueue,
+  createStyleBundleSource,
   createScssImporterResult,
   getStyleCompileConcurrency,
   getRelativeSourceMapPath,
@@ -21,9 +22,45 @@ import {
   resolveSourceMapPath,
   sortStylePaths,
   stripInjectedPreludeFromSourceMap,
+  transformStyleCss,
 } from './styles-core.ts';
 
 describe('alveo/styles-core.ts', () => {
+  it('builds a synthetic module entry in cascade order instead of appending CSS or late @use rules', () => {
+    const bundle = createStyleBundleSource('/project/src/style-base.scss', [
+      '/project/src/molecules/card.scss',
+      '/project/src/atoms/_private.scss',
+      '/project/src/atoms/button.scss',
+    ]);
+
+    expect(bundle.contents.split('\n')).toEqual([
+      '@use "./style-base.scss" as alveo_0;',
+      '@use "./atoms/button.scss" as alveo_1;',
+      '@use "./molecules/card.scss" as alveo_2;',
+    ]);
+    expect(fileURLToPath(bundle.url)).toBe(path.resolve('/project/src/.alveo-style-base.scss'));
+  });
+
+  it('normalizes CSS and maps and fails on warnings, absent maps, and unevaluated Sass functions', () => {
+    const map = new SourceMapGenerator().toJSON();
+    const transform = vi.fn().mockReturnValue({
+      code: Buffer.from('a{\r\ncolor:red\r\n}'),
+      map: Buffer.from('{"sourcesContent":["a\\r\\nb"]}'),
+      warnings: [],
+    });
+
+    expect(transformStyleCss('\uFEFFa{\r\ncolor:red}', map, 'a.scss', {}, transform)).toEqual({
+      css: 'a{\ncolor:red\n}',
+      map: '{"sourcesContent":["a\\nb"]}',
+    });
+    expect(transform.mock.calls[0]![0].code.toString()).toBe('a{\ncolor:red}');
+    transform.mockReturnValueOnce({ warnings: [{ message: 'bad CSS' }] });
+    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('LightningCSS warnings');
+    transform.mockReturnValueOnce({ code: Buffer.from(''), warnings: [] });
+    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('did not produce');
+    transform.mockReturnValueOnce({ code: Buffer.from('a{width:px2rem(2px)}'), map: Buffer.from('{}'), warnings: [] });
+    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('Unevaluated Sass');
+  });
   it('parses style compile concurrency from the environment with a conservative fallback', () => {
     expect(getStyleCompileConcurrency(undefined)).toBe(5);
     expect(getStyleCompileConcurrency('')).toBe(5);
