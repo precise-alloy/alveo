@@ -1,7 +1,4 @@
-declare module '*.svg?raw' {
-  const value: string;
-  export default value;
-}
+/// <reference types="alveo/types" />
 
 declare module '*.htm?raw' {
   const value: string;
@@ -22,8 +19,6 @@ interface Window {
   setFavoriteCount: (count: string | number) => void;
   setCartCount: (count: string | number) => void;
   setState: (name: string, value: string) => void;
-  renderComponents: () => void;
-  getCookie: (name: string) => string | undefined;
 
   appApi: {
     getAsync: <T>(remain: string, params?: RequestParams) => Promise<T>;
@@ -34,21 +29,10 @@ interface Window {
   };
 }
 
-declare const viteAbsoluteUrl: (path: string, addExtension?: boolean) => string;
-declare const getModifiers: (model: BasedAtomicModel, baseClass: string) => string;
-
 interface Element {
   observeResize: (callback: () => void) => void;
 }
 
 interface HTMLElement {
   onOutsideClick: (handler: (e: MouseEvent | TouchEvent) => void, otherDependenceElement?: HTMLElement[]) => void;
-}
-
-enum Method {
-  GET = 'GET',
-  PATCH = 'PATCH',
-  POST = 'POST',
-  PUT = 'PUT',
-  DELETE = 'DELETE',
 }

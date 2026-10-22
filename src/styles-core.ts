@@ -7,8 +7,97 @@ import { fileURLToPath, pathToFileURL } from 'url';
 
 import slash from 'slash';
 import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map-js';
+import { transform as lightningTransform, type Targets } from 'lightningcss';
 
-import { normalizeTextLineEndings } from './text-normalization.ts';
+import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.ts';
+
+export function createStyleBundleSource(entry: string, components: string[]): { contents: string; url: URL } {
+  // A synthetic entry contains only @use rules, in cascade order. Each real
+  // module is loaded through the prelude-aware importer exactly once. Appending
+  // compiled CSS loses source ownership; appending @use after CSS is invalid.
+  const files = [entry, ...sortStylePaths(components).filter((file) => !path.basename(file).startsWith('_'))];
+
+  return {
+    // Relative imports also avoid treating a Windows drive letter as a URL
+    // scheme in the custom importer.
+    contents: files
+      .map((file, index) => `@use ${JSON.stringify('./' + slash(path.relative(path.dirname(entry), file)))} as alveo_${index};`)
+      .join('\n'),
+    url: pathToFileURL(path.join(path.dirname(entry), '.alveo-' + path.basename(entry))),
+  };
+}
+
+const SASS_FUNCTION_CALL = /(?<![\w-])(?:px2rem|px2em|rtl|str-replace|div)\(/g;
+const UNQUOTED_URL = /url\(\s*[^\s"')]/iy;
+
+/**
+ * Returns unique project Sass function calls that leaked into compiled CSS.
+ *
+ * Only real function tokens count: comments, quoted strings (e.g.
+ * `content: "rtl("`) and unquoted `url(...)` bodies are blanked first, and a
+ * name must not be the tail of a longer identifier (`foo-div(`). A full CSS
+ * tokenizer is unnecessary because the input is lightningcss output, which is
+ * already valid, normalized CSS; this scanner only has to respect the token
+ * kinds that may legally contain arbitrary text.
+ */
+export function findUnevaluatedSassFunctions(css: string): string[] {
+  let code = '';
+
+  for (let index = 0; index < css.length;) {
+    const char = css[index]!;
+
+    if (char === '/' && css[index + 1] === '*') {
+      const end = css.indexOf('*/', index + 2);
+
+      index = end === -1 ? css.length : end + 2;
+      code += ' ';
+    } else if (char === '"' || char === "'") {
+      index++;
+      while (index < css.length && css[index] !== char) index += css[index] === '\\' ? 2 : 1;
+      index++;
+      code += ' ';
+    } else if (((UNQUOTED_URL.lastIndex = index), UNQUOTED_URL.test(css)) && !/[\w-]/.test(css[index - 1] ?? '')) {
+      // Unquoted url() bodies are raw text; quoted ones are handled as strings.
+      const end = css.indexOf(')', index);
+
+      index = end === -1 ? css.length : end + 1;
+      code += ' ';
+    } else {
+      code += char;
+      index++;
+    }
+  }
+
+  return [...new Set(code.match(SASS_FUNCTION_CALL) ?? [])];
+}
+
+export function transformStyleCss(
+  css: string,
+  sourceMap: RawSourceMap,
+  filename: string,
+  targets: Targets,
+  transform: typeof lightningTransform = lightningTransform
+): { css: string; map: string } {
+  const result = transform({
+    filename: slash(filename),
+    code: Buffer.from(normalizeTextLineEndings(css).replace(/^\uFEFF/, '')),
+    minify: true,
+    sourceMap: true,
+    inputSourceMap: JSON.stringify(sourceMap),
+    targets,
+    errorRecovery: true,
+  });
+
+  if (result.warnings.length > 0) throw new AggregateError(result.warnings, `LightningCSS warnings in ${filename}`);
+  if (!result.map) throw new Error(`LightningCSS did not produce a source map for ${filename}`);
+
+  const output = normalizeTextLineEndings(Buffer.from(result.code).toString('utf8'));
+  const leaks = findUnevaluatedSassFunctions(output);
+
+  if (leaks.length > 0) throw new Error(`Unevaluated Sass functions in ${filename}: ${leaks.join(', ')}`);
+
+  return { css: output, map: normalizeTextLikeContent(filename + '.map', Buffer.from(result.map)).toString() };
+}
 
 export interface StyleCoreDependencies {
   existsSync: typeof fs.existsSync;
@@ -92,6 +181,7 @@ export const isStyleWatchIgnored = (filePath: string, stats?: Pick<Stats, 'isFil
 export const getStyleWatchOptions = (): ChokidarOptions => {
   return {
     ignored: isStyleWatchIgnored,
+    ignoreInitial: true,
     // Native file events are not reliable for every editor/remote-volume path
     // this workspace is used through; when they are missed, Sass sources change
     // but `public/assets/css/*.css` stays stale until a manual `touch`. Polling

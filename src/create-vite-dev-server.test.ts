@@ -12,6 +12,19 @@ describe('createViteDevServer', () => {
     vi.mocked(createServer).mockReset();
   });
 
+  it('passes custom mode and uses polling/error-only logging for test servers', async () => {
+    await createViteDevServer({ root: '/project', mode: 'eshn', isTest: true });
+    expect(createServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'eshn',
+        logLevel: 'error',
+        server: expect.objectContaining({
+          watch: { usePolling: true, interval: 200 },
+        }),
+      })
+    );
+  });
+
   it('configures the development WebSocket port without deprecated HMR options', async () => {
     const viteDevServer = {};
 

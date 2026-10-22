@@ -2,10 +2,15 @@ import type { PluginOption } from 'vite';
 import type { AlveoContext } from './types.ts';
 
 import path from 'path';
+import fs from 'node:fs';
 
 import { glob } from 'glob';
 
 import { getPackageRoot } from '../paths.ts';
+import { getScriptEntryName, SCRIPT_ENTRY_IGNORE_PATTERNS } from '../filename.ts';
+
+export const isMockApiEnabled = (context: AlveoContext): boolean =>
+  context.mode !== 'production' && glob.sync(`${context.projectRoot}/src/mocks/handlers{,/index}.{js,jsx,ts,tsx}`).length > 0;
 
 const options = (context: AlveoContext): PluginOption => {
   const scriptOnly = process.env.scriptOnly;
@@ -21,25 +26,29 @@ const options = (context: AlveoContext): PluginOption => {
     // Scan consumer's entry files and alveo package's own script entries.
     // All patterns must be absolute — glob's `root` option rewrites
     // `/`-prefixed patterns on Linux, which corrupts absolute packageRoot paths.
-    const filePaths = glob.sync([
-      `${context.projectRoot}/src/assets/**/*.entry.{js,jsx,ts,tsx}`,
-      `${packageRoot}/dist/scripts/**/*.entry.js`,
-      `${packageRoot}/src/scripts/**/*.entry.{js,jsx,ts,tsx}`,
-    ]);
+    const frameworkScripts = fs.existsSync(path.join(packageRoot, 'dist/scripts'))
+      ? 'dist/scripts/**/*.entry.js'
+      : 'src/scripts/**/*.entry.{js,jsx,ts,tsx}';
+    // Use the same exclusions as the standalone script build so test/spec
+    // entries and __tests__/__mocks__ fixtures never become Vite inputs.
+    const filePaths = glob.sync([`${context.projectRoot}/src/assets/**/*.entry.{js,jsx,ts,tsx}`, `${packageRoot}/${frameworkScripts}`], {
+      ignore: [...SCRIPT_ENTRY_IGNORE_PATTERNS],
+    });
 
     [].forEach.call(filePaths, (filePath: string) => {
-      const fileName = path.basename(filePath).toLowerCase();
-      const entryName = fileName.replace(/\.entry\.(?:js|jsx|ts|tsx)$/gi, '');
+      const entryName = getScriptEntryName(filePath);
 
-      if (entryName === 'mock-api' && context.mode === 'production') {
+      if (entryName === 'mock-api' && !isMockApiEnabled(context)) {
         return;
       }
 
-      if (entryName != fileName) {
-        inputs[entryName] = filePath;
-
-        return;
+      // Own-property check: names such as `constructor.entry.ts` must not
+      // collide with Object.prototype members on this plain record.
+      if (Object.hasOwn(inputs, entryName)) {
+        throw new Error(`Duplicate script entry "${entryName}": ${inputs[entryName]} and ${filePath}`);
       }
+
+      inputs[entryName] = filePath;
     });
 
     return inputs;

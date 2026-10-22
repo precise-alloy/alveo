@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'node:fs';
 
 import slash from 'slash';
 
@@ -26,7 +27,6 @@ export interface IntegrationDependencies {
   writeFileSync: (path: string, data: string) => void;
   readdirSync: (path: string) => string[];
   globSync: (pattern: string, options?: { nodir?: boolean }) => string[];
-  nodeFsCpSync: (source: string, destination: string, options?: { recursive?: boolean }) => void;
   log: (message?: unknown, ...optionalParams: unknown[]) => void;
   warn: (value: string) => unknown;
 }
@@ -47,6 +47,37 @@ export interface DestinationValidationResult {
   reasons: string[];
 }
 
+export interface DestinationDependencies {
+  lstat: (value: string) => Pick<fs.Stats, 'isDirectory' | 'isSymbolicLink'> | undefined;
+  realpath: (value: string) => string;
+}
+
+const destinationDependencies: DestinationDependencies = {
+  lstat: (value) => fs.lstatSync(value, { throwIfNoEntry: false }),
+  realpath: fs.realpathSync,
+};
+
+const resolveDestination = (candidate: string, dependencies: DestinationDependencies): string => {
+  let existing = candidate;
+  const suffix: string[] = [];
+  let stats = dependencies.lstat(existing);
+
+  while (!stats) {
+    const parent = path.dirname(existing);
+
+    if (parent === existing) throw new Error(`Cannot resolve filesystem root for ${candidate}`);
+    suffix.unshift(path.basename(existing));
+    existing = parent;
+    stats = dependencies.lstat(existing);
+  }
+  const physical = dependencies.realpath(existing);
+  const target = stats.isSymbolicLink() ? dependencies.lstat(physical) : stats;
+
+  if (!target?.isDirectory()) throw new Error(`Integration destination is not a directory: ${existing}`);
+
+  return path.resolve(physical, ...suffix);
+};
+
 const isSameOrAncestorPath = (candidatePath: string, projectRoot: string): 'same' | 'ancestor' | undefined => {
   const resolvedCandidate = slash(path.resolve(candidatePath));
   const resolvedRoot = slash(path.resolve(projectRoot));
@@ -56,37 +87,56 @@ const isSameOrAncestorPath = (candidatePath: string, projectRoot: string): 'same
     return 'same';
   }
 
-  if (relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+  if (relativePath !== '..' && !relativePath.startsWith('../') && !path.isAbsolute(relativePath)) {
     return 'ancestor';
   }
 
   return undefined;
 };
 
-export const validateDestinations = (destBasePath: string, patternPath: string | undefined, projectRoot: string): DestinationValidationResult => {
+const pathsOverlap = (first: string, second: string): boolean => Boolean(isSameOrAncestorPath(first, second) || isSameOrAncestorPath(second, first));
+
+export const validateDestinations = (
+  destBasePath: string,
+  patternPath: string | undefined,
+  projectRoot: string,
+  dependencies: DestinationDependencies = destinationDependencies
+): DestinationValidationResult => {
   const reasons: string[] = [];
-  const assetDestination = destBasePath.trim();
+  const destinations: Array<{ lexical: string; physical: string }> = [];
+  const root = path.resolve(projectRoot);
 
-  if (!assetDestination) {
-    reasons.push('VITE_INTE_ASSET_DIR is empty');
-  } else {
-    const assetPathRisk = isSameOrAncestorPath(assetDestination, projectRoot);
+  try {
+    const physicalRoot = resolveDestination(root, dependencies);
 
-    if (assetPathRisk === 'same') {
-      reasons.push('VITE_INTE_ASSET_DIR resolves to project root');
-    } else if (assetPathRisk === 'ancestor') {
-      reasons.push('VITE_INTE_ASSET_DIR is an ancestor of project root');
+    for (const [label, value] of [
+      ['VITE_INTE_ASSET_DIR', destBasePath],
+      ['VITE_INTE_PATTERN_DIR', patternPath],
+    ]) {
+      if (value === undefined) continue;
+      if (!value.trim()) {
+        reasons.push(`${label} is empty`);
+        continue;
+      }
+      const lexical = path.resolve(root, value.trim());
+      const physical = resolveDestination(lexical, dependencies);
+      const risk = isSameOrAncestorPath(lexical, root) ?? isSameOrAncestorPath(physical, physicalRoot);
+
+      if (risk === 'same') reasons.push(`${label} resolves to project root`);
+      else if (risk === 'ancestor') reasons.push(`${label} is an ancestor of project root`);
+      else if (isSameOrAncestorPath(root, lexical) || isSameOrAncestorPath(physicalRoot, physical)) {
+        reasons.push(`${label} is inside project root`);
+      }
+      destinations.push({ lexical, physical });
     }
-  }
+    const [assets, patterns] = destinations;
 
-  if (patternPath !== undefined) {
-    const patternPathRisk = isSameOrAncestorPath(patternPath, projectRoot);
-
-    if (patternPathRisk === 'same') {
-      reasons.push('VITE_INTE_PATTERN_DIR resolves to project root');
-    } else if (patternPathRisk === 'ancestor') {
-      reasons.push('VITE_INTE_PATTERN_DIR is an ancestor of project root');
-    }
+    // Check both spellings: an in-project symlink to an external folder is
+    // still not an external output path, and two external links may alias.
+    if (assets && patterns && (pathsOverlap(assets.lexical, patterns.lexical) || pathsOverlap(assets.physical, patterns.physical)))
+      reasons.push('Integration destinations must not overlap each other');
+  } catch (error) {
+    reasons.push(`Cannot validate integration destinations: ${String(error)}`);
   }
 
   return {
@@ -99,6 +149,22 @@ export const parseIntegrationArgs = (argv: string[]) => {
   return {
     mode: parsePrerenderArgs(argv).mode,
   };
+};
+
+/**
+ * Replaces a destination file without following links.
+ *
+ * Destination validation only covers the output directories and their
+ * ancestors; an entry *inside* them can still be a symlink to a project or
+ * system file (`video.mp4 -> <project>/keep.txt`). copyFileSync/writeFileSync
+ * follow such links and would overwrite the target. `rmSync` removes the link
+ * itself (it lstat()s), so unlinking first guarantees every integration write
+ * creates a regular file owned by the generated-output directory. A real
+ * directory at the path still fails loudly (no `recursive`), as before.
+ */
+const replaceDestinationFile = (destPath: string, write: () => void, dependencies: Pick<IntegrationDependencies, 'rmSync'>): void => {
+  dependencies.rmSync(destPath, { force: true });
+  write();
 };
 
 export const copyConfiguredItems = (
@@ -131,9 +197,38 @@ export const copyConfiguredItems = (
         dependencies.mkdirSync(destDirPath, { recursive: true });
       }
 
-      dependencies.copyFileSync(srcPath, destPath);
+      replaceDestinationFile(destPath, () => dependencies.copyFileSync(srcPath, destPath), dependencies);
     }
   });
+};
+
+/**
+ * Returns copy items for every top-level entry in `srcBasePath` that the
+ * configured items do not already cover.
+ *
+ * Vite emits assets without a dedicated folder (e.g. `.mp4`, `.pdf`, `.wasm`)
+ * directly into `assets/`, and `public/assets/**` can add arbitrary files or
+ * folders there too. An allowlist of known folders silently dropped those, so
+ * integration "succeeded" while deployed references were broken. Copying the
+ * remainder (dirs replaced, files overwritten) mirrors the build output
+ * without hard-coding every extension the asset naming might route to root.
+ */
+export const getUnlistedCopyItems = (
+  copyItems: CopyItem[],
+  srcBasePath: string,
+  dependencies: Pick<IntegrationDependencies, 'existsSync' | 'readdirSync'>
+): CopyItem[] => {
+  if (!dependencies.existsSync(srcBasePath)) {
+    return [];
+  }
+
+  const listed = new Set(copyItems.map((item) => item.from));
+
+  return dependencies
+    .readdirSync(srcBasePath)
+    .filter((entry) => !listed.has(entry))
+    .sort()
+    .map((entry) => ({ from: entry }));
 };
 
 export const collectAssetHashes = (
@@ -203,7 +298,7 @@ export const normalizePatternHtml = (text: string): string => {
 
 export const normalizeGeneratedTextFiles = (
   targetPath: string,
-  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync'>
+  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync' | 'rmSync'>
 ): void => {
   dependencies.globSync(slash(path.join(targetPath, '**/*')), { nodir: true }).forEach((file) => {
     const fileContent = dependencies.readFileSync(file);
@@ -211,7 +306,7 @@ export const normalizeGeneratedTextFiles = (
     const newText = normalizeTextLikeContent(file, fileContent);
 
     if (typeof newText === 'string' && text !== newText) {
-      dependencies.writeFileSync(file, newText);
+      replaceDestinationFile(file, () => dependencies.writeFileSync(file, newText), dependencies);
     }
   });
 };
@@ -219,7 +314,7 @@ export const normalizeGeneratedTextFiles = (
 export const copyPatternArtifacts = (
   patternPath: string,
   staticBasePath: string,
-  dependencies: Pick<IntegrationDependencies, 'mkdirSync' | 'globSync' | 'copyFileSync' | 'nodeFsCpSync'>
+  dependencies: Pick<IntegrationDependencies, 'mkdirSync' | 'globSync' | 'copyFileSync' | 'cpSync'>
 ): void => {
   dependencies.mkdirSync(patternPath, { recursive: true });
   dependencies.globSync(slash(path.join(staticBasePath, '{atoms,molecules,organisms,templates,pages}/**/*.*'))).forEach((patternSource) => {
@@ -230,7 +325,7 @@ export const copyPatternArtifacts = (
     }
 
     if (target.recursive) {
-      dependencies.nodeFsCpSync(target.sourcePath, target.targetPath, { recursive: true });
+      dependencies.cpSync(target.sourcePath, target.targetPath, { recursive: true });
     } else {
       dependencies.copyFileSync(target.sourcePath, target.targetPath);
     }
@@ -268,7 +363,7 @@ export const validateExpectedFiles = (
         dependencies.log(dependencies.warn(`Cannot find: ${destPath}`));
       }
     } else {
-      const fileName = file.fileName;
+      const fileName = new RegExp(file.fileName.source, file.fileName.flags.replace(/[gy]/g, ''));
       const folderFiles = slash(path.join(destBasePath, file.folder ?? ''));
       const files = dependencies.readdirSync(folderFiles);
       const found = files.find((fileEntry) => fileName.test(fileEntry));
@@ -295,11 +390,14 @@ export const runIntegrationBuild = (config: IntegrationConfig, dependencies: Int
   }
 
   copyConfiguredItems(config.copyItems, config, dependencies);
+  copyConfiguredItems(getUnlistedCopyItems(config.copyItems, config.srcBasePath, dependencies), config, dependencies);
 
   const hashes = collectAssetHashes(config.hashItems, config, dependencies);
   const sortedHashes = sortHashes(hashes);
 
-  dependencies.writeFileSync(path.join(config.destBasePath, 'hashes.json'), JSON.stringify(sortedHashes, null, '  '));
+  const hashesPath = path.join(config.destBasePath, 'hashes.json');
+
+  replaceDestinationFile(hashesPath, () => dependencies.writeFileSync(hashesPath, JSON.stringify(sortedHashes, null, '  ')), dependencies);
   normalizeGeneratedTextFiles(config.destBasePath, dependencies);
 
   if (config.patternPath) {

@@ -1,193 +1,107 @@
-# Frontend Test Coverage
+# Test Coverage
 
-## Purpose
+## Policy and Commands
 
-This repository now has a real automated test gate for the most failure-prone frontend build and integration logic that was previously unprotected. The current rollout focuses on modules where silent regressions are expensive:
-
-- path, alias, filename, and hash behavior
-- build-time script, stylesheet, prerender, and integration transforms
-- generated asset normalization and virtual module contracts
-- hook helpers that rewrite generated HTML and dynamic imports
-
-The immediate goal is not a vanity repo-wide percentage. The immediate goal is a hard gate around the logic that breaks builds, runtime asset loading, or form submission when changed carelessly.
-
-## Commands
-
-Use these commands locally:
+Logic changes must preserve or improve the highest feasible coverage and include regression tests for new branches, failures, paths, and output contracts.
 
 ```bash
 bun run typecheck
-bun run test
-bun run test:watch
-bun run test:coverage
+bun run test -- src/<affected>.test.ts
 bun run test:ci
 ```
 
-`typecheck` runs `bun check --noEmit` and catches interface drift like stale Rolldown or Vite fixture objects before runtime tests even start.
+`typecheck` uses `bun check --noEmit`; package emission still requires `tsc`. `test:ci` runs type checking and the complete Vitest/V8 coverage gate. Repository installation configures the checked-in `.git-hooks/pre-push` hook to run `bun run typecheck`. Packed consumer installs do not install repository hooks.
 
-`test:ci` is the command used by GitHub Actions. It now runs type checking before the coverage run, runs on Ubuntu, Windows, and macOS in the parent frontend workflows, and must pass on every OS before the updated CI, deploy, and integration workflows can complete.
+Per-file thresholds remain **100% statements, lines, and functions; >=95% branches**. Do not lower thresholds, remove gated modules, or weaken CI/hook gates without explicit approval. New testable logic modules belong in `coverage.include` in the same change as their tests.
 
-After `bun install`, the repo also installs a local `pre-push` hook through `simple-git-hooks` that runs `bun run typecheck` before Git pushes proceed.
+## Enforced Scope
 
-## Enforced Coverage Scope
+The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate currently covers these 35 modules:
 
-The current hard-threshold gate applies to the following modules:
+| Area | Modules |
+| --- | --- |
+| Package/configuration | `config.ts`, `package-build.ts`, `scaffold.ts`, `helpers.tsx` |
+| Resolution/output | `alias.ts`, `asset-hash.ts`, `cryptography.ts`, `filename.ts`, `manual-chunk.ts`, `paths`-dependent virtual module behavior in `virtual-modules.ts` |
+| Server/processes | `dev-supervisor.ts`, `create-server.ts`, `create-vite-dev-server.ts`, `server.ts`, `entry-server.tsx`, `renderer.ts` |
+| Vite hooks | `hooks/inject-functions.ts`, `hooks/inject-functions-core.ts`, `hooks/options.ts`, `hooks/transform.ts`, `hooks/transform-index-html.ts` |
+| Build cores | `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
+| Browser runtime | `react-loader-core.tsx`, `scripts/functions.ts`, `scripts/state-markup.ts` |
+| Catalog | `root/catalog.ts`, `root/svg-symbols.ts`, `root/active-item-options.tsx`, `root/frame-controls.tsx` |
 
-| Area                  | File                                 | Why it is gated now                                                                                   |
-| --------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Alias helper          | `src/alias.ts`                       | Protects alias normalization and Vite alias generation                                                |
-| Asset hashing         | `src/asset-hash.ts`                  | Protects asset hash lookup and missing-file behavior                                                  |
-| Cryptography          | `src/cryptography.ts`                | Protects stable hashing helpers                                                                       |
-| Dev supervisor        | `src/dev-supervisor.ts`              | Protects argv-array dev process launch, validation, prefixed output, and kill-on-failure behavior     |
-| Output naming         | `src/filename.ts`                    | Protects asset, entry, and chunk naming conventions                                                   |
-| HTML hook             | `src/hooks/inject-functions.ts`      | Protects generated script injection wiring                                                            |
-| HTML hook core        | `src/hooks/inject-functions-core.ts` | Protects generated function injection transforms                                                      |
-| Integration core      | `src/integration-core.ts`            | Protects asset copying, hash manifest generation, pattern normalization, and required-file validation |
-| Chunk naming          | `src/manual-chunk.ts`                | Protects internal entry chunk naming                                                                  |
-| Stylesheet precompile | `src/precompile-styles.ts`           | Protects package stylesheet precompilation                                                            |
-| Prerender core        | `src/prerender-core.ts`              | Protects prerender URL building, duplicate asset relocation, and cache-busting rules                  |
-| Script build core     | `src/scripts-core.ts`                | Protects esbuild options, output writes, watch wiring, and one-shot failure signaling                 |
-| State build core      | `src/states-core.ts`                 | Protects deterministic state aggregation, output writes, and one-shot parse failure signaling         |
-| Styles core           | `src/styles-core.ts`                 | Protects injected SCSS prelude handling, sourcemap line shifting, and output naming                   |
-| Text normalizer       | `src/text-normalization.ts`          | Protects platform-independent LF normalization for text assets, sourcemaps, and generated outputs     |
-| Virtual modules       | `src/virtual-modules.ts`             | Protects virtual module IDs and resolution                                                            |
+All paths above are relative to `src/`. Type-only models do not contain executable logic. This is a scoped per-file gate, **not** a claim of 100% coverage of the entire repository.
 
-These files are intentionally enforced with hard thresholds now because they are already covered by explicit tests. The next rollout phases will expand this gate to additional alveo build modules after their side effects are split into testable cores.
+Additional suites exercise CLI sequencing, real Sass orchestration, prerender file writes, the loader entry, icon-dialog behavior, and package distribution. Those tests protect side-effect boundaries even where the entire orchestration module is not yet in the hard-threshold set.
 
-## Coverage Thresholds
-
-The enforced thresholds for the gated module set are:
-
-- statements: `>= 100%`
-- lines: `>= 100%`
-- functions: `>= 100%`
-- branches: `>= 95%`
-- enforcement mode: per file
-
-This means a single weakly tested critical module fails the build even if the aggregate percentage looks acceptable.
-
-The branches threshold sits at 95% because a single defensive `||` operand in `removeDuplicateAssets` (`attr('defer') === ''`) reports as a partial branch under V8 depending on cheerio's attribute normalization, even though the matching unit test exercises the bare-defer path explicitly. All other gated modules are at 100% across every metric.
-
-## Implemented Test Contracts
+## Critical Regression Contracts
 
 ### Package Distribution
 
-`src/package.test.ts` builds a clean temporary checkout and packs the result,
-then installs the tarball with `bun install --prefer-offline --production
---ignore-scripts --linker isolated` using a separate empty cache. Registry access
-is required: the workflow's frozen-lockfile install can cache package archives
-without the registry manifests needed to resolve this new consumer's ranges.
-Both consumer installs fetch missing metadata rather than assuming an offline
-cache is complete. The consumer does not link to the maintainer's `node_modules`,
-so missing runtime dependencies cannot be hidden by development tools.
+`package.test.ts` builds a fresh temporary checkout, then uses the **npm packer** used by publication. Bun packing alone cannot detect npm's nested `.gitignore` exclusion. The neutral template filename must survive packing and become `.gitignore` during scaffolding. The package test seeds harmless private-file/artifact decoys and asserts they are not packed. Source-checkout scaffolding filters the same local-only categories.
 
-The test checks exported files, runtime imports, installed esbuild and MSW,
-shared React/router peers, and actual CLI script compilation. It first proves
-that TypeScript and test/lint tools are absent, then adds TypeScript and typings
-to verify the consumer's `ClientComponents` import. Manifest checks also preserve
-the static starter's dependency ownership and load its lint config without
-Next.js packages.
+The tarball is installed with production dependencies using Bun's isolated linker and a separate empty cache. Registry access is required; the test must not link the maintainer's development dependencies or assume warmed metadata.
 
-`src/scripts-core.test.ts` exercises the installed compiler as well as injected
-mocks, covering minified TypeScript, JSX/TSX, ESM exports, and critical-script
-sourcemap suppression. These checks run inside the existing `test:ci` and
-prepublish gates without weakening coverage thresholds.
+The test verifies:
 
-### Build Helpers
+- Exported files, copied ambient declarations, and packaged framework icons.
+- Shared React/router peers and absence of TypeScript/test/lint tools in the initial production-only installation.
+- Scaffold names, the running CLI's version, and consumer-safe hook preparation.
+- Real standalone entry bundling and linked sourcemaps.
+- The consumer's own TypeScript compiler in Bundler, Node16, and NodeNext modes with `skipLibCheck: false`, including helpers, models, globals, and virtual types.
+- Custom-mode `generate` and `inte` without consumer helper/icon/mock files.
+- Actual nonempty rendered HTML, literal dollar patterns, and Vite base overrides.
+- The static import closure of the client entry excludes YAML; the parser remains in a deferred chunk. No browser chunk includes Cheerio or lodash.
+- A repeated integration build from CRLF source produces no generated content diff.
 
-Current tests protect these rules:
+### Build, Rendering and Safety
 
-- `alias.ts` must normalize path aliases into Vite-compatible entries.
-- `asset-hash.ts` must resolve asset hash records, preserve `/assets/...` URLs, and log missing files consistently.
-- `cryptography.ts` must produce stable content hashes.
-- `dev-supervisor.ts` must validate dev CLI mode/port values, build argv-array process specs, and terminate sibling watchers when one fails.
-- `filename.ts` must preserve the current hashed and unhashed filename conventions.
-- `manual-chunk.ts` must keep the current internal entry chunk naming convention.
-- `precompile-styles.ts` must normalize generated CSS and source-map content to LF and preserve source-map fallback behavior.
-- `virtual-modules.ts` must keep virtual module IDs and resolution behavior stable.
-- `scripts-core.ts` must disable sourcemaps for `critical` script filenames and use external sourcemaps otherwise
-- `scripts-core.ts` must write output into `public/assets/js/<name>.js`
-- `scripts-core.ts` must create the output directory when missing
-- `scripts-core.ts` must compile every discovered script in batch mode
-- `scripts-core.ts` must wire `add`, `change`, and `unlink` handlers in watch mode
-- `scripts-core.ts` must log transform errors instead of throwing and stopping the process abruptly
-- `states-core.ts` must sort state files deterministically, fail one-shot builds on parse errors, and keep debounced watch output behavior
-- `prerender-core.ts` must preserve the current hashed-filename detection rule, `VITE_DOMAIN` prefixing, cache-busting eligibility, and duplicate asset relocation behavior
-- `prerender-core.ts` must keep `style-base` removal on the root route logic intact
-- `integration-core.ts` must preserve destination validation, asset copy behavior, hash manifest generation, pattern output normalization, and required-file validation without relying on `process.exit`
-- `styles-core.ts` must preserve shared `@use` prelude injection, sourcemap prelude stripping, and CSS output naming
-- `text-normalization.ts` must normalize text to LF, normalize source-map `sourcesContent`, detect text-like extensionless content, and leave binary bytes unchanged
-- `hooks/inject-functions.ts` and `hooks/inject-functions-core.ts` must preserve generated function injection behavior.
+- CLI suites assert that state, style, or prerender failure prevents later stages. Both generation and integration run states first.
+- SSR never creates a fake `window`; render errors retain the route/cause and fail. The development server awaits rendering and returns HTTP 500 on errors.
+- Server mode is passed explicitly; production serving is rejected.
+- A real Vite/Express HTTP test verifies that watched JavaScript under a non-root base is served as JavaScript, not passed to SSR after Vite strips the URL base. Fresh public files must also win over stale watch-output copies when a file watcher event is missed.
+- HTML payload substitution is literal, and dev/prerender share asset relocation and URL rules while retaining dev refresh versus deterministic content versions.
+- Integration destinations reject ancestors, descendants, equal/nested outputs, and symlink aliases before destructive copying. Missing future directories are resolved through their existing ancestors; filesystem errors are diagnostic.
+- Every non-production mode may use mocks, but missing handlers are optional and must not pull an unresolved mock module into the build.
+- Vite-managed `?url` modules must not be mistaken for consumer public-file references merely because their filesystem path contains `/assets/`.
+- Script compilation discovers entries only, bundles imports, excludes tests, detects output collisions, writes maps, and watches real directories/dependencies.
+- Sass aggregation must preserve base/atom/molecule cascade and real source ownership. Tests use `SourceMapConsumer` to verify final original file/line positions, not only the presence of filenames or `sourcesContent`.
+- Sass intermediate output stays expanded; compressed Sass output can collapse cross-module mappings. LightningCSS performs final minification/target lowering for both source and precompiled framework CSS.
+- One-shot styles do not debounce/sleep, failed styles reject the pipeline, and watch startup compiles each entry once with `ignoreInitial: true`.
+- Streamed child output buffers incomplete lines and UTF-8 sequences separately for stdout/stderr and flushes after stdio completion.
 
-Generated integration output must not depend on `.gitattributes`, `core.autocrlf`, or the local OS checkout style. When this area changes, run `bun inte` and confirm there is no content diff under `../PreciseAlloy.Patterns` and `../PreciseAlloy.Web/wwwroot/assets` with `git diff --quiet -- ../PreciseAlloy.Patterns ../PreciseAlloy.Web/wwwroot/assets`. On Windows, `git status` can still list LF-normalized generated text files when the paths are `text=auto`; the content diff check is the source of truth.
+### Browser, Accessibility and Print
 
-If build output naming changes, these tests fail before the change reaches deploy or the backend integration package.
+- JSON script payloads escape `<` without corrupting decoded props; state markup escapes text/attributes and preserves decoded state values.
+- JSON pages do not load YAML. Bad payloads cannot prevent subsequent mounts; pending YAML work cannot mount twice or resurrect removed content.
+- Settings refs/callbacks remain stable, menu state is exposed through ARIA, and Escape restores focus. Package-owned icons work under a non-root Vite base.
+- Responsive CSS controls visibility: collapsed mobile/top-panel menus must not disable the persistent desktop sidebar.
+- Disco mode stops/restarts correctly, stops for printing, and releases timers on unmount. Width behavior is exercised in LTR and RTL.
+- Compiled print rules target state controls globally, not descendants of a close button; a real browser verifies their computed `display: none`.
+- Catalog fallback excludes its own root to prevent recursive iframes and shows an explicit empty state without assuming `/pages/home`.
+- Icon parsing uses native XML parsing, reports malformed sprites, and defers fetching until the dialog opens.
 
-## GitHub Workflow Gate
+## Determinism Validation
 
-The parent workflows now run `bun run test:ci` on `ubuntu-latest`, `windows-latest`, and `macos-latest` before continuing:
+Normalize text to LF before hashing, writing prerendered HTML, embedding map sources, or copying integration output. Preserve binary bytes unchanged. Do not depend on `.gitattributes`, `core.autocrlf`, or the checkout platform.
 
-- `.github/workflows/frontend-ci.yml`
-- `.github/workflows/frontend-deploy.yml`
-- `.github/workflows/frontend-integration.yml`
+For an actual consumer, run its integration command and:
 
-This gives four separate protections:
+```bash
+git diff --quiet -- <VITE_INTE_PATTERN_DIR> <VITE_INTE_ASSET_DIR>
+```
 
-- PR validation fails before merge when the CI workflow runs.
-- OS-specific path behavior is checked on Linux, Windows, and macOS before later workflow steps run.
-- Static-site deployment cannot continue if tests or coverage fail.
-- Integration-package generation cannot continue if tests or coverage fail.
+The package fixture stages generated output in a temporary Git index, rebuilds from CRLF input, and runs this content-diff check without creating commits. Intentional migrations (such as the SHA-1 to SHA-384 version change) have a one-time output difference; repeated equivalent inputs must then be byte-stable. On Windows, status/EOL warnings alone are not a content difference.
 
-The CI workflow also uploads the `coverage/` folder as a GitHub Actions artifact per OS.
+## CI and Merge Gates
 
-## Required GitHub Setting
+[test.yml](../.github/workflows/test.yml) runs `bun run test:ci` on Ubuntu, Windows, and macOS for pull requests and `master`, and is reusable by [publish.yml](../.github/workflows/publish.yml). Publication depends on this full matrix and version validation, then performs one clean release build. `npm publish --ignore-scripts` avoids repeating the already-enforced lifecycle gate; local publication retains `prepublishOnly`.
 
-Workflow files alone cannot force GitHub branch protection. In repository settings, require the checks from the `Frontend CI` workflow before merging into `master`.
+GitHub repository settings must separately require these cross-platform checks before merge. Repository files do not configure branch protection.
 
-In the GitHub Checks UI these include the cross-platform `Test (ubuntu-latest)`, `Test (windows-latest)`, and `Test (macos-latest)` jobs, plus the Ubuntu `build` job.
+## Working Techniques
 
-Without that repository setting, the PR workflow still fails correctly, but GitHub will not treat it as a mandatory merge gate.
-
-## Copilot Coverage Policy
-
-The repository now also includes workspace Copilot customization for this coverage policy:
-
-- `.github/skills/test-coverage/SKILL.md`
-- `.github/instructions/test-coverage.instructions.md`
-
-The skill captures the repo-specific requirements, decisions, completed rollout, and current enforced coverage scope.
-
-The instruction file makes the policy effectively always-on for frontend code, `alveo` tooling, Vitest coverage config, and the parent frontend workflow files, so ordinary code changes are expected to preserve or improve the highest feasible coverage and keep `bun run test:ci` passing.
-
-## Local Review Checklist
-
-Before pushing a change that touches any gated module:
-
-1. Run `bun run test:ci`.
-2. Keep the local `pre-push` hook active so `bun run typecheck` blocks stale type drift before the push leaves the machine.
-3. If the change touches build tooling, also run the narrow alveo suite first for faster failure feedback.
-4. If the change touches the contact form or runtime browser helpers, rerun the specific affected suite before the full coverage run.
-5. If the change alters asset naming, paths, or resource URL behavior, verify the failing test names still describe the new contract clearly.
-
-## Next Expansion Phases
-
-The next recommended phases for this rollout are:
-
-1. Finish the remaining `alveo/styles.ts` orchestration surface around Sass importer behavior, PostCSS emission, and watch-mode routing.
-2. Extract and test the remaining `alveo/prerender.ts` render-loop and file-write orchestration surface.
-3. Extract and test the remaining `alveo/renderer.ts` request-time HTML transform surface.
-4. Expand the component-behavior suites across the remaining high-value organisms that own conditional rendering or API-backed behavior.
-5. After those phases land, raise thresholds further and widen the enforced module set.
-
-## Why the Gate Is Scoped This Way
-
-A repo-wide global threshold would currently punish untouched template and content files that do not yet have isolated tests, while still failing to tell developers which mission-critical contract actually broke.
-
-The current strategy is stricter where it matters:
-
-- high per-file thresholds
-- explicit critical-module list
-- tests named after the protected rule
-- workflow enforcement at PR, deploy, and integration-package stages
-
-That makes failures actionable now, while leaving a clear path to widen the gate as the remaining alveo modules are refactored into testable units.
+- Use sibling `*.node-env.test.ts` files for SSR guard branches.
+- Invoke captured watcher/listener callbacks so their bodies are measured.
+- Use typed dependency injection at filesystem/compiler boundaries, plus real compiler/installed-package tests to detect failures mocks cannot reveal.
+- Test actual output shapes and sourcemap positions rather than broad snapshots.
+- Do not force unreachable code with `as never`; remove truly unreachable branches with a concise explanation or retain realistic defensive tests.
+- Keep this document and the coverage skill reference aligned when scope grows.

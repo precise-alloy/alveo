@@ -1,5 +1,11 @@
 // @vitest-environment node
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { globSync } from 'glob';
+import slash from 'slash';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,6 +21,7 @@ import {
   validateDestinations,
   validateExpectedFiles,
   runIntegrationBuild,
+  getUnlistedCopyItems,
   IntegrationDependencies,
   IntegrationConfig,
 } from './integration-core.ts';
@@ -128,7 +135,6 @@ describe('alveo/integration-core.ts', () => {
     writeFileSync: vi.fn() as never,
     readdirSync: vi.fn().mockReturnValue([]) as never,
     globSync: vi.fn().mockReturnValue([]) as never,
-    nodeFsCpSync: vi.fn() as never,
     log: vi.fn() as never,
     warn: vi.fn((value: string) => value) as never,
     ...overrides,
@@ -438,26 +444,26 @@ describe('alveo/integration-core.ts', () => {
       expect(copyFileSync).toHaveBeenCalled();
     });
 
-    it('copies directories using nodeFsCpSync for recursive targets', () => {
+    it('copies directories using cpSync for recursive targets', () => {
       const globSync = vi.fn().mockReturnValue(['/static/organisms/hero/index.html']);
-      const nodeFsCpSync = vi.fn();
-      const deps = buildDeps({ globSync, nodeFsCpSync });
+      const cpSync = vi.fn();
+      const deps = buildDeps({ globSync, cpSync });
 
       copyPatternArtifacts('/patterns', '/static', deps);
 
-      expect(nodeFsCpSync).toHaveBeenCalledWith(expect.any(String), expect.any(String), { recursive: true });
+      expect(cpSync).toHaveBeenCalledWith(expect.any(String), expect.any(String), { recursive: true });
     });
 
     it('skips files that produce no valid copy target', () => {
       const globSync = vi.fn().mockReturnValue(['/static/file.html']);
       const copyFileSync = vi.fn();
-      const nodeFsCpSync = vi.fn();
-      const deps = buildDeps({ globSync, copyFileSync, nodeFsCpSync });
+      const cpSync = vi.fn();
+      const deps = buildDeps({ globSync, copyFileSync, cpSync });
 
       copyPatternArtifacts('/patterns', '/static', deps);
 
       expect(copyFileSync).not.toHaveBeenCalled();
-      expect(nodeFsCpSync).not.toHaveBeenCalled();
+      expect(cpSync).not.toHaveBeenCalled();
     });
   });
 
@@ -551,7 +557,126 @@ describe('alveo/integration-core.ts', () => {
     });
   });
 
+  describe('getUnlistedCopyItems', () => {
+    it('returns sorted top-level entries not covered by configured items', () => {
+      const deps = buildDeps({
+        existsSync: vi.fn().mockReturnValue(true),
+        readdirSync: vi.fn().mockReturnValue(['video.0xabc.mp4', 'css', 'docs', 'hashes.json', 'pages']),
+      });
+
+      expect(getUnlistedCopyItems([{ from: 'css' }, { from: 'hashes.json' }, { from: 'pages', to: '/p' }], '/src', deps)).toEqual([
+        { from: 'docs' },
+        { from: 'video.0xabc.mp4' },
+      ]);
+    });
+
+    it('returns nothing when the source directory is missing', () => {
+      const readdirSync = vi.fn();
+      const deps = buildDeps({ existsSync: vi.fn().mockReturnValue(false), readdirSync });
+
+      expect(getUnlistedCopyItems([], '/missing', deps)).toEqual([]);
+      expect(readdirSync).not.toHaveBeenCalled();
+    });
+  });
+
   describe('runIntegrationBuild', () => {
+    // Destination validation covers directories, not entries inside them. A
+    // pre-existing link at a write target must be replaced, never followed.
+    it('replaces destination symlinks instead of writing through them to project files', (context) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-links-'));
+
+      try {
+        const project = path.join(root, 'project');
+        const staticBasePath = slash(path.join(project, 'dist/static'));
+        const srcBasePath = slash(path.join(staticBasePath, 'assets'));
+        const destBasePath = slash(path.join(root, 'integration/assets'));
+        const keep = path.join(project, 'keep.txt');
+
+        fs.mkdirSync(srcBasePath, { recursive: true });
+        fs.mkdirSync(destBasePath, { recursive: true });
+        fs.writeFileSync(keep, 'project data\r\n');
+        fs.writeFileSync(path.join(srcBasePath, 'video.mp4'), Buffer.from([0, 1, 2]));
+
+        try {
+          // copy target, hashes.json target, and a stale normalized text file
+          for (const name of ['video.mp4', 'hashes.json', 'stale.txt']) fs.symlinkSync(keep, path.join(destBasePath, name), 'file');
+        } catch (error) {
+          // Unprivileged Windows shells cannot create file symlinks.
+          if ((error as NodeJS.ErrnoException).code === 'EPERM') return context.skip();
+          throw error;
+        }
+
+        runIntegrationBuild(
+          { argv: [], staticBasePath, srcBasePath, destBasePath, copyItems: [], hashItems: [], checkExistFileList: [] },
+          {
+            existsSync: fs.existsSync,
+            statSync: fs.statSync,
+            rmSync: fs.rmSync,
+            mkdirSync: fs.mkdirSync,
+            cpSync: fs.cpSync,
+            copyFileSync: fs.copyFileSync,
+            readFileSync: fs.readFileSync as IntegrationDependencies['readFileSync'],
+            writeFileSync: fs.writeFileSync,
+            readdirSync: fs.readdirSync as IntegrationDependencies['readdirSync'],
+            globSync,
+            log: vi.fn(),
+            warn: (value: string) => value,
+          }
+        );
+
+        expect(fs.readFileSync(keep, 'utf8')).toBe('project data\r\n');
+        expect(fs.lstatSync(path.join(destBasePath, 'video.mp4')).isSymbolicLink()).toBe(false);
+        expect(fs.readFileSync(path.join(destBasePath, 'video.mp4')).equals(Buffer.from([0, 1, 2]))).toBe(true);
+        expect(fs.lstatSync(path.join(destBasePath, 'hashes.json')).isSymbolicLink()).toBe(false);
+        expect(fs.lstatSync(path.join(destBasePath, 'stale.txt')).isSymbolicLink()).toBe(false);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('copies root-level emitted binary assets byte-for-byte with real filesystem calls', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-root-assets-'));
+
+      try {
+        const staticBasePath = slash(path.join(root, 'dist/static'));
+        const srcBasePath = slash(path.join(staticBasePath, 'assets'));
+        const destBasePath = slash(path.join(root, 'integration/assets'));
+        // NUL and CRLF bytes: any text normalization would corrupt this file.
+        const video = Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x0d, 0x0a, 0xff, 0xfe, 0x0d, 0x0a]);
+
+        fs.mkdirSync(path.join(srcBasePath, 'css'), { recursive: true });
+        fs.mkdirSync(path.join(srcBasePath, 'docs'), { recursive: true });
+        fs.writeFileSync(path.join(srcBasePath, 'css/site.css'), 'a{}');
+        fs.writeFileSync(path.join(srcBasePath, 'video.0xabc12345.mp4'), video);
+        fs.writeFileSync(path.join(srcBasePath, 'docs/guide.pdf'), video);
+
+        const result = runIntegrationBuild(
+          { argv: [], staticBasePath, srcBasePath, destBasePath, copyItems: [{ from: 'css' }], hashItems: [], checkExistFileList: [] },
+          {
+            existsSync: fs.existsSync,
+            statSync: fs.statSync,
+            rmSync: fs.rmSync,
+            mkdirSync: fs.mkdirSync,
+            cpSync: fs.cpSync,
+            copyFileSync: fs.copyFileSync,
+            readFileSync: fs.readFileSync as IntegrationDependencies['readFileSync'],
+            writeFileSync: fs.writeFileSync,
+            readdirSync: fs.readdirSync as IntegrationDependencies['readdirSync'],
+            globSync,
+            log: vi.fn(),
+            warn: (value: string) => value,
+          }
+        );
+
+        expect(result.isValid).toBe(true);
+        expect(fs.readFileSync(path.join(destBasePath, 'css/site.css'), 'utf8')).toBe('a{}');
+        expect(fs.readFileSync(path.join(destBasePath, 'video.0xabc12345.mp4')).equals(video)).toBe(true);
+        expect(fs.readFileSync(path.join(destBasePath, 'docs/guide.pdf')).equals(video)).toBe(true);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
     const buildConfig = (overrides: Partial<IntegrationConfig> = {}): IntegrationConfig => ({
       argv: [],
       staticBasePath: '/static',
@@ -610,8 +735,8 @@ describe('alveo/integration-core.ts', () => {
 
       runIntegrationBuild(config, deps);
 
-      // rmSync should not be called for pattern cleanup
-      expect(deps.rmSync).not.toHaveBeenCalled();
+      // rmSync is only used to unlink hashes.json, never for pattern cleanup
+      expect(deps.rmSync).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('hashes.json'), { force: true });
     });
 
     it('calls normalizeGeneratedTextFiles on destBasePath', () => {

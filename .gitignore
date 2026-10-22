@@ -3,6 +3,17 @@ dist/
 coverage/
 *.tsbuildinfo
 .env.local
+template/**/.env.*.local
+template/**/*.pem
+template/build/
+template/out/
+template/.next/
+template/.turbo/
+template/public/assets/*
+!template/public/assets/vendors/
+!template/public/assets/fonts/
+!template/public/assets/images/
+template/public/pl-states.json
 test/temp/
 # --- ritus (managed) ---
 /.ritus/.env.local

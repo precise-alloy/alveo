@@ -2,6 +2,7 @@
 
 import path from 'path';
 
+import slash from 'slash';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -212,7 +213,8 @@ describe('alveo/states-core.ts', () => {
         globSync: vi.fn().mockReturnValue(['/project/src/initial.states.json']) as never,
         createWatcher: vi.fn().mockReturnValue(watcher) as never,
         createDebounce: createDebounce as never,
-        readFileSync: vi.fn((inputPath: string) => (inputPath.includes('bad') ? '{bad json}' : '{"file":"' + inputPath + '"}')) as never,
+        // JSON.stringify keeps Windows backslash paths valid JSON.
+        readFileSync: vi.fn((inputPath: string) => (inputPath.includes('bad') ? '{bad json}' : JSON.stringify({ file: inputPath }))) as never,
         writeFileSync: writeFileSync as never,
       });
 
@@ -220,13 +222,17 @@ describe('alveo/states-core.ts', () => {
       callbacks['ready']?.('');
       callbacks['add']?.('src/added.states.json');
       callbacks['change']?.('/project/src/bad.states.json');
-      callbacks['unlink']?.('/project/src/initial.states.json');
+      // A relative/native unlink path must remove the glob-reported entry.
+      callbacks['unlink']?.('src/initial.states.json');
       latestBuild?.();
 
       expect(deps.log).toHaveBeenCalledWith('States are ready!');
       expect(scheduledBuild).toHaveBeenCalledTimes(4);
       expect(deps.log).toHaveBeenCalledWith(expect.any(SyntaxError));
-      expect(writeFileSync).toHaveBeenCalledWith(path.resolve('/project', 'public/pl-states.json'), expect.stringContaining('src/added.states.json'));
+      const written = JSON.parse(writeFileSync.mock.lastCall![1] as string) as { file: string }[];
+
+      expect(writeFileSync).toHaveBeenLastCalledWith(path.resolve('/project', 'public/pl-states.json'), expect.any(String));
+      expect(written).toEqual([{ file: slash(path.resolve('/project', 'src/added.states.json')) }]);
     });
 
     it('schedules an initial empty output build when no state files are found', () => {

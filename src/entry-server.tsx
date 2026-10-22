@@ -5,17 +5,20 @@ import './scripts/functions.ts';
 import { routesToPrerender } from './routes.ts';
 import { App } from './app.tsx';
 
-interface RenderOutput {
+export interface RenderOutput {
   html: string;
   styles: string;
 }
 
-export function render(url: string): RenderOutput {
-  const renderOutput: RenderOutput = {
-    html: '',
-    styles: '',
-  };
+// Carry the resolved Vite base into prerendering. Re-reading only .env would
+// ignore defineAlveoConfig({ base }) and render a different router location.
+export const renderConfig = {
+  baseUrl: import.meta.env.BASE_URL,
+  pathExtension: import.meta.env.VITE_PATH_EXTENSION ?? '',
+  domain: import.meta.env.VITE_DOMAIN,
+};
 
+export function render(url: string): RenderOutput {
   try {
     const html = ReactDOMServer.renderToString(
       <StaticRouter location={url}>
@@ -23,12 +26,12 @@ export function render(url: string): RenderOutput {
       </StaticRouter>
     );
 
-    renderOutput.html = html;
-  } catch (error) {
-    console.log(error);
+    return { html, styles: '' };
+  } catch (cause) {
+    // Empty HTML can be a legitimate component result, but an exception cannot
+    // be turned into a successful empty render or followed by integration copy.
+    throw new Error(`SSR failed for route "${url}".`, { cause });
   }
-
-  return renderOutput;
 }
 
 export { routesToPrerender };

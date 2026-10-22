@@ -1,0 +1,23 @@
+# Packaging metadata is not part of the generated application.
+.npmignore
+node_modules/
+.git/
+/dist/
+/coverage/
+/build/
+/out/
+/.next/
+/.turbo/
+.env.local
+.env.*.local
+*.pem
+*.tsbuildinfo
+*.timestamp-*.mjs
+.DS_Store
+*-debug.log*
+*-error.log*
+/public/assets/*
+!/public/assets/vendors/
+!/public/assets/fonts/
+!/public/assets/images/
+/public/pl-states.json

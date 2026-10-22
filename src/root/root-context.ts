@@ -1,3 +1,5 @@
+import type { SinglePageNode } from './models.ts';
+
 import { createContext, useContext } from 'react';
 
 export interface RootData {

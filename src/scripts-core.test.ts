@@ -1,385 +1,188 @@
 // @vitest-environment node
 
-import path from 'path';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
 import { Script } from 'node:vm';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  defaultScriptCoreDependencies,
-  getScriptTransformOptions,
-  getScriptOutputPath,
   compileScript,
-  watchScripts,
   compileDiscoveredScripts,
+  defaultScriptCoreDependencies,
+  getScriptBuildOptions,
+  getScriptOutputPath,
   runScriptBuild,
-  ScriptCoreDependencies,
+  watchScripts,
+  type ScriptCoreDependencies,
 } from './scripts-core.ts';
 
-const buildDeps = (overrides: Partial<ScriptCoreDependencies> = {}): ScriptCoreDependencies => ({
-  existsSync: vi.fn().mockReturnValue(true) as never,
-  mkdirSync: vi.fn() as never,
-  readFileSync: vi.fn().mockReturnValue('const x = 1;') as never,
-  writeFileSync: vi.fn() as never,
-  transformWithEsbuild: vi.fn().mockResolvedValue({ code: 'var x=1;', map: null }) as never,
-  globSync: vi.fn().mockReturnValue([]) as never,
-  createWatcher: vi.fn() as never,
-  log: vi.fn() as never,
-  ...overrides,
+const roots: string[] = [];
+
+function fixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-scripts-'));
+
+  roots.push(root);
+  fs.mkdirSync(path.join(root, 'src/assets/scripts'), { recursive: true });
+
+  return root;
+}
+const write = (root: string, file: string, content: string) => {
+  const target = path.join(root, file);
+
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, content);
+
+  return target;
+};
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe('alveo/scripts-core.ts', () => {
-  describe('installed compiler', () => {
-    // Mocked orchestration tests cannot detect missing optional Vite compilers.
-    // Exercise the default implementation too, preserving minification, ESM,
-    // JSX handling, and the absence of sourcemaps for critical inline scripts.
-    it('compiles TypeScript to minified standalone JavaScript with an external sourcemap', async () => {
-      const inputPath = '/project/src/assets/scripts/app.ts';
-      const result = await defaultScriptCoreDependencies.transformWithEsbuild(
-        'globalThis.answer = (value: number) => value + 1;',
-        inputPath,
-        getScriptTransformOptions(inputPath)
-      );
-      const context: Record<string, (value: number) => number> = {};
+describe('script entry bundles', () => {
+  it('bundles imported helpers, ignores tests/nonentries, and writes linked LF sourcemaps', async () => {
+    const root = fixture();
 
-      new Script(result.code).runInNewContext(context);
+    write(root, 'src/assets/scripts/main.entry.ts', "import { answer } from './helper';\r\nglobalThis.answer = answer(41);\r\n");
+    write(root, 'src/assets/scripts/helper.ts', 'export const answer = (value: number) => value + 1;\r\n');
+    write(root, 'src/assets/scripts/api.test.ts', 'this is not valid source');
+    write(root, 'src/assets/scripts/__tests__/bad.entry.ts', 'this is not valid source');
+    const result = await runScriptBuild(root, []);
 
-      expect(context['answer']!(41)).toBe(42);
-      expect(result.code.trim()).not.toContain('\n');
-      expect(result.code).not.toContain('sourceMappingURL');
-      expect(result.map).toMatchObject({ version: 3, sourcesContent: ['globalThis.answer = (value: number) => value + 1;'] });
-    });
+    expect(result).toMatchObject({ ok: true, errors: [] });
+    const code = fs.readFileSync(path.join(root, 'public/assets/js/main.js'), 'utf8');
+    const context: Record<string, unknown> = {};
 
-    it.each(['jsx', 'tsx'])('transforms %s syntax and preserves ESM exports', async (extension) => {
-      const inputPath = `/project/src/assets/scripts/view.${extension}`;
-      const result = await defaultScriptCoreDependencies.transformWithEsbuild(
-        'export const View = () => <div>Example</div>;',
-        inputPath,
-        getScriptTransformOptions(inputPath)
-      );
+    new Script(code).runInNewContext(context);
+    expect(context.answer).toBe(42);
+    expect(code).toContain('sourceMappingURL=main.js.map');
+    expect(code).not.toContain('import ');
+    const mapText = fs.readFileSync(path.join(root, 'public/assets/js/main.js.map'), 'utf8');
 
-      expect(result.code).not.toContain('<div>');
-      expect(result.code).toContain('export');
-      expect(result.code).toContain('View');
-    });
-
-    it('omits sourcemaps for critical scripts', async () => {
-      const inputPath = '/project/src/assets/scripts/critical.ts';
-      const result = await defaultScriptCoreDependencies.transformWithEsbuild(
-        'globalThis.ready = true;',
-        inputPath,
-        getScriptTransformOptions(inputPath)
-      );
-
-      expect(result.map).toEqual({ mappings: '' });
-      expect(result.code).not.toContain('sourceMappingURL');
-    });
+    expect(mapText).not.toContain('\\r');
+    expect(JSON.parse(mapText).sourcesContent).toContain('export const answer = (value: number) => value + 1;\n');
+    expect(fs.readdirSync(path.join(root, 'public/assets/js')).sort()).toEqual(['main.js', 'main.js.map']);
   });
 
-  describe('getScriptTransformOptions', () => {
-    it('returns minify: true', () => {
-      const options = getScriptTransformOptions('/any/file.ts');
+  it.each(['js', 'jsx', 'ts', 'tsx'])('bundles %s entries', async (ext) => {
+    const root = fixture();
+    const input = write(root, `src/assets/scripts/view.entry.${ext}`, 'globalThis.ready = true;');
 
-      expect(options.minify).toBe(true);
-    });
-
-    it('returns format: "esm"', () => {
-      const options = getScriptTransformOptions('/any/file.ts');
-
-      expect(options.format).toBe('esm');
-    });
-
-    it('returns sourcemap: "external" for non-critical files', () => {
-      const options = getScriptTransformOptions('/src/scripts/app.ts');
-
-      expect(options.sourcemap).toBe('external');
-    });
-
-    it('returns sourcemap: false for critical files', () => {
-      const options = getScriptTransformOptions('/src/scripts/critical.ts');
-
-      expect(options.sourcemap).toBe(false);
-    });
-
-    it('detects "critical" anywhere in the basename', () => {
-      const options = getScriptTransformOptions('/src/scripts/my-critical-script.ts');
-
-      expect(options.sourcemap).toBe(false);
-    });
+    expect((await compileScript(input, root)).ok).toBe(true);
   });
 
-  describe('getScriptOutputPath', () => {
-    it('resolves output path under public/assets/js/ with .js extension', () => {
-      const result = getScriptOutputPath('/project/src/assets/scripts/app.ts', '/project');
-      const expected = path.resolve('/project', 'public/assets/js/app.js');
+  it('compiles JSX and preserves ESM exports', async () => {
+    const root = fixture();
+    const input = write(root, 'src/assets/scripts/view.entry.tsx', 'export const View = () => <div />;');
+    const build = vi.fn().mockImplementation((options) => defaultScriptCoreDependencies.build({ ...options, external: ['react/jsx-runtime'] }));
 
-      expect(result).toBe(expected);
-    });
-
-    it('strips the original extension and uses .js', () => {
-      const result = getScriptOutputPath('/project/src/scripts/widget.tsx', '/project');
-      const expected = path.resolve('/project', 'public/assets/js/widget.js');
-
-      expect(result).toBe(expected);
-    });
-
-    it('uses the basename (no directory nesting) in the output', () => {
-      const result = getScriptOutputPath('/project/src/assets/scripts/nested/deep/file.ts', '/project');
-      const expected = path.resolve('/project', 'public/assets/js/file.js');
-
-      expect(result).toBe(expected);
-    });
+    expect((await compileScript(input, root, { ...defaultScriptCoreDependencies, build })).ok).toBe(true);
+    expect(fs.readFileSync(getScriptOutputPath(input, root), 'utf8')).toContain('export');
   });
 
-  describe('compileScript', () => {
-    it('reads the input file, transforms it, and writes the output', async () => {
-      const writeFileSync = vi.fn();
-      const transformWithEsbuild = vi.fn().mockResolvedValue({ code: 'compiled;', map: null });
-      const deps = buildDeps({ writeFileSync, transformWithEsbuild });
+  it('keeps critical entry scripts free of sourcemap requests', async () => {
+    const root = fixture();
+    const input = write(root, 'src/assets/scripts/theme-critical.entry.ts', 'globalThis.ready = true;');
 
-      await compileScript('/project/src/scripts/app.ts', '/project', deps);
-
-      expect(deps.readFileSync).toHaveBeenCalledWith('/project/src/scripts/app.ts', 'utf8');
-      expect(transformWithEsbuild).toHaveBeenCalledWith('const x = 1;', '/project/src/scripts/app.ts', expect.objectContaining({ minify: true }));
-      expect(writeFileSync).toHaveBeenCalledWith(expect.stringContaining('app.js'), 'compiled;');
-    });
-
-    it('creates the output directory if it does not exist', async () => {
-      const existsSync = vi.fn().mockReturnValue(false);
-      const mkdirSync = vi.fn();
-      const deps = buildDeps({ existsSync, mkdirSync });
-
-      await compileScript('/project/src/scripts/app.ts', '/project', deps);
-
-      expect(mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
-    });
-
-    it('does not create the output directory if it already exists', async () => {
-      const existsSync = vi.fn().mockReturnValue(true);
-      const mkdirSync = vi.fn();
-      const deps = buildDeps({ existsSync, mkdirSync });
-
-      await compileScript('/project/src/scripts/app.ts', '/project', deps);
-
-      expect(mkdirSync).not.toHaveBeenCalled();
-    });
-
-    it('logs the compile path on start', async () => {
-      const log = vi.fn();
-      const deps = buildDeps({ log });
-
-      await compileScript('/project/src/scripts/app.ts', '/project', deps);
-
-      expect(log).toHaveBeenCalledWith('compile:', expect.stringContaining('app.ts'));
-    });
-
-    it('logs errors when transform fails and returns a failure result', async () => {
-      const log = vi.fn();
-      const error = new Error('transform failed');
-      const transformWithEsbuild = vi.fn().mockRejectedValue(error);
-      const deps = buildDeps({ log, transformWithEsbuild });
-
-      const result = await compileScript('/project/src/scripts/app.ts', '/project', deps);
-
-      expect(log).toHaveBeenCalledWith(error);
-      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/scripts/app.ts', error }] });
-    });
-
-    it('logs read errors and returns a failure result', async () => {
-      const log = vi.fn();
-      const error = new Error('file disappeared');
-      const readFileSync = vi.fn(() => {
-        throw error;
-      });
-      const transformWithEsbuild = vi.fn();
-      const deps = buildDeps({ log, readFileSync: readFileSync as never, transformWithEsbuild });
-
-      const result = await compileScript('/project/src/scripts/app.ts', '/project', deps);
-
-      expect(transformWithEsbuild).not.toHaveBeenCalled();
-      expect(log).toHaveBeenCalledWith(error);
-      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/scripts/app.ts', error }] });
-    });
+    expect((await compileScript(input, root)).ok).toBe(true);
+    expect(fs.readFileSync(getScriptOutputPath(input, root), 'utf8')).not.toContain('sourceMappingURL');
+    expect(fs.existsSync(getScriptOutputPath(input, root) + '.map')).toBe(false);
+    expect(getScriptBuildOptions(input, root)).toMatchObject({ minify: true, format: 'esm', bundle: true, sourcemap: false });
   });
 
-  describe('watchScripts', () => {
-    it('creates a watcher with the correct glob pattern', () => {
-      const mockWatcher = {
-        on: vi.fn().mockReturnThis(),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const deps = buildDeps({ createWatcher });
-
-      watchScripts('/project', deps);
-
-      expect(createWatcher).toHaveBeenCalledWith(expect.stringContaining('src/assets/scripts/**/*.{js,jsx,ts,tsx}'));
-    });
-
-    it('registers add, change, and unlink event handlers', () => {
-      const mockWatcher = {
-        on: vi.fn().mockReturnThis(),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const deps = buildDeps({ createWatcher });
-
-      watchScripts('/project', deps);
-
-      expect(mockWatcher.on).toHaveBeenCalledWith('add', expect.any(Function));
-      expect(mockWatcher.on).toHaveBeenCalledWith('change', expect.any(Function));
-      expect(mockWatcher.on).toHaveBeenCalledWith('unlink', expect.any(Function));
-    });
-
-    it('returns the watcher instance', () => {
-      const mockWatcher = {
-        on: vi.fn().mockReturnThis(),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const deps = buildDeps({ createWatcher });
-
-      const result = watchScripts('/project', deps);
-
-      expect(result).toBe(mockWatcher);
-    });
-
-    it('add callback compiles the script', async () => {
-      const callbacks: Record<string, (inputPath: string) => unknown> = {};
-      const mockWatcher = {
-        on: vi.fn().mockImplementation((event: string, cb: (inputPath: string) => unknown) => {
-          callbacks[event] = cb;
-
-          return mockWatcher;
-        }),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const transformWithEsbuild = vi.fn().mockResolvedValue({ code: 'compiled;', map: null });
-      const deps = buildDeps({ createWatcher, transformWithEsbuild });
-
-      watchScripts('/project', deps);
-      await callbacks['add']!('/project/src/assets/scripts/app.ts');
-
-      expect(transformWithEsbuild).toHaveBeenCalled();
-    });
-
-    it('change callback compiles the script', async () => {
-      const callbacks: Record<string, (inputPath: string) => unknown> = {};
-      const mockWatcher = {
-        on: vi.fn().mockImplementation((event: string, cb: (inputPath: string) => unknown) => {
-          callbacks[event] = cb;
-
-          return mockWatcher;
-        }),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const transformWithEsbuild = vi.fn().mockResolvedValue({ code: 'compiled;', map: null });
-      const deps = buildDeps({ createWatcher, transformWithEsbuild });
-
-      watchScripts('/project', deps);
-      await callbacks['change']!('/project/src/assets/scripts/app.ts');
-
-      expect(transformWithEsbuild).toHaveBeenCalled();
-    });
-
-    it('unlink callback logs that the file has been removed', () => {
-      const callbacks: Record<string, (inputPath: string) => unknown> = {};
-      const mockWatcher = {
-        on: vi.fn().mockImplementation((event: string, cb: (inputPath: string) => unknown) => {
-          callbacks[event] = cb;
-
-          return mockWatcher;
-        }),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const log = vi.fn();
-      const deps = buildDeps({ createWatcher, log });
-
-      watchScripts('/project', deps);
-      callbacks['unlink']!('/project/src/assets/scripts/removed.ts');
-
-      expect(log).toHaveBeenCalledWith('File /project/src/assets/scripts/removed.ts has been removed');
-    });
+  it('uses the same normalized entry names as Vite', () => {
+    expect(getScriptOutputPath('/src/MyEntry.entry.ts', '/project')).toBe(path.resolve('/project/public/assets/js/my-entry.js'));
+    expect(() => getScriptOutputPath('/src/helper.ts', '/project')).toThrow('Script entry');
+    expect(() => getScriptOutputPath('/src/.entry.ts', '/project')).toThrow('Script entry');
   });
 
-  describe('compileDiscoveredScripts', () => {
-    it('globs for script files and compiles each one', async () => {
-      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/a.ts', '/project/src/assets/scripts/b.ts']);
-      const transformWithEsbuild = vi.fn().mockResolvedValue({ code: 'compiled;', map: null });
-      const deps = buildDeps({ globSync, transformWithEsbuild });
+  it('reports compiler, incomplete-output, and write failures', async () => {
+    const log = vi.fn();
 
-      await compileDiscoveredScripts('/project', deps);
-
-      expect(globSync).toHaveBeenCalledWith(expect.stringContaining('src/assets/scripts/**/*.{js,jsx,ts,tsx}'));
-      expect(transformWithEsbuild).toHaveBeenCalledTimes(2);
+    for (const build of [
+      vi.fn().mockRejectedValue(new Error('compile')),
+      vi.fn().mockResolvedValue({}),
+      vi.fn().mockResolvedValue({ outputFiles: [] }),
+    ]) {
+      expect((await compileScript('/src/main.entry.ts', '/project', { ...defaultScriptCoreDependencies, build, log })).ok).toBe(false);
+    }
+    const root = fixture();
+    const input = write(root, 'src/assets/scripts/main.entry.ts', 'console.log(1)');
+    const writeFileSync = vi.fn(() => {
+      throw new Error('disk full');
     });
 
-    it('handles empty glob result', async () => {
-      const globSync = vi.fn().mockReturnValue([]);
-      const transformWithEsbuild = vi.fn();
-      const deps = buildDeps({ globSync, transformWithEsbuild });
-
-      const result = await compileDiscoveredScripts('/project', deps);
-
-      expect(transformWithEsbuild).not.toHaveBeenCalled();
-      expect(result).toEqual({ ok: true, errors: [] });
-    });
-
-    it('aggregates transform failures in one-shot mode', async () => {
-      const error = new Error('transform failed');
-      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/a.ts', '/project/src/assets/scripts/b.ts']);
-      const transformWithEsbuild = vi.fn().mockResolvedValueOnce({ code: 'compiled;', map: null }).mockRejectedValueOnce(error);
-      const deps = buildDeps({ globSync, transformWithEsbuild });
-
-      const result = await compileDiscoveredScripts('/project', deps);
-
-      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/b.ts', error }] });
-    });
-
-    it('aggregates read failures in one-shot mode', async () => {
-      const error = new Error('file disappeared');
-      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/a.ts']);
-      const readFileSync = vi.fn(() => {
-        throw error;
-      });
-      const deps = buildDeps({ globSync, readFileSync: readFileSync as never });
-
-      const result = await compileDiscoveredScripts('/project', deps);
-
-      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/a.ts', error }] });
-    });
+    expect((await compileScript(input, root, { ...defaultScriptCoreDependencies, writeFileSync, log })).errors[0]?.error).toEqual(
+      new Error('disk full')
+    );
+    expect(log).toHaveBeenCalledWith(expect.any(Error));
   });
 
-  describe('runScriptBuild', () => {
-    it('calls watchScripts when --watch is in argv', async () => {
-      const mockWatcher = {
-        on: vi.fn().mockReturnThis(),
-      };
-      const createWatcher = vi.fn().mockReturnValue(mockWatcher);
-      const deps = buildDeps({ createWatcher });
+  it('rejects colliding entry names before writing and reports discovery errors', async () => {
+    const log = vi.fn();
+    const build = vi.fn();
+    const dependencies = {
+      ...defaultScriptCoreDependencies,
+      log,
+      build,
+      globSync: vi.fn().mockReturnValue(['/src/a/main.entry.ts', '/src/b/main.entry.ts']),
+    };
 
-      const result = await runScriptBuild('/project', ['node', 'script', '--watch'], deps);
-
-      expect(createWatcher).toHaveBeenCalled();
-      expect(result).toBe(mockWatcher);
+    expect((await compileDiscoveredScripts('/project', dependencies)).ok).toBe(false);
+    expect(build).not.toHaveBeenCalled();
+    dependencies.globSync.mockImplementation(() => {
+      throw new Error('read failed');
     });
+    expect((await compileDiscoveredScripts('/project', dependencies)).errors[0]?.error).toEqual(new Error('read failed'));
+  });
 
-    it('calls compileDiscoveredScripts when --watch is not in argv', async () => {
-      const globSync = vi.fn().mockReturnValue([]);
-      const deps = buildDeps({ globSync });
+  it('aggregates failed entries and handles empty discovery/default argv', async () => {
+    const root = fixture();
 
-      const result = await runScriptBuild('/project', ['node', 'script'], deps);
+    expect(await runScriptBuild(root)).toEqual({ ok: true, errors: [], inputs: [] });
+    write(root, 'src/assets/scripts/bad.entry.ts', 'not valid }');
+    expect((await compileDiscoveredScripts(root)).ok).toBe(false);
+  });
 
-      expect(globSync).toHaveBeenCalled();
-      expect(result).toEqual({ ok: true, errors: [] });
-    });
+  it('watches real directories and imported files, serializes rebuilds and cleans deleted outputs', async () => {
+    vi.useFakeTimers();
+    const root = fixture();
+    const input = write(root, 'src/assets/scripts/main.entry.ts', "import '../../../external';");
 
-    it('returns a failed result when one-shot compilation fails', async () => {
-      const error = new Error('transform failed');
-      const globSync = vi.fn().mockReturnValue(['/project/src/assets/scripts/app.ts']);
-      const transformWithEsbuild = vi.fn().mockRejectedValue(error);
-      const deps = buildDeps({ globSync, transformWithEsbuild });
+    write(root, 'external.ts', 'globalThis.answer = 42;');
+    const emitter = Object.assign(new EventEmitter(), { add: vi.fn(), close: vi.fn().mockResolvedValue(undefined) });
+    const originalClose = emitter.close;
+    const dependencies: ScriptCoreDependencies = {
+      ...defaultScriptCoreDependencies,
+      createWatcher: vi.fn().mockReturnValue(emitter),
+      rmSync: vi.fn(),
+      log: vi.fn(),
+    };
+    const watcher = await runScriptBuild(root, ['--watch'], dependencies);
 
-      const result = await runScriptBuild('/project', ['node', 'script'], deps);
+    expect(watcher).toBe(emitter);
+    expect(dependencies.createWatcher).toHaveBeenCalledWith(path.join(root, 'src'), { ignoreInitial: true });
+    expect(emitter.add).toHaveBeenCalledWith(expect.arrayContaining([path.join(root, 'external.ts')]));
+    emitter.emit('all', 'change', path.join(root, 'external.ts'));
+    await vi.advanceTimersByTimeAsync(100);
+    emitter.emit('error', new Error('watch failed'));
+    expect(dependencies.log).toHaveBeenCalledWith(new Error('watch failed'));
+    emitter.emit('all', 'unlink', input);
+    expect(dependencies.rmSync).toHaveBeenCalledTimes(4);
+    emitter.emit('all', 'unlink', path.join(root, 'external.ts'));
+    await emitter.close();
+    expect(originalClose).toHaveBeenCalledOnce();
+  });
 
-      expect(result).toEqual({ ok: false, errors: [{ inputPath: '/project/src/assets/scripts/app.ts', error }] });
-    });
+  it('starts and closes the default watcher', async () => {
+    const root = fixture();
+    const watcher = await watchScripts(root);
+
+    await watcher.close();
   });
 });

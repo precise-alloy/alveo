@@ -1,5 +1,9 @@
-import { debounce } from 'lodash';
+import type { RootItemModel, MultiplePageNode } from './models.ts';
+
+import debounce from 'debounce';
 import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
+
+import rootSprite from '../assets/root.svg?url';
 
 import { useRootContext } from './root-context.ts';
 import { useOnClickOutside } from './use-click-outside.ts';
@@ -71,6 +75,8 @@ export default function RootNav({ routes: routesProp }: Props) {
 
   useEffect(() => {
     debouncedHandleChange(textSearch);
+
+    return () => debouncedHandleChange.clear();
   }, [debouncedHandleChange, textSearch]);
 
   return (
@@ -87,7 +93,7 @@ export default function RootNav({ routes: routesProp }: Props) {
         onClick={handleClick}
       >
         <svg className="alveo-o-root__control-svg">
-          <use xlinkHref={viteAbsoluteUrl('/assets/images/root.svg#' + (show ? 'close' : 'list'))} />
+          <use href={`${rootSprite}#${show ? 'close' : 'list'}`} />
         </svg>
       </button>
 

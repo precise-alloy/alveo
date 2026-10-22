@@ -127,14 +127,19 @@ export const watchStates = (projectRoot: string, dependencies: StatesCoreDepende
 
     writeStates(result.output, outputPath, dependencies);
   }, 500);
+  // The initial glob reports slash paths while chokidar reports native and
+  // possibly relative paths (`D:\\...` on Windows). Key every event by one
+  // slash-normalized absolute path so `unlink` removes the entry `add`/glob
+  // created instead of leaving stale state in the generated output.
+  const toStateKey = (statePath: string): string => slash(path.resolve(projectRoot, statePath));
   const setStates = (statePath: string): void => {
-    const absPath = path.isAbsolute(statePath) ? statePath : path.resolve(projectRoot, statePath);
+    const key = toStateKey(statePath);
 
-    states[statePath] = dependencies.readFileSync(absPath, 'utf-8') as string;
+    states[key] = dependencies.readFileSync(key, 'utf-8') as string;
     buildStates();
   };
   const removeStates = (statePath: string): void => {
-    delete states[statePath];
+    delete states[toStateKey(statePath)];
     buildStates();
   };
   const globPattern = getStateGlobPattern(projectRoot);

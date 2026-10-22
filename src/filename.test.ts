@@ -1,80 +1,66 @@
 // @vitest-environment node
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
+import { globSync } from 'glob';
+import slash from 'slash';
 import { describe, expect, it } from 'vitest';
 
-import { getAssetFileName, getEntryFileName, getChunkFileName } from './filename.ts';
+import { getAssetFileName, getEntryFileName, getChunkFileName, getScriptEntryName, SCRIPT_ENTRY_IGNORE_PATTERNS } from './filename.ts';
 
-describe('alveo/filename.ts', () => {
-  describe('getAssetFileName', () => {
-    it('generates a hashed CSS asset path with normalized name', () => {
-      expect(getAssetFileName({ name: 'style' })).toBe('assets/js/style.0x[hash].css');
-    });
-
-    it('converts camelCase names to lower-dashed', () => {
-      expect(getAssetFileName({ name: 'myComponent' })).toBe('assets/js/my-component.0x[hash].css');
-    });
-
-    it('converts underscores and spaces to dashes', () => {
-      expect(getAssetFileName({ name: 'my_component name' })).toBe('assets/js/my-component-name.0x[hash].css');
-    });
-
-    it('handles undefined name', () => {
-      expect(getAssetFileName({})).toBe('assets/js/.0x[hash].css');
-    });
+describe('asset filenames', () => {
+  it.each([
+    ['style.css', 'assets/css/style.0x[hash].css'],
+    ['images/myIcon.svg', 'assets/images/my-icon.0x[hash].svg'],
+    ['fonts/font.woff2', 'assets/fonts/font.0x[hash].woff2'],
+    ['worker.js', 'assets/js/worker.0x[hash].js'],
+    ['info.json', 'assets/info.0x[hash].json'],
+    ['my_component name', 'assets/my-component-name.0x[hash]'],
+    ['myBigComponent.CSS', 'assets/css/my-big-component.0x[hash].CSS'],
+    ['a__b  c.png', 'assets/images/a-b-c.0x[hash].png'],
+  ])('preserves the actual extension of %s', (name, expected) => {
+    expect(getAssetFileName({ name })).toBe(expected);
   });
-
-  describe('getEntryFileName', () => {
-    it('returns bare filename for entry-server', () => {
-      expect(getEntryFileName({ name: 'entry-server' })).toBe('entry-server.js');
-    });
-
-    it('maps index to hashed react-loader path', () => {
-      expect(getEntryFileName({ name: 'index' })).toBe('assets/js/react-loader.0x[hash].js');
-    });
-
-    it('maps react-loader to hashed react-loader path', () => {
-      expect(getEntryFileName({ name: 'react-loader' })).toBe('assets/js/react-loader.0x[hash].js');
-    });
-
-    it('generates unhashed JS path for other entries', () => {
-      expect(getEntryFileName({ name: 'colorMode' })).toBe('assets/js/color-mode.js');
-    });
-
-    it('converts camelCase entry names to lower-dashed without hash', () => {
-      expect(getEntryFileName({ name: 'plStates' })).toBe('assets/js/pl-states.js');
-    });
+  it('prefers modern names metadata and handles unnamed assets', () => {
+    expect(getAssetFileName({ names: ['images\\icon.svg'], name: 'obsolete.css' })).toBe('assets/images/icon.0x[hash].svg');
+    expect(getAssetFileName({})).toBe('assets/asset.0x[hash]');
+    expect(getAssetFileName({ names: [], name: 'x.css' })).toBe('assets/css/x.0x[hash].css');
   });
-
-  describe('getChunkFileName', () => {
-    it('generates a hashed JS chunk path', () => {
-      expect(getChunkFileName({ name: 'vendor' })).toBe('assets/js/vendor.0x[hash].js');
-    });
-
-    it('converts camelCase chunk names to lower-dashed', () => {
-      expect(getChunkFileName({ name: 'myChunk' })).toBe('assets/js/my-chunk.0x[hash].js');
-    });
-
-    it('handles undefined name', () => {
-      expect(getChunkFileName({})).toBe('assets/js/.0x[hash].js');
-    });
+  it('preserves entry and chunk naming contracts', () => {
+    expect(getEntryFileName({ name: 'entry-server' })).toBe('entry-server.js');
+    for (const name of ['index', 'react-loader']) expect(getEntryFileName({ name })).toBe('assets/js/react-loader.0x[hash].js');
+    expect(getEntryFileName({ name: 'colorMode' })).toBe('assets/js/color-mode.js');
+    expect(getChunkFileName({ name: 'myChunk' })).toBe('assets/js/my-chunk.0x[hash].js');
+    expect(getChunkFileName({})).toBe('assets/js/.0x[hash].js');
+    expect(getScriptEntryName('src\\MyComponent.entry.tsx')).toBe('my-component');
   });
+});
 
-  describe('toLowerDashed (internal behavior)', () => {
-    it('splits camelCase into dashed words', () => {
-      // Tested through getAssetFileName which uses toLowerDashed internally
-      expect(getAssetFileName({ name: 'heroSection' })).toBe('assets/js/hero-section.0x[hash].css');
-    });
+describe('SCRIPT_ENTRY_IGNORE_PATTERNS', () => {
+  it('excludes test/spec entries and __tests__/__mocks__ fixtures with real glob matching', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-entry-ignore-'));
 
-    it('converts multiple uppercase transitions', () => {
-      expect(getAssetFileName({ name: 'myBigComponent' })).toBe('assets/js/my-big-component.0x[hash].css');
-    });
+    try {
+      for (const file of [
+        'main.entry.ts',
+        'main.test.entry.ts',
+        'main.spec.entry.tsx',
+        '__tests__/a.entry.ts',
+        '__mocks__/b.entry.js',
+        'nested/c.entry.jsx',
+      ]) {
+        fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        fs.writeFileSync(path.join(root, file), '');
+      }
 
-    it('handles already lowercase input', () => {
-      expect(getAssetFileName({ name: 'simple' })).toBe('assets/js/simple.0x[hash].css');
-    });
+      const found = globSync(slash(path.join(root, '**/*.entry.{js,jsx,ts,tsx}')), { ignore: [...SCRIPT_ENTRY_IGNORE_PATTERNS] })
+        .map((file) => slash(path.relative(root, file)))
+        .sort();
 
-    it('collapses multiple underscores and spaces', () => {
-      expect(getAssetFileName({ name: 'a__b  c' })).toBe('assets/js/a-b-c.0x[hash].css');
-    });
+      expect(found).toEqual(['main.entry.ts', 'nested/c.entry.jsx']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

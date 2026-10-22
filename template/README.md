@@ -13,15 +13,9 @@ A minimal project demonstrating how to use `alveo` as a framework dependency.
 bun install
 ```
 
-Alveo is a dev dependency because this starter builds static and prerendered
-assets. Install development dependencies in your build environment, then deploy
-the generated output. The compatible Alveo version range avoids automatically
-adopting a new minor release of the pre-1.0 framework.
+Alveo is a dev dependency because this starter builds static and prerendered assets. Install development dependencies in your build environment, then deploy the generated output. The compatible Alveo version range avoids automatically adopting a new minor release of the pre-1.0 framework.
 
-If your deployed Node process runs `alveo server`, move Alveo to `dependencies`
-so a production-only install includes the framework. Keep React, React DOM, and
-React Router as application dependencies to share their runtime instances with
-Alveo. TypeScript and lint/test tools remain development dependencies.
+`alveo server` is development-only and rejects production mode. Deploy generated static output or use your backend's integration. Keep React, React DOM, and React Router as application dependencies to share their runtime instances with Alveo. TypeScript and lint/test tools remain development dependencies.
 
 ## Development
 
@@ -52,6 +46,8 @@ Output assets and patterns to integration directories (configured in `.env`):
 ```bash
 bun run inte
 ```
+
+Both destinations must be external to the project and non-overlapping, including through symlinks. Use only generated-output directories: integration can replace their contents. State generation, CSS compilation and SSR errors stop the pipeline.
 
 ## Styles
 
@@ -93,6 +89,12 @@ src/
   mocks/         MSW mock handlers for API testing
   client-components.tsx   Registry of client-rendered React components
 ```
+
+The mocks directory is optional. Handlers enable mocking in every non-production mode, including custom modes; production excludes it.
+
+The helpers in `_helpers/` re-export `alveo/helpers` so they receive framework fixes, including safe JSON script serialization. Framework icons are packaged with Alveo and do not need copies in `public/`. The `types.d.ts` reference to `alveo/types` supplies framework globals and virtual-module types.
+
+Standalone asset scripts should be named `*.entry.ts` (or `.js`, `.jsx`, `.tsx`). `alveo scripts` bundles them to `public/assets/js/<name>.js` with linked maps, except for critical entries. Tests and ordinary helpers are not standalone entries.
 
 ## Adding Components
 

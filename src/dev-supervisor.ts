@@ -3,6 +3,7 @@ import type { SpawnOptions } from 'child_process';
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
 import path from 'path';
+import { StringDecoder } from 'node:string_decoder';
 
 import chalk from 'chalk';
 import slash from 'slash';
@@ -35,7 +36,7 @@ export interface SpawnedDevProcess {
   stderr?: NodeJS.ReadableStream | null;
   killed?: boolean;
   kill: (signal?: NodeJS.Signals) => boolean;
-  on(eventName: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void): SpawnedDevProcess;
+  on(eventName: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): SpawnedDevProcess;
   on(eventName: 'error', listener: (error: Error) => void): SpawnedDevProcess;
 }
 
@@ -48,7 +49,7 @@ export interface DevSupervisorDependencies {
 }
 
 const defaultDevSupervisorDependencies: DevSupervisorDependencies = {
-  spawnProcess: spawn as unknown as DevSupervisorDependencies['spawnProcess'],
+  spawnProcess: spawn,
   stdoutWrite: process.stdout.write.bind(process.stdout),
   stderrWrite: process.stderr.write.bind(process.stderr),
   processOn: process.on.bind(process),
@@ -163,6 +164,44 @@ export const formatProcessOutput = (name: string, prefixColor: DevProcessSpec['p
   return visibleLines.map((line) => `${prefix} ${line}\n`).join('');
 };
 
+export const createProcessOutputFormatter = (name: string, color: DevProcessSpec['prefixColor']) => {
+  const decoder = new StringDecoder('utf8');
+  let pending = '';
+  const drain = (final: boolean): string => {
+    let output = '';
+    let index = pending.search(/[\r\n]/);
+
+    while (index >= 0) {
+      // Keep a trailing CR until its possible LF arrives in the next chunk.
+      if (!final && pending[index] === '\r' && index === pending.length - 1) break;
+      const end = index + (pending[index] === '\r' && pending[index + 1] === '\n' ? 2 : 1);
+
+      output += formatProcessOutput(name, color, pending.slice(0, end));
+      pending = pending.slice(end);
+      index = pending.search(/[\r\n]/);
+    }
+    if (final && pending) {
+      output += formatProcessOutput(name, color, pending);
+      pending = '';
+    }
+
+    return output;
+  };
+
+  return {
+    write(chunk: Buffer | string) {
+      pending += typeof chunk === 'string' ? chunk : decoder.write(chunk);
+
+      return drain(false);
+    },
+    end() {
+      pending += decoder.end();
+
+      return drain(true);
+    },
+  };
+};
+
 export const spawnSupervisor = (
   specs: DevProcessSpec[],
   dependencies: DevSupervisorDependencies = defaultDevSupervisorDependencies
@@ -244,13 +283,34 @@ export const spawnSupervisor = (
         });
 
         activeProcesses.add(childProcess);
-        childProcess.stdout?.on('data', (chunk) => dependencies.stdoutWrite(formatProcessOutput(spec.name, spec.prefixColor, chunk)));
-        childProcess.stderr?.on('data', (chunk) => dependencies.stderrWrite(formatProcessOutput(spec.name, spec.prefixColor, chunk)));
+        const forward = (stream: NodeJS.ReadableStream | null | undefined, write: (value: string) => void) => {
+          const formatter = createProcessOutputFormatter(spec.name, spec.prefixColor);
+          const flush = () => {
+            const text = formatter.end();
+
+            if (text) write(text);
+          };
+
+          stream?.on('data', (chunk) => {
+            const text = formatter.write(chunk);
+
+            if (text) write(text);
+          });
+          stream?.on('end', flush);
+
+          return flush;
+        };
+        const flushOut = forward(childProcess.stdout, dependencies.stdoutWrite);
+        const flushError = forward(childProcess.stderr, dependencies.stderrWrite);
+
         childProcess.on('error', (error) => {
           dependencies.stderrWrite(formatProcessOutput(spec.name, spec.prefixColor, String(error)));
           recordExit(spec, childProcess, 1);
         });
-        childProcess.on('exit', (code, signal) => {
+        // close follows stdio completion; exit can precede the final UTF-8 bytes.
+        childProcess.on('close', (code, signal) => {
+          flushOut();
+          flushError();
           recordExit(spec, childProcess, code ?? (signal ? 1 : 0));
         });
       });

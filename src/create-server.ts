@@ -1,71 +1,73 @@
-import fs from 'node:fs';
+import type { Server } from 'node:http';
+
 import path from 'node:path';
 
 import express from 'express';
-import serveStatic from 'serve-static';
-import { ViteDevServer, loadEnv } from 'vite';
+import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
 import { createViteDevServer } from './create-vite-dev-server.ts';
 import { _useRenderer } from './renderer.ts';
+import { assertMode } from './dev-supervisor.ts';
+import { normalizeBaseUrl } from './prerender-core.ts';
 
-interface Props {
+export interface ServerProps {
   root: string;
+  mode: string;
   isTest: boolean;
   port: number;
   hmrPort?: number;
   baseUrl?: string;
 }
 
-const argvModeIndex = process.argv.indexOf('--mode');
-const mode =
-  argvModeIndex >= 0 && argvModeIndex < process.argv.length - 1 && !process.argv[argvModeIndex + 1]!.startsWith('-')
-    ? process.argv[argvModeIndex + 1]!
-    : 'production';
-
-const isProd = process.env.NODE_ENV === 'production';
-
-const createServer = async ({ root, hmrPort, baseUrl, isTest }: Props) => {
-  const resolve = (p: string) => path.join(root, p);
-
-  const indexProd = isProd ? fs.readFileSync(resolve('index.html'), 'utf-8') : '';
-
-  const app = express();
-
-  let viteDevServer: ViteDevServer | undefined;
-
-  if (!isProd) {
-    viteDevServer = await createViteDevServer({ root, baseUrl, hmrPort, isTest });
-    // use vite's connect instance as middleware
-    app.use(viteDevServer.middlewares);
+export function assertDevelopmentMode(mode: string): void {
+  assertMode(mode);
+  if (mode === 'production' || process.env.NODE_ENV === 'production') {
+    throw new Error('alveo server is development-only. Use generate and deploy dist/static for production.');
   }
+}
 
-  app.use('/assets/images', serveStatic(resolve('public/assets/images'), { index: false }));
-  app.use('/assets/fonts', serveStatic(resolve('public/assets/fonts'), { index: false }));
-  app.use('/assets/css', serveStatic(resolve('public/assets/css'), { index: false }));
-  app.use('/assets/js', serveStatic(resolve('public/assets/js'), { index: false }));
-  app.use('/assets/search', serveStatic(resolve('public/assets/search'), { index: false }));
-  app.use('/assets/vendors', serveStatic(resolve('public/assets/vendors'), { index: false }));
-  app.use('/assets', serveStatic(resolve('dist/assets'), { index: false }));
-  app.use('/samples', serveStatic(resolve('public/samples'), { index: false }));
+export async function createServer({ root, mode, hmrPort, baseUrl, isTest }: ServerProps) {
+  assertDevelopmentMode(mode);
+  const resolve = (value: string) => path.join(root, value);
+  const app = express();
+  const viteDevServer = await createViteDevServer({ root, mode, baseUrl, hmrPort, isTest });
+  const base = normalizeBaseUrl(viteDevServer.config.base);
 
-  // VITE_DOMAIN is read via loadEnv (not process.env, which loadEnv never
-  // populates) and threaded into the renderer so a .env-only domain is applied.
-  const alveoEnv = loadEnv(mode, root);
+  app.use(viteDevServer.middlewares);
+  // External compilers can replace public directories faster than Vite's file
+  // cache observes them. Prefer fresh public bytes over an older dist copy even
+  // when a watcher event is missed, while honoring a disabled/custom publicDir.
+  if (viteDevServer.config.publicDir) {
+    app.use(express.static(viteDevServer.config.publicDir, { index: false }));
+  }
+  // Vite serves public/transformed files first and strips its base from req.url
+  // before calling downstream middleware. Mount the watch-build fallback at
+  // /assets, not base + /assets, or subpath JS requests fall through to SSR HTML.
+  app.use('/assets', express.static(resolve('dist/assets'), { index: false }));
 
-  _useRenderer({ app, indexProd, isProd, viteDevServer, resolve, domain: alveoEnv.VITE_DOMAIN });
+  const env = loadEnv(mode, root);
+
+  _useRenderer({ app, viteDevServer, resolve, baseUrl: base, domain: env.VITE_DOMAIN });
 
   return { app, viteDevServer };
-};
+}
 
-const startServer = (props: Props) => {
-  createServer(props).then(({ app }) => {
-    app.listen(props.port, () => {
-      const alveoEnv = loadEnv(mode, props.root);
+export async function startServer(props: ServerProps): Promise<Server> {
+  const { app, viteDevServer } = await createServer(props);
 
-      console.log('Running on ' + chalk.green('http://localhost:' + props.port + (alveoEnv.VITE_BASE_URL ?? '/')));
+  try {
+    const server = await new Promise<Server>((resolve, reject) => {
+      const server = app.listen(props.port, () => resolve(server));
+
+      server.once('error', reject);
     });
-  });
-};
 
-export { startServer };
+    console.log('Running on ' + chalk.green(`http://localhost:${props.port}${viteDevServer.config.base}`));
+
+    return server;
+  } catch (error) {
+    await viteDevServer.close();
+    throw error;
+  }
+}

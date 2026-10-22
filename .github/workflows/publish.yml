@@ -30,8 +30,14 @@ jobs:
             exit 1
           fi
 
-  publish:
+  test:
     needs: validate-version
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
+  publish:
+    needs: [validate-version, test]
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
@@ -44,7 +50,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.x'
+          node-version: '24.x'
 
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g npm@latest
@@ -56,4 +62,6 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        # Tests and the clean build are explicit gates above. Local publication
+        # still uses prepublishOnly; CI must not repeat both inside npm publish.
+        run: npm publish --ignore-scripts --access public --provenance

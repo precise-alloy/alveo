@@ -1,3 +1,5 @@
+import type { ModifierModel } from './functions.ts';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const importFunctionsModule = async (env: Record<string, string> = {}) => {
@@ -29,7 +31,7 @@ describe('alveo/scripts/functions.ts', () => {
           globalModifier: ['section-margin-top'],
           styleModifier: ['compact'],
           theme: 'dark',
-        } as BasedAtomicModel,
+        } as ModifierModel,
         'zzz-o-card'
       )
     ).toBe('zzz-o-card section-margin-top zzz-o-card--compact theme-dark');
@@ -38,7 +40,7 @@ describe('alveo/scripts/functions.ts', () => {
   it('returns only the base class when no modifiers or theme are provided', async () => {
     await importFunctionsModule();
 
-    expect(getModifiers({} as BasedAtomicModel, 'zzz-o-card')).toBe('zzz-o-card');
+    expect(getModifiers({} as ModifierModel, 'zzz-o-card')).toBe('zzz-o-card');
   });
 
   it('normalizes relative paths and preserves absolute URLs', async () => {
@@ -69,5 +71,13 @@ describe('alveo/scripts/functions.ts', () => {
     expect(window.getCookie('feature')).toBe('on');
     expect(window.getCookie('theme')).toBe('dark');
     expect(window.getCookie('missing')).toBeUndefined();
+  });
+
+  it('preserves equals signs in cookie values and ignores non-cookie segments', async () => {
+    await importFunctionsModule();
+    vi.spyOn(document, 'cookie', 'get').mockReturnValue('token=a=b==; invalid; empty=');
+    expect(window.getCookie('token')).toBe('a=b==');
+    expect(window.getCookie('empty')).toBe('');
+    expect(window.getCookie('invalid')).toBeUndefined();
   });
 });

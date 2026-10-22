@@ -15,6 +15,19 @@ const transform = (context: AlveoContext): PluginOption => {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     transform(code, id, options?) {
+      // ?url modules already contain Vite-managed URLs. Their filesystem paths
+      // may contain "/assets/" without referring to the consumer's public dir.
+      if (/[?&]url(?:[&#]|$)/.test(id)) return undefined;
+
+      // Published Alveo lives in node_modules too, so a blanket dependency skip
+      // would bypass its own asset URLs and development-only markers.
+      if (
+        !code.includes('/assets/') &&
+        !code.includes('VITE_EXTENSION_UNIQUE_ID') &&
+        !(context.mode === 'production' && code.includes('ALVEO_BEGIN_DEVELOPMENT_ONLY'))
+      )
+        return undefined;
+
       const magicString = new MagicString(code);
 
       if (context.mode === 'production' && code.includes('/* ALVEO_BEGIN_DEVELOPMENT_ONLY */')) {

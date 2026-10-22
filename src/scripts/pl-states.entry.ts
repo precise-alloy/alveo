@@ -1,30 +1,10 @@
+import stateIcon from '../assets/pl-states.svg?url';
+
+import { createSelect, createStateButton, type ComponentState } from './state-markup.ts';
+
 interface Theme {
   value: string;
   name: string;
-}
-
-interface StateOption {
-  name: string;
-  value: string;
-}
-
-interface State {
-  name: string;
-  options?: StateOption[];
-  multiple?: boolean;
-}
-
-interface StateButton {
-  parentSelector?: string;
-  styleModifier: string;
-  zIndex?: number;
-}
-
-interface ComponentState {
-  name: string;
-  selector: string;
-  button?: StateButton;
-  states: State[];
 }
 
 let index = 100000;
@@ -66,37 +46,6 @@ const themes: Theme[] = [
 
 const newId = () => {
   return 'pl-state-id-' + index++;
-};
-
-const createSelect = (state: State, classList: DOMTokenList) => {
-  if (!state.options) {
-    return '';
-  }
-
-  const options = state.options;
-  const name = newId();
-  const header = state.multiple ? 'Select many...' : (options.find((o) => classList.contains(o.value))?.name ?? '---');
-  const type = state.multiple ? 'checkbox' : 'radio';
-
-  let optionsHtml = '';
-
-  options.forEach((option: StateOption) => {
-    const selectedHtml = classList.contains(option.value) ? 'checked' : '';
-    const id = newId();
-
-    optionsHtml +=
-      `<input name="${name}" class="pl-state-bar__input" type="${type}" id="${id}" data-name="${option.name}" value="${option.value}" ${selectedHtml}/>` +
-      `<label class="pl-state-bar__label" for="${id}"><span>${option.name}</span></label>`;
-  });
-
-  const html =
-    '<div class="pl-state-bar__group">' +
-    `<div>${state.name}:</div>` +
-    `<div class="pl-state-bar__group-header">${header}</div>` +
-    `<div class="pl-state-bar__checkbox-group">${optionsHtml}</div>` +
-    '</div>';
-
-  return html;
 };
 
 const deactiveStateButtons = () => {
@@ -163,7 +112,7 @@ const stateButtonClickHandler = (item: HTMLElement, stateButton: HTMLElement, pl
     plState.states.forEach((state) => {
       const combinedState = state.name === 'Theme' && !state.options ? { ...state, options: themes } : state;
 
-      stateBarContentHtml += createSelect(combinedState, item.classList);
+      stateBarContentHtml += createSelect(combinedState, item.classList, newId);
 
       index++;
 
@@ -245,7 +194,7 @@ const stateButtonClickHandler = (item: HTMLElement, stateButton: HTMLElement, pl
   }
 };
 const stateBarCloseButtonHtml = () => {
-  return '<div class="pl-state-bar__buttons"><a class="pl-state-bar__close-button"></a></div>';
+  return '<div class="pl-state-bar__buttons"><button type="button" aria-label="Close state selector" class="pl-state-bar__close-button"></button></div>';
 };
 
 const appendButtons = (states: ComponentState[]) => {
@@ -269,19 +218,10 @@ const appendButtons = (states: ComponentState[]) => {
       return;
     }
 
-    const buttonModifier = plState.button?.styleModifier ?? '';
-    const buttonTitle = plState.name ? `title="Show state modifier for: ${plState.name}"` : '';
-    const buttonZIndex = plState.button?.zIndex ? `style="z-index: ${plState.button.zIndex};"` : '';
-
     const items = document.querySelectorAll(plState.selector);
 
     [].forEach.call(items, (item: HTMLElement) => {
-      const html =
-        `<div class="pl-state ${buttonModifier}" ${buttonZIndex}>` +
-        '<div class="pl-state__controls">' +
-        `<button class="pl-state__button" ${buttonTitle}>` +
-        `<img src="${import.meta.env.BASE_URL}pl-states.svg" loading="lazy">` +
-        '</button></div></div>';
+      const html = createStateButton(plState, stateIcon);
 
       const stateButtonParent = plState.button?.parentSelector ? item.querySelector(plState.button.parentSelector) : item;
 

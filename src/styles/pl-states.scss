@@ -248,6 +248,9 @@ $-wave-50: #d2dde4;
   }
 
   &__close-button {
+    // This is a native button now; retain the old icon-only geometry.
+    border: 0;
+    padding: 0;
     position: relative;
     width: px2rem(32px);
     height: px2rem(32px);
@@ -296,5 +299,12 @@ $-wave-50: #d2dde4;
     &:hover {
       background-color: $-group-bg-hover;
     }
+  }
+}
+
+@media print {
+  .pl-state,
+  .pl-state-bar {
+    display: none !important;
   }
 }

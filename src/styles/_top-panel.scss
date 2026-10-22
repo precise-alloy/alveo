@@ -58,6 +58,7 @@
     &__active-item-options {
       @include lg {
         display: block;
+        visibility: hidden;
         position: fixed;
         transform: translateX(var(--alveo-slide-end-offset, 100%));
         top: px2rem(31px);
@@ -65,6 +66,7 @@
 
       &.show {
         display: block;
+        visibility: visible;
         box-shadow: 0 px2rem(2px) px2rem(4px) #a6a6a6;
         transform: translateX(0);
         transition: transform 0.2s ease-out;

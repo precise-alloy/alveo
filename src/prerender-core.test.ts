@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as cheerio from 'cheerio';
 
+import { getAssetVersion } from './cryptography.ts';
 import {
   hasContentHashInFileName,
   hashFileContent,
@@ -13,9 +14,17 @@ import {
   removeStyleBase,
   removeDuplicateAssets,
   ResourcePathOptions,
+  replacePlaceholder,
 } from './prerender-core.ts';
 
 describe('alveo/prerender-core.ts', () => {
+  it('uses the same content version as build-time transforms and inserts literal replacement tokens', () => {
+    expect(hashFileContent('asset')).toBe(getAssetVersion('asset'));
+    const value = "$& $$ $` $'";
+
+    expect(replacePlaceholder('before<!--app-html-->after', '<!--app-html-->', value)).toBe('before' + value + 'after');
+    expect(hasContentHashInFileName('/file.0x12345678_ab.js?v=1#hash')).toBe(true);
+  });
   describe('hasContentHashInFileName', () => {
     it('returns true for filenames with .0x[hash].ext pattern', () => {
       expect(hasContentHashInFileName('style.0xabcdef12.css')).toBe(true);
@@ -184,6 +193,24 @@ describe('alveo/prerender-core.ts', () => {
       existsSync: vi.fn().mockReturnValue(true) as never,
       readFileSync: vi.fn().mockReturnValue(Buffer.from('file-content')) as never,
       ...overrides,
+    });
+
+    it('handles non-root bases without trailing slash, existing queries, fragments and relative CDN prefixes', () => {
+      const options = buildOptions({ baseUrl: '/sub', addHash: true, domain: '/cdn/' });
+
+      expect(getUpdatedResourcePath('/sub/assets/main.js?lang=vi&v=old#module', options)).toBe(
+        '/cdn/sub/assets/main.js?lang=vi&v=' + getAssetVersion('file-content') + '#module'
+      );
+      expect(getUpdatedResourcePath('//external.test/a.js', options)).toBe('//external.test/a.js');
+    });
+
+    it('uses a dev refresh version without disk reads and leaves already-hashed assets alone', () => {
+      const options = buildOptions({ cacheVersion: '123' });
+
+      expect(getUpdatedResourcePath('/assets/main.js', options)).toBe('/assets/main.js?v=123');
+      expect(options.existsSync).not.toHaveBeenCalled();
+      expect(options.readFileSync).not.toHaveBeenCalled();
+      expect(getUpdatedResourcePath('/assets/main.0xabcdefgh.js?x=1', options)).toBe('/assets/main.0xabcdefgh.js?x=1');
     });
 
     it('returns href unchanged if it does not start with "/"', () => {

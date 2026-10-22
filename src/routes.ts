@@ -1,4 +1,7 @@
-import _ from 'lodash';
+import type { RootItemModel, SinglePageNode, MultiplePageNode } from './root/models.ts';
+
+import lowerCase from 'lodash/lowerCase.js';
+import startCase from 'lodash/startCase.js';
 import { pages } from 'virtual:alveo/pages';
 
 import RootTemplate from './root/template.tsx';
@@ -12,14 +15,14 @@ const routesToPrerender: { route: string; name: string }[] = [];
 Object.keys(pages).forEach((path) => {
   const match = path.match(/\/src\/pages\/(.*)\.\w+$/);
   const name = match ? match[1]! : '';
-  const normalizedName = name.replaceAll(/^(\w+)/gi, (_p0, p1: string) => _.lowerCase(p1).replaceAll(' ', '-'));
+  const normalizedName = name.replaceAll(/^(\w+)/gi, (_p0, p1: string) => lowerCase(p1).replaceAll(' ', '-'));
 
   const page = pages[path] as { [key: string]: any };
 
   if (!page.default.$$name) {
     const node = {
       type: 'single',
-      name: _.startCase(_.lowerCase(name)),
+      name: startCase(lowerCase(name)),
       path: name === 'Root' ? '/' : `/pages/${normalizedName}`,
       component: page.default,
     } as SinglePageNode;

@@ -7,7 +7,7 @@
     "url": "https://github.com/precise-alloy/alveo"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json && bun run build:styles",
+    "build": "bun src/package-build.ts --clean && tsc --project tsconfig.json && bun run build:styles && bun src/package-build.ts",
     "build:styles": "bun src/precompile-styles.ts",
     "typecheck": "bun check --noEmit",
     "test": "vitest run",
@@ -16,7 +16,7 @@
     "test:ci": "bun run typecheck && vitest run --coverage",
     "lint": "eslint --fix",
     "prepublishOnly": "bun run test:ci && bun run build",
-    "prepare": "git config core.hooksPath .git-hooks"
+    "prepare": "node bin/prepare.js"
   },
   "bin": {
     "alveo": "./bin/cli.js"
@@ -25,6 +25,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./helpers": {
+      "types": "./dist/helpers.d.ts",
+      "default": "./dist/helpers.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts"
     }
   },
   "files": [
@@ -51,7 +58,6 @@
     "magic-string": "^1.1.0",
     "msw": "^2.15.0",
     "sass": "^1.102.0",
-    "serve-static": "^2.2.0",
     "slash": "^5.1.0",
     "source-map-js": "^1.2.1",
     "vite": "^8.2.1"
@@ -69,7 +75,6 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@types/serve-static": "^2.0.1",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@typescript-eslint/parser": "^8.62.0",
     "@vitest/coverage-v8": "^4.1.10",
@@ -103,7 +108,7 @@
     }
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=24"
   },
   "license": "MIT"
 }

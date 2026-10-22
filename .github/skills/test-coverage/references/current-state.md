@@ -1,144 +1,109 @@
-# Frontend Test Coverage State
+# Alveo Test Coverage State
 
-## Original Requirements
+## Agreed Policy
 
-The repo coverage rollout was designed around these requirements:
+- Keep the highest feasible coverage and add matching tests for changed logic.
+- Enforce 100% statements, lines, and functions and >=95% branches per gated file.
+- Never lower thresholds, remove gated modules, or weaken CI/pre-push gates without explicit approval.
+- Add new testable `src/**` helpers to `coverage.include` immediately.
+- Run narrow affected suites, then `bun run test:ci`.
+- Preserve LF-normalized text, sourcemap sources, hashes, and HTML independently of Git checkout settings; binary content must remain byte-identical.
 
-- coverage should be as high as possible
-- failing tests should clearly signal what logic changed
-- parent-folder GitHub workflows should require tests before deploy and merge
-- `docs/test-coverage.md` should document the policy and rollout
-- planning and implementation should be detailed enough for mission-critical site use
-- refactors are allowed when needed to make critical logic testable
+The original policy came from the parent frontend workspace. This repository is now the standalone Alveo package: its current CI is `test.yml` and `publish.yml`, not the historical parent `frontend-*.yml` workflows.
 
-## What We Decided
+## Current Enforced Modules
 
-- The customization should be workspace-shared because the policy is repo-specific and team-facing.
-- A skill is needed for discoverable, repeatable coverage workflow guidance.
-- A matching workspace instruction is also needed because the requirement applies to ordinary code changes, not only to explicit skill use.
-- The frontend test stack is `Vitest + jsdom + React Testing Library + user-event + V8 coverage`.
-- Coverage is enforced per file for the gated critical-module set.
-- The current enforced thresholds are:
-  - statements: `>= 100%`
-  - lines: `>= 100%`
-  - functions: `>= 100%`
-  - branches: `>= 95%`
-- Workflow gates must run `bun run test:ci` on Ubuntu, Windows, and macOS before frontend CI, deploy, and integration-package steps continue.
-- Side-effect-heavy `alveo` modules should be split into testable `*-core.ts` helpers before the logic is considered adequately protected.
-- Generated asset determinism must be enforced inside `alveo` tooling, not through project-specific `.gitattributes` or Git EOL settings. Text inputs and generated text outputs should be LF-normalized for hashing, sourcemaps, prerendered HTML, and copied integration assets; binary assets must keep their original bytes.
-- Thresholds, gated scope, or workflow gates must not be weakened without explicit approval.
-
-## What Has Been Done
-
-### Harness And Policy
-
-- Added a standalone frontend Vitest harness in `package.json`, `vitest.config.ts`, and `test/setup.ts`.
-- Added the repo coverage document in `docs/test-coverage.md`.
-- Added workspace Copilot customization files for coverage governance.
-
-### Core Coverage
-
-- Covered `src/alias.ts`
-- Covered `src/asset-hash.ts`
-- Covered `src/cryptography.ts`
-- Covered `src/dev-supervisor.ts`
-- Covered `src/filename.ts`
-- Covered `src/hooks/inject-functions.ts`
-- Covered `src/hooks/inject-functions-core.ts`
-- Covered `src/integration-core.ts`
-- Covered `src/manual-chunk.ts`
-- Covered `src/precompile-styles.ts`
-- Covered `src/prerender-core.ts`
-- Covered `src/scripts-core.ts`
-- Covered `src/states-core.ts`
-- Covered `src/styles-core.ts`
-- Covered `src/text-normalization.ts`
-- Covered `src/virtual-modules.ts`
-
-### Stylesheet Build Reliability
-
-- `src/styles.ts` runs Sass and lightningcss for many entry stylesheets; it must avoid unbounded Sass fan-out.
-- The current implementation queues Sass/lightningcss jobs through `createStyleCompileQueue` in `src/styles-core.ts`.
-- `STYLES_CONCURRENCY` controls the queue width and defaults to `5` when unset, blank, non-integer, or less than `1`.
-- One-shot `bun run styles` builds wait for debounced compile entry points, then drain the queue so Sass/lightningcss failures can set a non-zero exit code before Bun exits.
-- Keep queue parsing, bounded execution, drain behavior, and failed-task continuation covered in `src/styles-core.test.ts`.
-
-### Workflow Gates
-
-- Updated `.github/workflows/frontend-ci.yml`
-- Updated `.github/workflows/frontend-deploy.yml`
-- Updated `.github/workflows/frontend-integration.yml`
-- All three now run `bun run test:ci` on `ubuntu-latest`, `windows-latest`, and `macos-latest` before continuing to build, deploy, or integration packaging.
-
-## Current Validated State
-
-Latest implemented validation target:
-
-- `bun run test:ci`
-- `bun inte` for the stylesheet compile-queue build-tooling change
-
-Latest validated outcome at implementation time:
-
-- `16` test files passed
-- `314` tests passed
-- enforced coverage scope passed with:
-  - `100%` statements
-  - `100%` lines
-  - `99.67%` branches
-  - `100%` functions
-
-## Current Enforced Module Set
+The 35-file gate in `vitest.config.ts` includes:
 
 - `src/alias.ts`
 - `src/asset-hash.ts`
+- `src/config.ts`
+- `src/create-server.ts`
+- `src/create-vite-dev-server.ts`
 - `src/cryptography.ts`
 - `src/dev-supervisor.ts`
+- `src/entry-server.tsx`
 - `src/filename.ts`
+- `src/helpers.tsx`
 - `src/hooks/inject-functions.ts`
 - `src/hooks/inject-functions-core.ts`
+- `src/hooks/options.ts`
+- `src/hooks/transform.ts`
+- `src/hooks/transform-index-html.ts`
 - `src/integration-core.ts`
 - `src/manual-chunk.ts`
+- `src/package-build.ts`
 - `src/precompile-styles.ts`
 - `src/prerender-core.ts`
+- `src/react-loader-core.tsx`
+- `src/renderer.ts`
+- `src/root/active-item-options.tsx`
+- `src/root/catalog.ts`
+- `src/root/frame-controls.tsx`
+- `src/root/svg-symbols.ts`
+- `src/scaffold.ts`
 - `src/scripts-core.ts`
+- `src/scripts/functions.ts`
+- `src/scripts/state-markup.ts`
+- `src/server.ts`
 - `src/states-core.ts`
 - `src/styles-core.ts`
 - `src/text-normalization.ts`
 - `src/virtual-modules.ts`
 
-## Working Rule For Future Changes
+Additional tests cover CLI sequencing, real stylesheet orchestration, prerender output, loader entry wiring, icon-dialog interactions, and package installation. The scoped gate is not a repo-wide 100% coverage claim.
 
-For any frontend change covered by the workspace instruction:
+## Important Contracts
 
-- preserve or improve coverage for the affected modules
-- add tests for every logic, branch, path, error-handling, or workflow behavior change
-- keep generated integration assets byte-stable across Windows, WSL, and Ubuntu by normalizing text to LF in code rather than depending on `.gitattributes`
-- run narrow impacted suites first, then run `bun run test:ci`
-- for `src/styles.ts` or `src/styles-core.ts`, preserve the bounded compile queue contract and run `bun run styles` or `bun inte` after focused tests
-- for `bun inte` determinism changes, confirm `git diff --quiet -- {VITE_INTE_PATTERN_DIR} {VITE_INTE_ASSET_DIR}`; Windows `git status` may still show LF/text-auto warnings when content diff is empty
-- update `docs/test-coverage.md` when the enforced scope, thresholds, or workflow policy changes
-- widen the gated module set when new critical code becomes testable
+### Package and Consumer Validation
 
-## Repeatable Testing Techniques Proven In This Rollout
+- Use the npm packer to match publication; Bun packing does not reproduce npm's `.gitignore` handling. Store the starter ignore file as `_gitignore`.
+- Build a clean temporary package and install its tarball using Bun's isolated linker and an empty cache, without linking maintainer development dependencies.
+- Cold installs need registry access. Do not replace them with warmed/offline installs that could hide missing runtime dependencies.
+- Verify consumer types using the installed compiler with Bundler, Node16, and NodeNext resolution and `skipLibCheck: false`. Explicit type libraries must resolve from the consumer's working directory.
+- Verify actual generated HTML and integration output, including Vite base overrides and projects without consumer helper/icon/mock files.
+- Verify deferred YAML through the eager client import graph; assert browser chunks contain neither Cheerio nor lodash.
 
-These patterns were used to keep coverage at 100% statements / 100% lines / 100% functions / 98.4% branches and should be reused for similar gaps:
+### Styles
 
-- **SSR guard branches** (`typeof window === 'undefined'`, `typeof document === 'undefined'`, `typeof location === 'undefined'`): create a dedicated `*.node-env.test.ts` sibling with `// @vitest-environment node` at the top, clear cached `globalThis` keys with `delete (globalThis as Record<string, unknown>).window` (and `appApi`, `viteAbsoluteUrl`, etc.) inside `beforeEach`/`afterEach`, then `vi.resetModules()` and dynamic `await import('./module')` so each guard branch runs against a clean global. Do not try to mock `typeof window` in jsdom.
-- **chokidar/event-emitter watcher callbacks** registered through `watcher.on('add' | 'change' | 'unlink', cb)`: keep the watcher mock chainable (`vi.fn(function (this: FSWatcher) { return this; })`), then capture the registered callbacks from `vi.mocked(watcher.on).mock.calls[i]?.[1]` and invoke them directly inside the test so the inline arrow bodies execute and count toward function coverage.
-- **`fs`/`path` orchestration helpers** in `src/*-core.ts`: model every external dependency as a typed `Dependencies` interface and pass it as the last argument with a `defaultDependencies` fallback. Tests then build a single `createDependencies()` factory of `vi.fn()` mocks per file and override per case with `mockReturnValueOnce` / `mockImplementation`.
-- **Conditional-branch defensive returns** (`if (!resourcePath) return;`, `if (!href) return;`, `if (!target) return;`): trigger them by either widening the cheerio selector (e.g. `script[data-pl-require]` instead of `script[data-pl-require][src]`) or by feeding the helper an input the upstream classifier rejects (e.g. `'dist/static/readme.txt'` for `getPatternCopyTarget`).
-- **Cheerio attribute normalization edge cases** (`defer`, `defer="defer"`, `defer="true"`, bare `defer`): cover each comparator in the `||` chain with a separate test case so the per-file branch threshold stays meaningful even though V8 may still report one micro-branch as partial.
-- **Source-map prelude stripping**: build minimal fixtures with `SourceMapGenerator` (`setSourceContent`, `addMapping`) and read results back through `SourceMapConsumer` rather than asserting on raw VLQ output.
-- **Stylesheet compile queue**: cover default `STYLES_CONCURRENCY` parsing, bounded queue execution, drain completion, invalid concurrency normalization, and rejected task continuation in `src/styles-core.test.ts`; keep `src/styles.ts` as the side-effect shell that wires the queue into Sass/lightningcss.
-- **Generated asset line endings**: normalize text to LF before embedding source-map `sourcesContent`, hashing SVG/CSS/JS/text assets, writing prerendered HTML, or copying integration assets. Test CRLF inputs, source-map JSON with escaped `\r\n`, extensionless text files, and binary buffers so output is deterministic without relying on Git checkout settings.
-- **Truly unreachable code** (e.g. an `else { return <></> }` after exhaustive `string | string[] | undefined` narrowing): remove the dead branch instead of forcing a test through `as never` casts. Document the narrowing in a short comment so the next reader does not re-add the guard.
+- `STYLES_CONCURRENCY` still defaults to 5. The queue bounds work and provides a drain contract; synchronous Sass is not CPU-parallel.
+- One-shot builds run immediately, await the queue, and throw on failure. Debouncing is watch-only; startup performs one scan with `ignoreInitial: true`.
+- A synthetic entry loads base, atoms, then molecules through real Sass modules. Relative imports avoid interpreting Windows drive letters as URL schemes.
+- Keep Sass intermediate output expanded. Compressed Sass can lose cross-file mapping locations even when `sourcesContent` includes the original files.
+- LightningCSS performs final minification and browser-target lowering for both source and published framework CSS. Use real mapping-coordinate tests.
 
-## Remaining External Step
+### Runtime and Safety
 
-Repository files cannot enforce GitHub branch protection by themselves.
+- Never synthesize `globalThis.window` during SSR. Errors must fail the command rather than returning successful empty HTML.
+- The server is development-only. Pass mode/port explicitly and await startup.
+- Verify real HTTP responses after Vite strips the base from `req.url`: stable script URLs must serve JavaScript, and fresh public files must precede stale watch-build copies.
+- Generation and integration run states/styles first and stop on failed stages.
+- Share literal HTML replacement, asset relocation, hash versions, and URL rules.
+- Integration destinations must be external and non-overlapping, including physical symlink aliases; diagnose resolution failures before deletion.
+- Malformed component payloads are isolated/reported and retained for retry. YAML imports are lazy and overlapping renders must not mount twice.
+- Preserve keyboard/ARIA behavior, both text directions, print stability, and timer cleanup when changing catalog controls.
+- Let responsive CSS distinguish collapsed mobile/top-panel menus from the always-visible desktop sidebar; do not unconditionally apply `inert` from a toggle state. Check compiled print-selector scope and browser-computed styles.
+- Skip public-asset hashing for Vite-managed `?url` modules; their filesystem paths can contain `/assets/` without referring to a consumer public file.
 
-The remaining manual or authenticated API step is to require the frontend checks on `master` in GitHub branch protection.
+## Repeatable Techniques
 
-At minimum, require the `Frontend CI` workflow's cross-platform test jobs for `ubuntu-latest`, `windows-latest`, and `macos-latest`, plus the Ubuntu `build` job that depends on them.
+- SSR guards: sibling `*.node-env.test.ts` with a real Node environment.
+- Watchers: capture callbacks from mock calls and invoke them explicitly.
+- Filesystem/compiler boundaries: typed dependencies plus real fixture tests.
+- Sourcemaps: assert `SourceMapConsumer.originalPositionFor`, not just filenames.
+- Generated text: CRLF/LF fixtures, escaped map content, and binary pass-through.
+- Integration: stage temporary output, rebuild CRLF input, and require `git diff --quiet` for asset/pattern destinations without creating a commit.
+- Avoid casts that invent impossible branches; remove truly unreachable code with a short explanation instead.
 
-At the time this coverage rollout was implemented, the local environment was not authenticated with `gh`, so that GitHub-side setting could not be applied from the session.
+## CI and Local Hooks
+
+- `test.yml` runs the full gate on Ubuntu, Windows, and macOS for PRs/master.
+- `publish.yml` depends on that matrix before its clean build and publication.
+- Local `prepublishOnly` still runs tests/build. CI publication uses `--ignore-scripts` only after the explicit prerequisite gates.
+- Guarded `bin/prepare.js` installs `.git-hooks` only in maintainer checkouts. Keep `.git-hooks/pre-push` running `bun run typecheck`; consumer installs must not change their parent repository configuration.
+
+## External Requirement
+
+GitHub branch protection must separately require the cross-platform package checks. Workflow files alone cannot enforce merge protection; do not claim that repository settings were changed without authenticated verification.
+
+See `docs/test-coverage.md` for the current contract matrix. Use actual command results for test counts and percentages rather than carrying historical rollout numbers forward as if they were current.

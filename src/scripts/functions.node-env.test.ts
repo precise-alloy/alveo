@@ -42,7 +42,7 @@ describe('alveo/scripts/functions.ts (node environment)', () => {
     clearRuntimeGlobals();
   });
 
-  it('hoists the runtime window onto globalThis when window is undefined', async () => {
+  it('registers SSR helpers without manufacturing a browser window', async () => {
     expect(typeof (globalThis as MutableGlobal).window).toBe('undefined');
 
     await importFunctionsModuleInNode({
@@ -50,9 +50,8 @@ describe('alveo/scripts/functions.ts (node environment)', () => {
       VITE_PATH_EXTENSION: '.html',
     });
 
-    // The SSR guard sets globalThis.window to the runtime global so the rest
-    // of the module can attach helpers without an environment check.
-    expect(runtimeGlobal.window).toBe(globalThis);
+    expect(runtimeGlobal.window).toBeUndefined();
+    expect(typeof (globalThis as MutableGlobal).document).toBe('undefined');
     expect(typeof runtimeGlobal.viteAbsoluteUrl).toBe('function');
   });
 
@@ -64,6 +63,11 @@ describe('alveo/scripts/functions.ts (node environment)', () => {
 
     expect(runtimeGlobal.viteAbsoluteUrl?.('about', true)).toBe('/about.html');
     expect(runtimeGlobal.viteAbsoluteUrl?.('/contact')).toBe('/contact');
+  });
+
+  it('keeps SSR routes consistent with prerender when no extension is configured', async () => {
+    await importFunctionsModuleInNode({ BASE_URL: '/subpath/' });
+    expect(runtimeGlobal.viteAbsoluteUrl?.('/pages/home', true)).toBe('/subpath/pages/home');
   });
 
   it('returns undefined from getCookie when document is unavailable in the node environment', async () => {

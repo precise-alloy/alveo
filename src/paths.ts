@@ -20,7 +20,6 @@ export type AlveoPaths = {
   root: string;
   srcRoot: string;
   outDir: string;
-  viteSharedRoot: string;
   alveoEnv: Record<string, string>;
   mode: string;
 };
@@ -35,13 +34,11 @@ export function createPaths(projectRoot: string, mode?: string): AlveoPaths {
   const resolvedMode = mode ?? resolveMode();
   const root = slash(path.resolve(projectRoot));
   const alveoEnv = loadEnv(resolvedMode, root);
-  const packageRoot = getPackageRoot();
 
   return {
     root,
     srcRoot: slash(path.resolve(root, 'src')),
     outDir: slash(path.resolve(root, 'dist')),
-    viteSharedRoot: slash(path.resolve(packageRoot, 'src/shared')),
     alveoEnv,
     mode: resolvedMode,
   };

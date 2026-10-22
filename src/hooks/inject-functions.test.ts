@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import injectFunctions from './inject-functions.ts';
-import { FUNCTIONS_PLACEHOLDER, getFunctionsSourcePath } from './inject-functions-core.ts';
+import { FUNCTIONS_PLACEHOLDER, getFunctionsSourcePath, loadFunctionsSource } from './inject-functions-core.ts';
 
 vi.mock('./inject-functions-core.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./inject-functions-core.ts')>();
@@ -20,6 +20,8 @@ describe('alveo/hooks/inject-functions.ts', () => {
     const plugin = injectFunctions() as {
       name: string;
       enforce: string;
+      buildStart: () => void;
+      watchChange: (id: string) => void;
       transform: (this: { addWatchFile: (path: string) => void }, code: string, id: string) => { code: string; map: unknown } | undefined;
     };
 
@@ -41,6 +43,23 @@ describe('alveo/hooks/inject-functions.ts', () => {
   });
 
   describe('transform()', () => {
+    it('caches source per build and invalidates it only on rebuilds or source changes', () => {
+      const plugin = createPlugin();
+      const context = { addWatchFile: vi.fn() };
+
+      vi.mocked(loadFunctionsSource).mockClear();
+      plugin.buildStart();
+      plugin.transform.call(context, FUNCTIONS_PLACEHOLDER, '/a.js');
+      plugin.transform.call(context, FUNCTIONS_PLACEHOLDER, '/b.js');
+      plugin.watchChange('/unrelated.js');
+      plugin.transform.call(context, FUNCTIONS_PLACEHOLDER, '/c.js');
+      expect(loadFunctionsSource).toHaveBeenCalledOnce();
+      plugin.watchChange(getFunctionsSourcePath());
+      plugin.transform.call(context, FUNCTIONS_PLACEHOLDER, '/a.js');
+      plugin.buildStart();
+      plugin.transform.call(context, FUNCTIONS_PLACEHOLDER, '/b.js');
+      expect(loadFunctionsSource).toHaveBeenCalledTimes(3);
+    });
     it('returns undefined when code does not contain the placeholder', () => {
       const plugin = createPlugin();
       const context = { addWatchFile: vi.fn() };

@@ -6,10 +6,19 @@ import { FUNCTIONS_PLACEHOLDER, containsFunctionsPlaceholder, getFunctionsSource
 
 const injectFunctions = (): PluginOption => {
   const functionsSourcePath = getFunctionsSourcePath();
+  let cachedSource: string | undefined;
 
   return {
     name: 'alveo-inject-functions',
     enforce: 'pre',
+
+    buildStart() {
+      cachedSource = undefined;
+    },
+
+    watchChange(id) {
+      if (id === functionsSourcePath) cachedSource = undefined;
+    },
 
     transform(code, id) {
       if (id === functionsSourcePath || !containsFunctionsPlaceholder(code)) {
@@ -18,7 +27,7 @@ const injectFunctions = (): PluginOption => {
 
       this.addWatchFile(functionsSourcePath);
 
-      const replacement = loadFunctionsSource(functionsSourcePath);
+      const replacement = (cachedSource ??= loadFunctionsSource(functionsSourcePath));
       const magicString = new MagicString(code);
 
       magicString.replaceAll(FUNCTIONS_PLACEHOLDER, replacement);

@@ -1,9 +1,41 @@
+import type { HTMLBeautifyOptions, JSBeautifyOptions } from 'js-beautify';
+
 import path from 'path';
-import crypto from 'node:crypto';
 
 import * as cheerio from 'cheerio';
 
 import { normalizeTextLikeContent } from './text-normalization.ts';
+import { getAssetVersion, hasContentHashInFileName } from './cryptography.ts';
+
+export { hasContentHashInFileName };
+export const hashFileContent = getAssetVersion;
+
+export const beautifyOptions: HTMLBeautifyOptions & JSBeautifyOptions = {
+  indent_size: 2,
+  indent_char: ' ',
+  keep_array_indentation: false,
+  break_chained_methods: false,
+  indent_scripts: 'normal',
+  brace_style: 'collapse',
+  space_before_conditional: true,
+  unescape_strings: false,
+  jslint_happy: false,
+  end_with_newline: false,
+  wrap_line_length: 0,
+  indent_inner_html: false,
+  comma_first: false,
+  e4x: false,
+  indent_empty_lines: false,
+  wrap_attributes: 'force',
+  max_preserve_newlines: 5,
+  preserve_newlines: true,
+};
+
+export const normalizeBaseUrl = (baseUrl: string): string => (baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
+
+// A replacement string interprets $&, $$, $` and $'. Rendered content must be
+// inserted literally, including currency, code examples and serialized props.
+export const replacePlaceholder = (template: string, placeholder: string, content: string): string => template.replace(placeholder, () => content);
 
 export interface PrerenderArgs {
   mode: string;
@@ -18,19 +50,8 @@ export interface ResourcePathOptions {
   existsSync: (value: string) => boolean;
   readFileSync: (value: string) => Buffer;
   onMissingPath?: (value: string) => void;
+  cacheVersion?: string;
 }
-
-export const hasContentHashInFileName = (value: string): boolean => {
-  return /\.0x[a-z0-9_-]{8,12}\.\w+$/gi.test(value);
-};
-
-export const hashFileContent = (content: string | Buffer): string => {
-  const sha1Hash = crypto.createHash('sha1');
-
-  sha1Hash.update(content);
-
-  return sha1Hash.digest('base64url').substring(0, 10);
-};
 
 export const parsePrerenderArgs = (argv: string[]): PrerenderArgs => {
   const argvModeIndex = argv.indexOf('--mode');
@@ -61,28 +82,33 @@ export const viteAbsoluteUrl = (
   return baseUrl.substring(0, baseUrl.length - 1) + normalizedRemain;
 };
 
+const isVersionableResource = (pathname: string, baseUrl: string): boolean =>
+  pathname.startsWith(baseUrl) &&
+  !pathname.startsWith(baseUrl + 'assets/vendors/') &&
+  ['.css', '.ico', '.js', '.webmanifest', '.svg'].includes(path.extname(pathname).toLowerCase()) &&
+  !hasContentHashInFileName(pathname);
+
 export const getUpdatedResourcePath = (href: string, options: ResourcePathOptions): string => {
-  if (!href.startsWith('/')) {
+  if (!href.startsWith('/') || href.startsWith('//')) {
     return href;
   }
 
-  let newPath = href;
+  const domain = options.domain?.replace(/\/+$/, '') ?? '';
+  let newPath = domain + href;
 
-  if (options.domain) {
-    newPath = options.domain + newPath;
-  }
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const pathname = href.split(/[?#]/, 1)[0]!;
 
-  if (
-    href.startsWith(options.baseUrl) &&
-    !href.startsWith(options.baseUrl + 'assets/vendors/') &&
-    ['.css', '.ico', '.js', '.webmanifest', '.svg'].includes(path.extname(href).toLowerCase()) &&
-    !hasContentHashInFileName(href)
-  ) {
-    const absolutePath = options.toAbsolute('dist/static/' + href.substring(options.baseUrl.length));
+  if (isVersionableResource(pathname, baseUrl)) {
+    const absolutePath = options.toAbsolute('dist/static/' + pathname.substring(baseUrl.length));
 
-    if (options.existsSync(absolutePath)) {
-      if (options.addHash) {
-        newPath += '?v=' + hashFileContent(normalizeTextLikeContent(href, options.readFileSync(absolutePath)));
+    if (options.cacheVersion !== undefined || options.existsSync(absolutePath)) {
+      if (options.cacheVersion !== undefined || options.addHash) {
+        const version = options.cacheVersion ?? hashFileContent(normalizeTextLikeContent(pathname, options.readFileSync(absolutePath)));
+        const url = new URL(href, 'https://alveo.invalid');
+
+        url.searchParams.set('v', version);
+        newPath = domain + url.pathname + url.search + url.hash;
       }
     } else if (!absolutePath.endsWith('mock-api.js')) {
       options.onMissingPath?.(absolutePath);
@@ -130,13 +156,7 @@ export const removeDuplicateAssets = ($: cheerio.CheerioAPI, selector: string, a
       return;
     }
 
-    const index = $(element).index();
-    const parent = $(element).parent().clone();
-    const child = parent.children()[index]!;
-
-    parent.empty();
-    parent.append(child);
-    const html = parent.html();
+    const html = $.html(element);
 
     $(element).after('\n<!-- ' + html + ' -->');
 
