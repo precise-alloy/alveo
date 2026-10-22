@@ -186,6 +186,35 @@ export const copyConfiguredItems = (
   });
 };
 
+/**
+ * Returns copy items for every top-level entry in `srcBasePath` that the
+ * configured items do not already cover.
+ *
+ * Vite emits assets without a dedicated folder (e.g. `.mp4`, `.pdf`, `.wasm`)
+ * directly into `assets/`, and `public/assets/**` can add arbitrary files or
+ * folders there too. An allowlist of known folders silently dropped those, so
+ * integration "succeeded" while deployed references were broken. Copying the
+ * remainder (dirs replaced, files overwritten) mirrors the build output
+ * without hard-coding every extension the asset naming might route to root.
+ */
+export const getUnlistedCopyItems = (
+  copyItems: CopyItem[],
+  srcBasePath: string,
+  dependencies: Pick<IntegrationDependencies, 'existsSync' | 'readdirSync'>
+): CopyItem[] => {
+  if (!dependencies.existsSync(srcBasePath)) {
+    return [];
+  }
+
+  const listed = new Set(copyItems.map((item) => item.from));
+
+  return dependencies
+    .readdirSync(srcBasePath)
+    .filter((entry) => !listed.has(entry))
+    .sort()
+    .map((entry) => ({ from: entry }));
+};
+
 export const collectAssetHashes = (
   hashItems: string[],
   { staticBasePath, srcBasePath }: Pick<IntegrationConfig, 'staticBasePath' | 'srcBasePath'>,
@@ -345,6 +374,7 @@ export const runIntegrationBuild = (config: IntegrationConfig, dependencies: Int
   }
 
   copyConfiguredItems(config.copyItems, config, dependencies);
+  copyConfiguredItems(getUnlistedCopyItems(config.copyItems, config.srcBasePath, dependencies), config, dependencies);
 
   const hashes = collectAssetHashes(config.hashItems, config, dependencies);
   const sortedHashes = sortHashes(hashes);
