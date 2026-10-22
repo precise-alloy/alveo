@@ -580,6 +580,60 @@ describe('alveo/integration-core.ts', () => {
   });
 
   describe('runIntegrationBuild', () => {
+    // Destination validation covers directories, not entries inside them. A
+    // pre-existing link at a write target must be replaced, never followed.
+    it('replaces destination symlinks instead of writing through them to project files', (context) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-links-'));
+
+      try {
+        const project = path.join(root, 'project');
+        const staticBasePath = slash(path.join(project, 'dist/static'));
+        const srcBasePath = slash(path.join(staticBasePath, 'assets'));
+        const destBasePath = slash(path.join(root, 'integration/assets'));
+        const keep = path.join(project, 'keep.txt');
+
+        fs.mkdirSync(srcBasePath, { recursive: true });
+        fs.mkdirSync(destBasePath, { recursive: true });
+        fs.writeFileSync(keep, 'project data\r\n');
+        fs.writeFileSync(path.join(srcBasePath, 'video.mp4'), Buffer.from([0, 1, 2]));
+
+        try {
+          // copy target, hashes.json target, and a stale normalized text file
+          for (const name of ['video.mp4', 'hashes.json', 'stale.txt']) fs.symlinkSync(keep, path.join(destBasePath, name), 'file');
+        } catch (error) {
+          // Unprivileged Windows shells cannot create file symlinks.
+          if ((error as NodeJS.ErrnoException).code === 'EPERM') return context.skip();
+          throw error;
+        }
+
+        runIntegrationBuild(
+          { argv: [], staticBasePath, srcBasePath, destBasePath, copyItems: [], hashItems: [], checkExistFileList: [] },
+          {
+            existsSync: fs.existsSync,
+            statSync: fs.statSync,
+            rmSync: fs.rmSync,
+            mkdirSync: fs.mkdirSync,
+            cpSync: fs.cpSync,
+            copyFileSync: fs.copyFileSync,
+            readFileSync: fs.readFileSync as IntegrationDependencies['readFileSync'],
+            writeFileSync: fs.writeFileSync,
+            readdirSync: fs.readdirSync as IntegrationDependencies['readdirSync'],
+            globSync,
+            log: vi.fn(),
+            warn: (value: string) => value,
+          }
+        );
+
+        expect(fs.readFileSync(keep, 'utf8')).toBe('project data\r\n');
+        expect(fs.lstatSync(path.join(destBasePath, 'video.mp4')).isSymbolicLink()).toBe(false);
+        expect(fs.readFileSync(path.join(destBasePath, 'video.mp4')).equals(Buffer.from([0, 1, 2]))).toBe(true);
+        expect(fs.lstatSync(path.join(destBasePath, 'hashes.json')).isSymbolicLink()).toBe(false);
+        expect(fs.lstatSync(path.join(destBasePath, 'stale.txt')).isSymbolicLink()).toBe(false);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
     it('copies root-level emitted binary assets byte-for-byte with real filesystem calls', () => {
       const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-root-assets-'));
 
@@ -681,8 +735,8 @@ describe('alveo/integration-core.ts', () => {
 
       runIntegrationBuild(config, deps);
 
-      // rmSync should not be called for pattern cleanup
-      expect(deps.rmSync).not.toHaveBeenCalled();
+      // rmSync is only used to unlink hashes.json, never for pattern cleanup
+      expect(deps.rmSync).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('hashes.json'), { force: true });
     });
 
     it('calls normalizeGeneratedTextFiles on destBasePath', () => {

@@ -151,6 +151,22 @@ export const parseIntegrationArgs = (argv: string[]) => {
   };
 };
 
+/**
+ * Replaces a destination file without following links.
+ *
+ * Destination validation only covers the output directories and their
+ * ancestors; an entry *inside* them can still be a symlink to a project or
+ * system file (`video.mp4 -> <project>/keep.txt`). copyFileSync/writeFileSync
+ * follow such links and would overwrite the target. `rmSync` removes the link
+ * itself (it lstat()s), so unlinking first guarantees every integration write
+ * creates a regular file owned by the generated-output directory. A real
+ * directory at the path still fails loudly (no `recursive`), as before.
+ */
+const replaceDestinationFile = (destPath: string, write: () => void, dependencies: Pick<IntegrationDependencies, 'rmSync'>): void => {
+  dependencies.rmSync(destPath, { force: true });
+  write();
+};
+
 export const copyConfiguredItems = (
   copyItems: CopyItem[],
   { srcBasePath, destBasePath }: Pick<IntegrationConfig, 'srcBasePath' | 'destBasePath'>,
@@ -181,7 +197,7 @@ export const copyConfiguredItems = (
         dependencies.mkdirSync(destDirPath, { recursive: true });
       }
 
-      dependencies.copyFileSync(srcPath, destPath);
+      replaceDestinationFile(destPath, () => dependencies.copyFileSync(srcPath, destPath), dependencies);
     }
   });
 };
@@ -282,7 +298,7 @@ export const normalizePatternHtml = (text: string): string => {
 
 export const normalizeGeneratedTextFiles = (
   targetPath: string,
-  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync'>
+  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync' | 'rmSync'>
 ): void => {
   dependencies.globSync(slash(path.join(targetPath, '**/*')), { nodir: true }).forEach((file) => {
     const fileContent = dependencies.readFileSync(file);
@@ -290,7 +306,7 @@ export const normalizeGeneratedTextFiles = (
     const newText = normalizeTextLikeContent(file, fileContent);
 
     if (typeof newText === 'string' && text !== newText) {
-      dependencies.writeFileSync(file, newText);
+      replaceDestinationFile(file, () => dependencies.writeFileSync(file, newText), dependencies);
     }
   });
 };
@@ -379,7 +395,9 @@ export const runIntegrationBuild = (config: IntegrationConfig, dependencies: Int
   const hashes = collectAssetHashes(config.hashItems, config, dependencies);
   const sortedHashes = sortHashes(hashes);
 
-  dependencies.writeFileSync(path.join(config.destBasePath, 'hashes.json'), JSON.stringify(sortedHashes, null, '  '));
+  const hashesPath = path.join(config.destBasePath, 'hashes.json');
+
+  replaceDestinationFile(hashesPath, () => dependencies.writeFileSync(hashesPath, JSON.stringify(sortedHashes, null, '  ')), dependencies);
   normalizeGeneratedTextFiles(config.destBasePath, dependencies);
 
   if (config.patternPath) {
