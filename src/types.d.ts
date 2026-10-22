@@ -20,25 +20,18 @@ declare module 'virtual:alveo/client-components' {
   export const clientComponents: import('./client-components.ts').ClientComponents;
 }
 
+// Opt-in globals must merge cleanly with starter/consumer declarations under
+// skipLibCheck: false. Projects own `BasedAtomicModel` (the starter declares
+// it as a type alias, which cannot merge with an interface), so the helper
+// takes a structural inline type instead of declaring that global name here.
 declare const viteAbsoluteUrl: (path: string, addExtension?: boolean) => string;
-declare const getModifiers: (model: BasedAtomicModel, baseClass: string) => string;
-
-interface BasedAtomicModel {
-  globalModifier?: string[];
-  styleModifier?: string[];
-  theme?: string;
-}
+declare const getModifiers: (model: { globalModifier?: string[]; styleModifier?: string[]; theme?: string }, baseClass: string) => string;
 
 interface Window {
   renderComponents: () => Promise<void>;
   getCookie: (name: string) => string | undefined;
 }
 
-interface ImportMetaEnv {
-  readonly VITE_BASE_URL: string;
-  readonly VITE_PATH_EXTENSION: string;
-  readonly VITE_TITLE_SUFFIX: string;
-  readonly VITE_DOMAIN?: string;
-  readonly VITE_PORT?: string;
-  readonly VITE_TEST_BUILD?: string;
-}
+// ImportMetaEnv is intentionally not augmented: vite/client already types
+// every key, and merged interface properties must match exactly, so any
+// project declaring e.g. `VITE_PORT: number` would fail to compile.

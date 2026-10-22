@@ -1,3 +1,5 @@
+import type { ModifierModel } from './functions.ts';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const importFunctionsModule = async (env: Record<string, string> = {}) => {
@@ -29,7 +31,7 @@ describe('alveo/scripts/functions.ts', () => {
           globalModifier: ['section-margin-top'],
           styleModifier: ['compact'],
           theme: 'dark',
-        } as BasedAtomicModel,
+        } as ModifierModel,
         'zzz-o-card'
       )
     ).toBe('zzz-o-card section-margin-top zzz-o-card--compact theme-dark');
@@ -38,7 +40,7 @@ describe('alveo/scripts/functions.ts', () => {
   it('returns only the base class when no modifiers or theme are provided', async () => {
     await importFunctionsModule();
 
-    expect(getModifiers({} as BasedAtomicModel, 'zzz-o-card')).toBe('zzz-o-card');
+    expect(getModifiers({} as ModifierModel, 'zzz-o-card')).toBe('zzz-o-card');
   });
 
   it('normalizes relative paths and preserves absolute URLs', async () => {

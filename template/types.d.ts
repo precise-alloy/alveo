@@ -36,11 +36,3 @@ interface Element {
 interface HTMLElement {
   onOutsideClick: (handler: (e: MouseEvent | TouchEvent) => void, otherDependenceElement?: HTMLElement[]) => void;
 }
-
-enum Method {
-  GET = 'GET',
-  PATCH = 'PATCH',
-  POST = 'POST',
-  PUT = 'PUT',
-  DELETE = 'DELETE',
-}

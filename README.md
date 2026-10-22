@@ -133,7 +133,7 @@ Mocking remains automatic in **all non-production modes**, including custom mode
 
 Package internals are not exposed through an `@alveo/*` alias. Use the documented `alveo`, `alveo/helpers`, and type-only `alveo/types` entry points.
 
-`alveo/types` supplies virtual-module and global-helper declarations. The public package also exports `ClientComponents`, `RootModel`, `RootItemModel`, `SinglePageNode`, and `MultiplePageNode`. Strict declaration checking is tested with TypeScript 6 in Bundler, Node16, and NodeNext resolution modes.
+`alveo/types` supplies virtual-module and global-helper declarations. The public package also exports `ClientComponents`, `RootModel`, `RootItemModel`, `SinglePageNode`, and `MultiplePageNode`. Strict declaration checking is tested with TypeScript 6 in Bundler, Node16, and NodeNext resolution modes. It deliberately does not declare `BasedAtomicModel` or augment `ImportMetaEnv`: projects own those names (the starter declares both), and conflicting global declarations fail under `skipLibCheck: false`. Declare your own `BasedAtomicModel` and `VITE_*` variables if you relied on the previous package-provided versions; `getModifiers` accepts any structurally compatible model.
 
 ## Client Components
 

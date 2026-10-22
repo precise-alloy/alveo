@@ -303,9 +303,24 @@ describe('package distribution', () => {
           'const virtual: typeof VirtualComponents = clientComponents;',
           'const model: RootModel = { routes: [] };',
           'viteAbsoluteUrl("/page"); getModifiers({}, "block");',
+          // A project-owned BasedAtomicModel must stay assignable to the helper.
+          'const atom: BasedAtomicModel = { styleModifier: ["wide"] }; getModifiers(atom, "block");',
+          'const port: number = import.meta.env.VITE_PORT;',
           'export const section = <ReactSection type="root" data={model} />;',
         ].join('\n')
       );
+      // The starter's own ambient declarations must merge with the opt-in
+      // package types under skipLibCheck: false (e.g. its `BasedAtomicModel`
+      // type alias and `VITE_PORT: number`). The vite/client reference is
+      // dropped because alveo/types supplies it through the package's deps.
+      const starterDeclarations = ['types.d.ts', 'src/_types/_general.d.ts', 'src/vite-env.d.ts'];
+
+      for (const file of starterDeclarations) {
+        const source = await readFile(join(PACKAGE_ROOT, 'template', file), 'utf8');
+
+        await mkdir(dirname(join(consumerRoot, 'starter', file)), { recursive: true });
+        await writeFile(join(consumerRoot, 'starter', file), source.replace('/// <reference types="vite/client" />', ''));
+      }
       for (const [module, moduleResolution] of [
         ['ESNext', 'Bundler'],
         ['Node16', 'Node16'],
@@ -333,6 +348,7 @@ describe('package distribution', () => {
             '--types',
             'alveo/types,node',
             consumerEntry,
+            ...starterDeclarations.map((file) => join(consumerRoot, 'starter', file)),
           ],
           { cwd: consumerRoot }
         );

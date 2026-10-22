@@ -1,5 +1,13 @@
+// Module-local on purpose: a global `BasedAtomicModel` in the packaged types
+// would conflict with the starter's own type alias of the same name.
+export type ModifierModel = {
+  globalModifier?: string[];
+  styleModifier?: string[];
+  theme?: string;
+};
+
 type RuntimeGlobal = typeof globalThis & {
-  getModifiers?: (model: BasedAtomicModel, baseClass: string) => string;
+  getModifiers?: (model: ModifierModel, baseClass: string) => string;
   viteAbsoluteUrl?: (path: string, addExtension?: boolean) => string;
   getCookie?: (name: string) => string | undefined;
 };
@@ -9,7 +17,7 @@ const runtimeGlobal = globalThis as RuntimeGlobal;
 // guards in consumer components and third-party libraries.
 const runtimeWindow = typeof window !== 'undefined' ? window : runtimeGlobal;
 
-runtimeGlobal.getModifiers = (model: BasedAtomicModel, baseClass: string) => {
+runtimeGlobal.getModifiers = (model: ModifierModel, baseClass: string) => {
   const classes = [baseClass];
 
   model.globalModifier?.forEach((m) => classes.push(m));
