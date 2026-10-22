@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { access, cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { Script } from 'node:vm';
 
@@ -93,7 +93,9 @@ describe('package distribution', () => {
   });
 
   it('installs a clean tarball with working production dependencies, CLI, and consumer types', async () => {
-    const temporaryRoot = await mkdtemp(join(tmpdir(), 'alveo-package-'));
+    // Expand Windows 8.3 short names (RUNNER~1): Bun cannot extract a tarball
+    // from a file URL whose path percent-encodes `~` (`RUNNER%7E1`).
+    const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), 'alveo-package-')));
     const buildRoot = join(temporaryRoot, 'build');
     const consumerRoot = join(temporaryRoot, 'consumer');
     const consumerModules = join(consumerRoot, 'node_modules');
@@ -143,7 +145,6 @@ describe('package distribution', () => {
       );
       const packResult = JSON.parse(packed);
       const archive = Array.isArray(packResult) ? packResult[0] : packResult[packageManifest.name];
-      const archivePath = join(temporaryRoot, archive.filename);
 
       expect(archive.files.map((file: { path: string }) => file.path)).toEqual(
         expect.arrayContaining(['template/_gitignore', 'dist/types.d.ts', 'dist/assets/root.svg', 'dist/assets/pl-states.svg'])
@@ -156,7 +157,8 @@ describe('package distribution', () => {
         private: true,
         type: 'module',
         dependencies: {
-          alveo: pathToFileURL(archivePath).href,
+          // A relative file: spec avoids platform-specific file URL encoding.
+          alveo: 'file:../' + archive.filename,
           react: packageManifest.peerDependencies.react,
           'react-dom': packageManifest.peerDependencies['react-dom'],
           'react-router-dom': packageManifest.peerDependencies['react-router-dom'],
@@ -346,7 +348,9 @@ describe('package distribution', () => {
         'index.html':
           '<html><head><title>Probe</title><link rel="stylesheet" href="#__BASE_URL__/assets/css/style-base.css"></head><body><!--app-html--><script type="module" src="/alveo/react-loader"></script><script type="module" src="#__BASE_URL__/assets/js/mock-api.js"></script></body></html>',
         'src/client-components.tsx': 'export const clientComponents = {};',
-        'src/pages/Home.tsx': `import { createElement } from 'react'; export default function Home() { return createElement("p", null, ${JSON.stringify('Price $& $$')}); }`,
+        // `$&`/`$$` are String.replace patterns: prerender must insert them literally.
+        'src/pages/Home.tsx':
+          'import { createElement } from \'react\'; export default function Home() { return createElement("p", null, "Price $& $$"); }',
         'src/assets/scripts/main.entry.ts': 'globalThis.mainReady = true;\n',
         'src/assets/styles/00-abstracts/_abstracts.scss': '',
         'src/assets/styles/01-functions/_functions.scss': '',

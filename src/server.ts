@@ -16,7 +16,9 @@ export async function initServer(projectRoot: string, { mode = 'development', po
       isTest,
       port,
       hmrPort: port < 65535 ? port + 1 : undefined,
-      baseUrl: env.VITE_BASE_URL,
+      // Do not pass VITE_BASE_URL as an inline base: inline config outranks
+      // vite.config, so it would silently override defineAlveoConfig({ base }).
+      // The alveo-context plugin applies the env base only as a default.
     });
   }
 }

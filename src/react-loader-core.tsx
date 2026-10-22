@@ -51,10 +51,28 @@ export function createComponentRenderer(components: ClientComponents, dependenci
       // do not resurrect content removed while the parser was loading.
       if (!script.isConnected) return;
       const section = createComponentContainer(script);
-
-      root = dependencies.createRoot(section, {
-        onUncaughtError: (error) => dependencies.reportError(name, error),
+      let recovered = false;
+      const mountedRoot = dependencies.createRoot(section, {
+        onUncaughtError: (error) => {
+          dependencies.reportError(name, error);
+          // Concurrent rendering (and rejected lazy imports) fail after this
+          // function has already swapped the payload for the container, so the
+          // synchronous catch below cannot see them. Restore the original
+          // payload script (its textContent is never cleared) so the page is
+          // not left with an empty container and a later renderComponents()
+          // call can retry. Defer the unmount: React invokes this callback
+          // during its commit, where synchronous root.unmount() is unsupported.
+          if (recovered) return;
+          recovered = true;
+          queueMicrotask(() => {
+            mountedRoot.unmount();
+            // Respect content removed by the page meanwhile; do not resurrect it.
+            if (section.isConnected) section.replaceWith(script);
+          });
+        },
       });
+
+      root = mountedRoot;
       root.render(createElement(Component, props));
       script.replaceWith(section);
     } catch (error) {

@@ -59,13 +59,22 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
   const defaultPlugins: PluginOption[] = [
     {
       name: 'alveo-context',
-      config(_config, configEnv) {
+      config(inputConfig, configEnv) {
         // Library configuration is evaluated before Vite resolves its mode.
         // Use the actual invocation, not import-time argv or NODE_ENV guesses.
         context.mode = userOptions?.mode ?? configEnv.mode;
         context.env = loadEnv(context.mode, paths.root);
 
-        return { base: userOptions?.base ?? context.env.VITE_BASE_URL ?? '/' };
+        // Precedence: inline Vite config/CLI `--base` (already merged into
+        // `inputConfig` by Vite) > defineAlveoConfig({ base }) > mode env > '/'.
+        // The returned UserConfig deliberately omits `base` when the consumer
+        // did not pass one, so a defined `inputConfig.base` here is always explicit
+        // and must not be replaced by the import-time or mode environment.
+        if (inputConfig.base !== undefined) {
+          return;
+        }
+
+        return { base: context.env.VITE_BASE_URL ?? '/' };
       },
     },
     react(),
@@ -80,7 +89,10 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
   const consumerPlugins = userOptions?.plugins ?? [];
 
   const config: UserConfig = {
-    base: baseUrl,
+    // Only an explicit consumer base is part of the static config. The env
+    // default is resolved in `alveo-context` for the actual Vite mode so it can
+    // never masquerade as an explicit base and override CLI/inline values.
+    ...(userOptions?.base === undefined ? {} : { base: userOptions.base }),
     plugins: [...defaultPlugins, ...consumerPlugins],
     assetsInclude: ['**/*.svg', '**/*.htm', '**/*.cshtml'],
     server: {

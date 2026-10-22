@@ -15,6 +15,7 @@ import {
   createScssImporterResult,
   getStyleCompileConcurrency,
   getRelativeSourceMapPath,
+  findUnevaluatedSassFunctions,
   getStyleWatchOptions,
   getStylesOutputFileName,
   isStyleWatchIgnored,
@@ -59,7 +60,23 @@ describe('alveo/styles-core.ts', () => {
     transform.mockReturnValueOnce({ code: Buffer.from(''), warnings: [] });
     expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('did not produce');
     transform.mockReturnValueOnce({ code: Buffer.from('a{width:px2rem(2px)}'), map: Buffer.from('{}'), warnings: [] });
-    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('Unevaluated Sass');
+    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('Unevaluated Sass functions in a.scss: px2rem(');
+  });
+  it('flags only real leaked Sass function tokens, not strings, urls, comments, or longer identifiers', () => {
+    expect(findUnevaluatedSassFunctions('a{width:px2rem(2px);margin:rtl(1px) div(4,2) px2rem(1px)}')).toEqual(['px2rem(', 'rtl(', 'div(']);
+    expect(findUnevaluatedSassFunctions('a{padding:PX2EM(1px)}b{x:str-replace(a)}')).toEqual(['str-replace(']);
+    expect(
+      findUnevaluatedSassFunctions(
+        'a:before{content:"rtl(";quotes:\'div(\' "px2rem(\\"x"}' +
+          '/* px2rem(1px) */b{background:url(img/rtl(1).png),URL( px2em(2).svg ),url("div(3).png")}' +
+          'c{grid-area:my-div(1);transform:foo-rtl(2)}d{x:url}'
+      )
+    ).toEqual([]);
+    // Unterminated tokens cannot hide calls after them; they simply end the scan.
+    expect(findUnevaluatedSassFunctions('a{x:"rtl(')).toEqual([]);
+    expect(findUnevaluatedSassFunctions('/* div(')).toEqual([]);
+    expect(findUnevaluatedSassFunctions('a{b:url(rtl(')).toEqual([]);
+    expect(findUnevaluatedSassFunctions('url(rtl(1).png) div(1)')).toEqual(['div(']);
   });
   it('parses style compile concurrency from the environment with a conservative fallback', () => {
     expect(getStyleCompileConcurrency(undefined)).toBe(5);

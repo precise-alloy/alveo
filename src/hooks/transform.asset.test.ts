@@ -11,7 +11,9 @@ import transform from './transform.ts';
 
 describe('Vite-managed asset URL modules', () => {
   it('does not mistake packaged /dist/assets URLs for missing public assets', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'alveo-asset-url-'));
+    // realpath expands Windows 8.3 short names (RUNNER~1). Vite's fs.allow
+    // compares long, real paths, so a short root would deny its own files.
+    const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'alveo-asset-url-')));
     let server: ViteDevServer | undefined;
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 

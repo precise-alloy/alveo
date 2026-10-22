@@ -77,6 +77,8 @@ describe('development-only server', () => {
     vi.mocked(loadEnv).mockReturnValue({ VITE_PORT: '5005', VITE_BASE_URL: '/env/' });
     await initServer('/project', { mode: 'eshn' });
     expect(app.listen).toHaveBeenLastCalledWith(5005, expect.any(Function));
+    // The env base is a config default, never an inline override of vite.config.
+    expect(createViteDevServer).toHaveBeenLastCalledWith(expect.objectContaining({ baseUrl: undefined }));
     await initServer('/project', { port: '65535' });
     expect(createViteDevServer).toHaveBeenLastCalledWith(expect.objectContaining({ hmrPort: undefined }));
     expect(process.argv).toEqual(argv);

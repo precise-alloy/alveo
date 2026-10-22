@@ -50,6 +50,14 @@ export const getAssetFileName = (chunkInfo: PreRenderedAsset): string => {
   return `${directory}/${toLowerDashed(name)}.0x[hash]${ext}`;
 };
 
+/**
+ * Glob ignore patterns shared by every script-entry discovery path (Vite
+ * `alveo-options` inputs and the standalone esbuild script build). Keeping one
+ * list prevents test/spec entries or __tests__/__mocks__ fixtures from being
+ * shipped by one pipeline while the other excludes them.
+ */
+export const SCRIPT_ENTRY_IGNORE_PATTERNS: readonly string[] = ['**/*.{test,spec}.entry.*', '**/{__tests__,__mocks__}/**'];
+
 export const getScriptEntryName = (file: string): string =>
   toLowerDashed(path.posix.basename(file.replaceAll('\\', '/')).replace(/\.entry\.[jt]sx?$/i, ''));
 

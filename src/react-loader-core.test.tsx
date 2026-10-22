@@ -47,6 +47,58 @@ describe('isolated component mounting', () => {
     expect(dependencies.reportError).toHaveBeenCalledWith('card', error);
   });
 
+  it('restores the payload once after an asynchronous failure, but not into a removed container', async () => {
+    const { mount, unmount, dependencies } = fixture();
+    const script = payload('{"title":"hello"}');
+
+    await mount(script);
+    const onUncaughtError = dependencies.createRoot.mock.calls[0]![1].onUncaughtError;
+
+    onUncaughtError(new Error('first'));
+    onUncaughtError(new Error('second'));
+    await Promise.resolve();
+    expect(unmount).toHaveBeenCalledOnce();
+    expect(document.body.firstElementChild).toBe(script);
+    expect(script.textContent).toBe('{"title":"hello"}');
+    expect(dependencies.reportError).toHaveBeenCalledTimes(2);
+
+    const removed = payload();
+
+    await mount(removed);
+    document.body.querySelector('section')!.remove();
+    dependencies.createRoot.mock.calls[1]![1].onUncaughtError(new Error('late'));
+    await Promise.resolve();
+    expect(unmount).toHaveBeenCalledTimes(2);
+    expect(removed.isConnected).toBe(false);
+  });
+
+  // Real react-dom, not a mocked root: proves render-time and rejected lazy
+  // import failures after the payload swap leave a recoverable payload script.
+  it.each([
+    [
+      'a throwing render',
+      () => {
+        throw new Error('render failed');
+      },
+    ],
+    ['a rejected lazy import', lazy(() => Promise.reject(new Error('chunk failed')))],
+  ])('restores the original payload after %s with real React', async (_label, Broken) => {
+    const reportError = vi.fn();
+    const mount = createComponentRenderer({ broken: Broken as never }, { ...defaultReactLoaderDependencies, reportError });
+    const script = document.createElement('script');
+
+    script.setAttribute('data-rct', 'broken');
+    script.type = 'application/json';
+    script.textContent = '{"title":"keep"}';
+    document.body.append(script);
+    await mount(script);
+
+    await vi.waitFor(() => expect(script.isConnected).toBe(true));
+    expect(document.body.children).toHaveLength(1);
+    expect(script.textContent).toBe('{"title":"keep"}');
+    expect(reportError).toHaveBeenCalledWith('broken', expect.objectContaining({ message: expect.stringMatching(/failed/) }));
+  });
+
   it('supports empty payloads, absent type/tag, and null props', async () => {
     const { mount, render } = fixture();
     const script = payload('');

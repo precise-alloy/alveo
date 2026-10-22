@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import { glob } from 'glob';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { SCRIPT_ENTRY_IGNORE_PATTERNS } from '../filename.ts';
+
 import options, { isMockApiEnabled } from './options.ts';
 import transformIndexHtml from './transform-index-html.ts';
 
@@ -43,7 +45,7 @@ describe('optional mocks and Vite entry discovery', () => {
 
     hook.options(input);
     expect(input.input).toEqual({ index: '/project/index.html', 'my-entry': '/project/src/assets/scripts/MyEntry.entry.ts' });
-    expect(glob.sync).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining('/src/scripts/')]));
+    expect(glob.sync).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining('/src/scripts/')]), expect.any(Object));
     const ssr = { input: '/package/dist/entry-server.js' };
 
     expect(hook.options(ssr)).toBe(ssr);
@@ -56,7 +58,7 @@ describe('optional mocks and Vite entry discovery', () => {
 
     plugin().options(input);
     expect(input.input).toEqual({});
-    expect(glob.sync).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining('/dist/scripts/')]));
+    expect(glob.sync).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining('/dist/scripts/')]), expect.any(Object));
   });
   it('includes custom-mode mocks when configured and rejects duplicate entry names', () => {
     vi.mocked(glob.sync).mockImplementation((pattern) =>
@@ -68,6 +70,22 @@ describe('optional mocks and Vite entry discovery', () => {
     expect(input.input).toHaveProperty('mock-api');
     vi.mocked(glob.sync).mockReturnValue(['/a/main.entry.ts', '/b/main.entry.ts']);
     expect(() => plugin().options({})).toThrow('Duplicate script entry');
+  });
+  it('treats Object.prototype names as ordinary entries, not duplicates', () => {
+    vi.mocked(glob.sync).mockReturnValue(['/project/src/assets/scripts/constructor.entry.ts']);
+    const input: { input?: Record<string, string> } = {};
+
+    plugin().options(input);
+    expect(Object.hasOwn(input.input!, 'constructor')).toBe(true);
+    expect(input.input!['constructor']).toBe('/project/src/assets/scripts/constructor.entry.ts');
+    // A real second `constructor` entry is still a duplicate.
+    vi.mocked(glob.sync).mockReturnValue(['/a/constructor.entry.ts', '/b/constructor.entry.ts']);
+    expect(() => plugin().options({})).toThrow('Duplicate script entry "constructor"');
+  });
+  it('applies the shared test/fixture exclusions to Vite entry discovery', () => {
+    vi.mocked(glob.sync).mockReturnValue([]);
+    plugin().options({});
+    expect(glob.sync).toHaveBeenLastCalledWith(expect.any(Array), { ignore: [...SCRIPT_ENTRY_IGNORE_PATTERNS] });
   });
   it('normalizes configured and resolved bases and removes only disabled framework mock tags', () => {
     const hook = htmlPlugin('/subpath');

@@ -7,7 +7,7 @@ import { globSync } from 'glob';
 import { build, type BuildOptions } from 'esbuild';
 import slash from 'slash';
 
-import { getScriptEntryName } from './filename.ts';
+import { getScriptEntryName, SCRIPT_ENTRY_IGNORE_PATTERNS } from './filename.ts';
 import { normalizeTextLikeContent } from './text-normalization.ts';
 
 export interface ScriptCoreDependencies {
@@ -95,7 +95,7 @@ export async function compileDiscoveredScripts(
   try {
     const inputs = dependencies
       .globSync(slash(path.resolve(projectRoot, 'src/assets/scripts/**/*.entry.{js,jsx,ts,tsx}')), {
-        ignore: ['**/*.{test,spec}.entry.*', '**/{__tests__,__mocks__}/**'],
+        ignore: [...SCRIPT_ENTRY_IGNORE_PATTERNS],
       })
       .sort();
     const outputs = new Set<string>();

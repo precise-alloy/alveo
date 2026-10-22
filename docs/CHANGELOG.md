@@ -21,5 +21,6 @@ Summary: <what was built>
 - Fixed Sass module ownership and sourcemaps, deferred minification to LightningCSS, applied consumer browser targets to framework CSS, eliminated one-shot sleeps and duplicate watch startup work, and bundled script entries with usable maps.
 - Isolated component payload failures, escaped embedded JSON/state markup, deferred YAML and icon loading, removed browser Cheerio/lodash dependencies, repaired catalog fallback, and stabilized settings refs and print-safe timers.
 - Expanded critical-module coverage and installed-package regression tests, including strict TypeScript modes, actual generated HTML, client bundle graph checks, and LF/CRLF integration byte comparisons. Cross-platform package tests now gate publishing.
+- PR review follow-up: explicit inline/CLI bases now outrank `defineAlveoConfig({ base })` and `VITE_BASE_URL`; Vite entry discovery shares the script build's test/fixture exclusions and own-property duplicate checks; asynchronous React mount failures restore the original payload; the Sass-leak check ignores strings, URLs, comments and longer identifiers; and state watching keys paths consistently across Windows/POSIX.
 
 See the README migration notes before upgrading consumers with copied helpers, old standalone script filenames, production server usage, or cached hash values.

@@ -88,6 +88,8 @@ VITE_INTE_PATTERN_DIR=../MyProject.Patterns
 
 Integration destinations must be outside the project and must not overlap each other or the project, including through symlinks. They must be exclusively owned generated-output directories: integration replaces their generated contents. Both `generate` and `inte` run state aggregation and stylesheet compilation first and stop on a failed stage or SSR render.
 
+Base URL precedence: an explicit inline/CLI base (`vite --base`, `createServer({ base })`) wins over `defineAlveoConfig({ base })`, which wins over `VITE_BASE_URL` for the active mode; `/` is the final fallback.
+
 Mocking remains automatic in **all non-production modes**, including custom modes, when `src/mocks/handlers` exists. Without handlers the mock entry and its starter HTML tag are omitted. Production never includes the mock entry.
 
 ### tsconfig.json

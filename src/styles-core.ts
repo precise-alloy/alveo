@@ -27,6 +27,50 @@ export function createStyleBundleSource(entry: string, components: string[]): { 
   };
 }
 
+const SASS_FUNCTION_CALL = /(?<![\w-])(?:px2rem|px2em|rtl|str-replace|div)\(/g;
+const UNQUOTED_URL = /url\(\s*[^\s"')]/iy;
+
+/**
+ * Returns unique project Sass function calls that leaked into compiled CSS.
+ *
+ * Only real function tokens count: comments, quoted strings (e.g.
+ * `content: "rtl("`) and unquoted `url(...)` bodies are blanked first, and a
+ * name must not be the tail of a longer identifier (`foo-div(`). A full CSS
+ * tokenizer is unnecessary because the input is lightningcss output, which is
+ * already valid, normalized CSS; this scanner only has to respect the token
+ * kinds that may legally contain arbitrary text.
+ */
+export function findUnevaluatedSassFunctions(css: string): string[] {
+  let code = '';
+
+  for (let index = 0; index < css.length;) {
+    const char = css[index]!;
+
+    if (char === '/' && css[index + 1] === '*') {
+      const end = css.indexOf('*/', index + 2);
+
+      index = end === -1 ? css.length : end + 2;
+      code += ' ';
+    } else if (char === '"' || char === "'") {
+      index++;
+      while (index < css.length && css[index] !== char) index += css[index] === '\\' ? 2 : 1;
+      index++;
+      code += ' ';
+    } else if (((UNQUOTED_URL.lastIndex = index), UNQUOTED_URL.test(css)) && !/[\w-]/.test(css[index - 1] ?? '')) {
+      // Unquoted url() bodies are raw text; quoted ones are handled as strings.
+      const end = css.indexOf(')', index);
+
+      index = end === -1 ? css.length : end + 1;
+      code += ' ';
+    } else {
+      code += char;
+      index++;
+    }
+  }
+
+  return [...new Set(code.match(SASS_FUNCTION_CALL) ?? [])];
+}
+
 export function transformStyleCss(
   css: string,
   sourceMap: RawSourceMap,
@@ -48,9 +92,9 @@ export function transformStyleCss(
   if (!result.map) throw new Error(`LightningCSS did not produce a source map for ${filename}`);
 
   const output = normalizeTextLineEndings(Buffer.from(result.code).toString('utf8'));
-  const leaks = output.match(/\b(?:px2rem|px2em|rtl|str-replace|div)\(/g);
+  const leaks = findUnevaluatedSassFunctions(output);
 
-  if (leaks) throw new Error(`Unevaluated Sass functions in ${filename}: ${[...new Set(leaks)].join(', ')}`);
+  if (leaks.length > 0) throw new Error(`Unevaluated Sass functions in ${filename}: ${leaks.join(', ')}`);
 
   return { css: output, map: normalizeTextLikeContent(filename + '.map', Buffer.from(result.map)).toString() };
 }
