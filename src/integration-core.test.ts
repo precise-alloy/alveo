@@ -140,6 +140,15 @@ describe('alveo/integration-core.ts', () => {
     ...overrides,
   });
 
+  const filesystemDependencies: IntegrationDependencies = {
+    ...fs,
+    readFileSync: (file, encoding) => (encoding ? fs.readFileSync(file, encoding) : fs.readFileSync(file)),
+    readdirSync: (folder) => fs.readdirSync(folder),
+    globSync,
+    log: vi.fn(),
+    warn: (value) => value,
+  };
+
   describe('parseIntegrationArgs', () => {
     it('parses --mode from argv', () => {
       const result = parseIntegrationArgs(['node', 'script', '--mode', 'development']);
@@ -373,6 +382,7 @@ describe('alveo/integration-core.ts', () => {
 
       normalizeGeneratedTextFiles('/dest', deps);
 
+      expect(globSync).toHaveBeenCalledWith(slash(path.join('/dest', '**/*')), { nodir: true, dot: true });
       expect(writeFileSync).toHaveBeenCalledWith('/dest/file.css', 'line1\nline2\n');
     });
 
@@ -608,27 +618,14 @@ describe('alveo/integration-core.ts', () => {
 
         runIntegrationBuild(
           { argv: [], staticBasePath, srcBasePath, destBasePath, copyItems: [], hashItems: [], checkExistFileList: [] },
-          {
-            existsSync: fs.existsSync,
-            statSync: fs.statSync,
-            rmSync: fs.rmSync,
-            mkdirSync: fs.mkdirSync,
-            cpSync: fs.cpSync,
-            copyFileSync: fs.copyFileSync,
-            readFileSync: fs.readFileSync as IntegrationDependencies['readFileSync'],
-            writeFileSync: fs.writeFileSync,
-            readdirSync: fs.readdirSync as IntegrationDependencies['readdirSync'],
-            globSync,
-            log: vi.fn(),
-            warn: (value: string) => value,
-          }
+          filesystemDependencies
         );
 
         expect(fs.readFileSync(keep, 'utf8')).toBe('project data\r\n');
         expect(fs.lstatSync(path.join(destBasePath, 'video.mp4')).isSymbolicLink()).toBe(false);
         expect(fs.readFileSync(path.join(destBasePath, 'video.mp4')).equals(Buffer.from([0, 1, 2]))).toBe(true);
         expect(fs.lstatSync(path.join(destBasePath, 'hashes.json')).isSymbolicLink()).toBe(false);
-        expect(fs.lstatSync(path.join(destBasePath, 'stale.txt')).isSymbolicLink()).toBe(false);
+        expect(fs.existsSync(path.join(destBasePath, 'stale.txt'))).toBe(false);
       } finally {
         fs.rmSync(root, { recursive: true, force: true });
       }
@@ -652,26 +649,103 @@ describe('alveo/integration-core.ts', () => {
 
         const result = runIntegrationBuild(
           { argv: [], staticBasePath, srcBasePath, destBasePath, copyItems: [{ from: 'css' }], hashItems: [], checkExistFileList: [] },
-          {
-            existsSync: fs.existsSync,
-            statSync: fs.statSync,
-            rmSync: fs.rmSync,
-            mkdirSync: fs.mkdirSync,
-            cpSync: fs.cpSync,
-            copyFileSync: fs.copyFileSync,
-            readFileSync: fs.readFileSync as IntegrationDependencies['readFileSync'],
-            writeFileSync: fs.writeFileSync,
-            readdirSync: fs.readdirSync as IntegrationDependencies['readdirSync'],
-            globSync,
-            log: vi.fn(),
-            warn: (value: string) => value,
-          }
+          filesystemDependencies
         );
 
         expect(result.isValid).toBe(true);
         expect(fs.readFileSync(path.join(destBasePath, 'css/site.css'), 'utf8')).toBe('a{}');
         expect(fs.readFileSync(path.join(destBasePath, 'video.0xabc12345.mp4')).equals(video)).toBe(true);
         expect(fs.readFileSync(path.join(destBasePath, 'docs/guide.pdf')).equals(video)).toBe(true);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('mirrors consecutive builds, removing obsolete root files, folders and hidden entries', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-mirror-'));
+
+      try {
+        const staticBasePath = slash(path.join(root, 'project/dist/static'));
+        const srcBasePath = slash(path.join(staticBasePath, 'assets'));
+        const destBasePath = slash(path.join(root, 'output'));
+        const video = Buffer.from([0, 0x0d, 0x0a, 0xff]);
+        const config: IntegrationConfig = {
+          argv: [],
+          staticBasePath,
+          srcBasePath,
+          destBasePath,
+          copyItems: [{ from: 'css' }],
+          hashItems: ['css'],
+          checkExistFileList: [{ fileName: 'hashes.json' }],
+        };
+
+        fs.mkdirSync(path.join(srcBasePath, 'css'), { recursive: true });
+        fs.mkdirSync(path.join(srcBasePath, 'docs'), { recursive: true });
+        fs.writeFileSync(path.join(srcBasePath, 'css/site.css'), 'a{}\r\n');
+        fs.writeFileSync(path.join(srcBasePath, 'movie.0xaaaaaaaa.mp4'), video);
+        fs.writeFileSync(path.join(srcBasePath, 'docs/guide.pdf'), video);
+        fs.writeFileSync(path.join(srcBasePath, '.previous'), 'old');
+        expect(runIntegrationBuild(config, filesystemDependencies).isValid).toBe(true);
+        const originalDirectory = fs.statSync(destBasePath).ino;
+
+        fs.unlinkSync(path.join(srcBasePath, 'movie.0xaaaaaaaa.mp4'));
+        fs.rmSync(path.join(srcBasePath, 'docs'), { recursive: true });
+        fs.unlinkSync(path.join(srcBasePath, '.previous'));
+        fs.writeFileSync(path.join(srcBasePath, 'movie.0xbbbbbbbb.mp4'), video);
+        fs.writeFileSync(path.join(srcBasePath, '.current'), 'current\r\n');
+        fs.writeFileSync(path.join(destBasePath, '.gitkeep'), '');
+        fs.writeFileSync(path.join(destBasePath, 'unmanaged.txt'), 'not preserved');
+        expect(runIntegrationBuild(config, filesystemDependencies).isValid).toBe(true);
+
+        expect(fs.readdirSync(destBasePath).sort()).toEqual(['.current', 'css', 'hashes.json', 'movie.0xbbbbbbbb.mp4']);
+        expect(fs.readFileSync(path.join(destBasePath, 'movie.0xbbbbbbbb.mp4'))).toEqual(video);
+        expect(fs.readFileSync(path.join(destBasePath, 'css/site.css'), 'utf8')).toBe('a{}\n');
+        expect(fs.readFileSync(path.join(destBasePath, '.current'), 'utf8')).toBe('current\n');
+        expect(Object.keys(JSON.parse(fs.readFileSync(path.join(destBasePath, 'hashes.json'), 'utf8')))).toEqual(['/assets/css/site.css']);
+        expect(fs.statSync(destBasePath).ino).toBe(originalDirectory);
+
+        fs.rmSync(path.join(srcBasePath, 'css'), { recursive: true });
+        fs.unlinkSync(path.join(srcBasePath, 'movie.0xbbbbbbbb.mp4'));
+        fs.unlinkSync(path.join(srcBasePath, '.current'));
+        expect(runIntegrationBuild(config, filesystemDependencies).isValid).toBe(true);
+        expect(fs.readdirSync(destBasePath)).toEqual(['hashes.json']);
+        expect(fs.readFileSync(path.join(destBasePath, 'hashes.json'), 'utf8')).toBe('{}');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('preserves a validated destination-root symlink while removing child links without following them', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-mirror-links-'));
+
+      try {
+        const project = path.join(root, 'project');
+        const staticBasePath = slash(path.join(project, 'dist/static'));
+        const srcBasePath = slash(path.join(staticBasePath, 'assets'));
+        const actualDestination = path.join(root, 'actual-output');
+        const destBasePath = slash(path.join(root, 'output-link'));
+        const keepDirectory = path.join(project, 'keep');
+
+        fs.mkdirSync(srcBasePath, { recursive: true });
+        fs.mkdirSync(actualDestination);
+        fs.mkdirSync(keepDirectory);
+        fs.writeFileSync(path.join(keepDirectory, 'private.txt'), 'project data\r\n');
+        fs.writeFileSync(path.join(srcBasePath, 'current.txt'), 'output\r\n');
+        fs.symlinkSync(actualDestination, destBasePath, 'junction');
+        fs.symlinkSync(keepDirectory, path.join(destBasePath, 'obsolete-directory'), 'junction');
+        fs.symlinkSync(path.join(project, 'missing'), path.join(destBasePath, 'dangling-directory'), 'junction');
+        expect(validateDestinations(destBasePath, undefined, project)).toEqual({ ok: true, reasons: [] });
+
+        expect(
+          runIntegrationBuild(
+            { argv: [], staticBasePath, srcBasePath, destBasePath, copyItems: [], hashItems: [], checkExistFileList: [] },
+            filesystemDependencies
+          ).isValid
+        ).toBe(true);
+        expect(fs.lstatSync(destBasePath).isSymbolicLink()).toBe(true);
+        expect(fs.realpathSync(destBasePath)).toBe(fs.realpathSync(actualDestination));
+        expect(fs.readdirSync(actualDestination).sort()).toEqual(['current.txt', 'hashes.json']);
+        expect(fs.readFileSync(path.join(keepDirectory, 'private.txt'), 'utf8')).toBe('project data\r\n');
       } finally {
         fs.rmSync(root, { recursive: true, force: true });
       }
@@ -686,6 +760,33 @@ describe('alveo/integration-core.ts', () => {
       hashItems: [],
       checkExistFileList: [],
       ...overrides,
+    });
+
+    it('stops without copying or writing metadata when destination cleanup fails', () => {
+      const cause = new Error('permission denied');
+      const deps = buildDeps({
+        readdirSync: vi.fn().mockReturnValue(['obsolete.mp4']),
+        rmSync: vi.fn(() => {
+          throw cause;
+        }),
+      });
+
+      expect(() => runIntegrationBuild(buildConfig({ copyItems: [{ from: 'current.mp4' }] }), deps)).toThrow(cause);
+      expect(deps.rmSync).toHaveBeenCalledExactlyOnceWith(path.join('/dest', 'obsolete.mp4'), { recursive: true, force: true });
+      expect(deps.copyFileSync).not.toHaveBeenCalled();
+      expect(deps.writeFileSync).not.toHaveBeenCalled();
+    });
+
+    it('propagates copy failures instead of returning success or writing metadata', () => {
+      const cause = new Error('copy failed');
+      const deps = buildDeps({
+        copyFileSync: vi.fn(() => {
+          throw cause;
+        }),
+      });
+
+      expect(() => runIntegrationBuild(buildConfig({ copyItems: [{ from: 'current.mp4' }] }), deps)).toThrow(cause);
+      expect(deps.writeFileSync).not.toHaveBeenCalled();
     });
 
     it('writes hashes.json to destBasePath', () => {

@@ -359,7 +359,7 @@ describe('package distribution', () => {
       // mocked CLI subprocesses or a maintainer checkout with source fallbacks.
       const files: Record<string, string> = {
         'vite.config.ts':
-          "import { defineAlveoConfig } from 'alveo'; export default defineAlveoConfig({ root: import.meta.dirname, base: '/subpath/', build: { manifest: true } });",
+          "import { defineAlveoConfig } from 'alveo'; export default defineAlveoConfig({ root: import.meta.dirname, base: '/subpath/', build: { manifest: true, assetsInlineLimit: 10000 } });",
         '.env': 'VITE_BASE_URL=/ignored/\nVITE_INTE_ASSET_DIR=../integration/assets\nVITE_INTE_PATTERN_DIR=../integration/patterns\n',
         'index.html':
           '<html><head><title>Probe</title><link rel="stylesheet" href="#__BASE_URL__/assets/css/style-base.css"></head><body><!--app-html--><script type="module" src="/alveo/react-loader"></script><script type="module" src="#__BASE_URL__/assets/js/mock-api.js"></script></body></html>',
@@ -392,6 +392,9 @@ describe('package distribution', () => {
       await expect(access(join(temporaryRoot, 'integration/patterns/pages-home.html'))).resolves.toBeUndefined();
 
       const staticRoot = join(consumerRoot, 'dist/static');
+
+      expect((await readdir(join(staticRoot, 'assets/images'))).filter((file) => /^root\.0x[a-z0-9_-]+\.svg$/i.test(file))).toHaveLength(1);
+
       const manifestGraph: Record<string, { file: string; imports?: string[] }> = JSON.parse(
         await readFile(join(staticRoot, '.vite/manifest.json'), 'utf8')
       );

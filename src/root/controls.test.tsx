@@ -110,7 +110,7 @@ describe('active item settings', () => {
     expect(button).toHaveAttribute('aria-expanded', 'false');
     const icon = view.container.querySelector('use');
 
-    expect(icon?.getAttribute('href')).toContain('/src/assets/root.svg#setting');
+    expect(icon).toHaveAttribute('href', '/src/assets/root.svg?no-inline#setting');
   });
   it.each([false, true])('updates state, RTL, panel and theme settings from existing state %s', (enabled) => {
     if (enabled) localStorage.setItem('pl-show-state-selector', 'true');

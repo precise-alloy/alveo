@@ -3,7 +3,8 @@ import type { RootItemModel, MultiplePageNode } from './models.ts';
 import debounce from 'debounce';
 import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 
-import rootSprite from '../assets/root.svg?url';
+// SVG <use> rejects data URLs, even when a consumer raises assetsInlineLimit.
+import rootSprite from '../assets/root.svg?url&no-inline';
 
 import { useRootContext } from './root-context.ts';
 import { useOnClickOutside } from './use-click-outside.ts';

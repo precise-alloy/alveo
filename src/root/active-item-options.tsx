@@ -1,6 +1,7 @@
 import { MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import rootSprite from '../assets/root.svg?url';
+// SVG <use> rejects data URLs, even when a consumer raises assetsInlineLimit.
+import rootSprite from '../assets/root.svg?url&no-inline';
 
 import { useRootContext } from './root-context.ts';
 import { useOnClickOutside } from './use-click-outside.ts';

@@ -60,6 +60,7 @@ The test verifies:
 - A real Vite/Express HTTP test verifies that watched JavaScript under a non-root base is served as JavaScript, not passed to SSR after Vite strips the URL base. Fresh public files must also win over stale watch-output copies when a file watcher event is missed.
 - HTML payload substitution is literal, and dev/prerender share asset relocation and URL rules while retaining dev refresh versus deterministic content versions.
 - Integration destinations reject ancestors, descendants, equal/nested outputs, and symlink aliases before destructive copying. Missing future directories are resolved through their existing ancestors; filesystem errors are diagnostic.
+- Consecutive integration builds mirror the exclusively owned asset directory, removing obsolete root files, folders, and hidden entries while regenerating metadata. Cleanup preserves the destination root and its validated symlink, removes child links without following them, and propagates cleanup/copy failures without claiming rollback.
 - Every non-production mode may use mocks, but missing handlers are optional and must not pull an unresolved mock module into the build.
 - Vite-managed `?url` modules must not be mistaken for consumer public-file references merely because their filesystem path contains `/assets/`.
 - Script compilation discovers entries only, bundles imports, excludes tests, detects output collisions, writes maps, and watches real directories/dependencies.
@@ -72,7 +73,7 @@ The test verifies:
 
 - JSON script payloads escape `<` without corrupting decoded props; state markup escapes text/attributes and preserves decoded state values.
 - JSON pages do not load YAML. Bad payloads cannot prevent subsequent mounts; pending YAML work cannot mount twice or resurrect removed content.
-- Settings refs/callbacks remain stable, menu state is exposed through ARIA, and Escape restores focus. Package-owned icons work under a non-root Vite base.
+- Settings refs/callbacks remain stable, menu state is exposed through ARIA, and Escape restores focus. Package-owned icons work under a non-root Vite base. Real Vite builds test each catalog sprite import independently with a raised inline limit; the installed-package fixture also verifies external SVG emission.
 - Responsive CSS controls visibility: collapsed mobile/top-panel menus must not disable the persistent desktop sidebar.
 - Disco mode stops/restarts correctly, stops for printing, and releases timers on unmount. Width behavior is exercised in LTR and RTL.
 - Compiled print rules target state controls globally, not descendants of a close button; a real browser verifies their computed `display: none`.

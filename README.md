@@ -86,7 +86,9 @@ VITE_INTE_ASSET_DIR=../MyProject.Web/wwwroot/assets
 VITE_INTE_PATTERN_DIR=../MyProject.Patterns
 ```
 
-Integration destinations must be outside the project and must not overlap each other or the project, including through symlinks. They must be exclusively owned generated-output directories: integration replaces their generated contents. Everything emitted under `dist/static/assets/` is copied, including assets Vite places at its root (for example a non-inlined `.mp4`) and extra `public/assets/` files or folders; binary bytes are copied unchanged. Existing symlinks inside the destinations are replaced with regular files, never written through. Both `generate` and `inte` run state aggregation and stylesheet compilation first and stop on a failed stage or SSR render.
+Integration destinations must be outside the project and must not overlap each other or the project, including through symlinks. They must be exclusively owned generated-output directories. Each integration clears all entries in the asset destination, including obsolete hashed files, removed folders, and hidden files such as `.gitkeep`, then copies the current build and regenerates `hashes.json`. The asset destination directory itself is retained, preserving its permissions and any validated external-root symlink. Copying is fail-fast and non-atomic: errors stop the command but can leave partial output; there is no rollback to the previous build.
+
+Everything emitted under `dist/static/assets/` is copied, including assets Vite places at its root (for example a non-inlined `.mp4`) and extra `public/assets/` files or folders; binary bytes are copied unchanged. Existing symlinks inside the destinations are removed without following them, and current assets are copied in their place. Both `generate` and `inte` run state aggregation and stylesheet compilation first and stop on a failed stage or SSR render.
 
 Base URL precedence: an explicit inline/CLI base (`vite --base`, `createServer({ base })`) wins over `defineAlveoConfig({ base })`, which wins over `VITE_BASE_URL` for the active mode; `/` is the final fallback.
 
@@ -187,7 +189,7 @@ Normal entries have linked external sourcemaps; names containing `critical` omit
 | `alveo styles`   | CSS files in `public/assets/css/`                                           |
 | `alveo scripts`  | Entry bundles in `public/assets/js/`                                        |
 
-Vite-emitted assets retain their actual extension: CSS belongs under `assets/css`, images under `assets/images`, fonts under `assets/fonts`, and other assets under `assets`. Framework icons are owned and bundled by Alveo rather than required in the consumer's public directory.
+Vite-emitted assets retain their actual extension: CSS belongs under `assets/css`, images under `assets/images`, fonts under `assets/fonts`, and other assets under `assets`. Framework icons are owned and bundled by Alveo rather than required in the consumer's public directory. The catalog symbol sprite is always emitted as an external SVG, even with custom `build.assetsInlineLimit` settings, because SVG `<use>` references cannot load data URLs.
 
 ### Migration Notes
 

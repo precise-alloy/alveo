@@ -26,7 +26,7 @@ export interface IntegrationDependencies {
   readFileSync: (path: string, encoding?: BufferEncoding) => string | Buffer;
   writeFileSync: (path: string, data: string) => void;
   readdirSync: (path: string) => string[];
-  globSync: (pattern: string, options?: { nodir?: boolean }) => string[];
+  globSync: (pattern: string, options?: { nodir?: boolean; dot?: boolean }) => string[];
   log: (message?: unknown, ...optionalParams: unknown[]) => void;
   warn: (value: string) => unknown;
 }
@@ -210,7 +210,7 @@ export const copyConfiguredItems = (
  * directly into `assets/`, and `public/assets/**` can add arbitrary files or
  * folders there too. An allowlist of known folders silently dropped those, so
  * integration "succeeded" while deployed references were broken. Copying the
- * remainder (dirs replaced, files overwritten) mirrors the build output
+ * remainder after destination cleanup mirrors the build output
  * without hard-coding every extension the asset naming might route to root.
  */
 export const getUnlistedCopyItems = (
@@ -300,7 +300,8 @@ export const normalizeGeneratedTextFiles = (
   targetPath: string,
   dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync' | 'rmSync'>
 ): void => {
-  dependencies.globSync(slash(path.join(targetPath, '**/*')), { nodir: true }).forEach((file) => {
+  // Mirrored hidden assets need the same LF normalization as visible files.
+  dependencies.globSync(slash(path.join(targetPath, '**/*')), { nodir: true, dot: true }).forEach((file) => {
     const fileContent = dependencies.readFileSync(file);
     const text = typeof fileContent === 'string' ? fileContent : fileContent.toString('utf-8');
     const newText = normalizeTextLikeContent(file, fileContent);
@@ -384,6 +385,17 @@ export const validateExpectedFiles = (
 };
 
 export const runIntegrationBuild = (config: IntegrationConfig, dependencies: IntegrationDependencies): { isValid: boolean; missing: string[] } => {
+  // This is exclusively owned generated output, including hidden entries and
+  // obsolete content-hashed root assets. Clear children rather than the root to
+  // retain its permissions and validated symlink; rmSync unlinks child symlinks
+  // without following them. Copy failures still propagate without rollback.
+  if (dependencies.existsSync(config.destBasePath)) {
+    for (const entry of dependencies.readdirSync(config.destBasePath)) {
+      dependencies.rmSync(path.join(config.destBasePath, entry), { recursive: true, force: true });
+    }
+  }
+  dependencies.mkdirSync(config.destBasePath, { recursive: true });
+
   if (config.patternPath && dependencies.existsSync(config.patternPath)) {
     dependencies.rmSync(config.patternPath, { recursive: true, force: true });
     dependencies.mkdirSync(config.patternPath, { recursive: true });

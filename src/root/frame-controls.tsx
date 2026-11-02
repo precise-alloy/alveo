@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import rootSprite from '../assets/root.svg?url';
+// SVG <use> rejects data URLs, even when a consumer raises assetsInlineLimit.
+import rootSprite from '../assets/root.svg?url&no-inline';
 
 const MIN_FRAME_SIZE = 350;
 const MSG_IFRAME_SIZE = 'MSG_IFRAME_SIZE';

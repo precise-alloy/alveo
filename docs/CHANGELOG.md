@@ -12,6 +12,12 @@ Summary: <what was built>
 
 <!-- Add entries below -->
 
+### 2026-11-02 - Catalog sprite and integration mirror corrections
+
+- Force external catalog sprite URLs so consumer asset-inlining overrides cannot break SVG `<use>` icons.
+- Mirror the exclusively owned integration asset directory, removing obsolete root-level assets, folders, and hidden entries while retaining the destination root and safely unlinking child symlinks. Preserve fail-fast, non-atomic copying and document the lack of rollback.
+- Add per-component Vite bundle regressions, installed-package sprite checks, and repeated-build, symlink, and failure-path integration tests.
+
 ### 2026-10-20 - Package and runtime review corrections
 
 - Made packed declarations self-contained, added `alveo/helpers` and `alveo/types`, fixed scaffold naming/versioning/ignore files, cleaned package output, and guarded Git hook installation without swallowing setup errors.
