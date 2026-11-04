@@ -80,6 +80,7 @@ Additional tests cover CLI sequencing, real stylesheet orchestration, prerender 
 - Generation and integration run states/styles first and stop on failed stages.
 - Share literal HTML replacement, asset relocation, hash versions, and URL rules.
 - Integration destinations must be external and non-overlapping, including physical symlink aliases; diagnose resolution failures before deletion.
+- Omit the internal `rolldown-runtime` module-preload hint only from integrated backend patterns. Preserve static HTML preloads, copied runtime/importer bytes, other assets, formatting, and script/comment examples.
 - Malformed component payloads are isolated/reported and retained for retry. YAML imports are lazy and overlapping renders must not mount twice.
 - Preserve keyboard/ARIA behavior, both text directions, print stability, and timer cleanup when changing catalog controls.
 - Let responsive CSS distinguish collapsed mobile/top-panel menus from the always-visible desktop sidebar; do not unconditionally apply `inert` from a toggle state. Check compiled print-selector scope and browser-computed styles.

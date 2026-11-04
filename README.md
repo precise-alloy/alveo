@@ -191,6 +191,8 @@ Normal entries have linked external sourcemaps; names containing `critical` omit
 
 Vite-emitted assets retain their actual extension: CSS belongs under `assets/css`, images under `assets/images`, fonts under `assets/fonts`, and other assets under `assets`. Framework icons are owned and bundled by Alveo rather than required in the consumer's public directory. The catalog symbol sprite is always emitted as an external SVG, even with custom `build.assetsInlineLimit` settings, because SVG `<use>` references cannot load data URLs.
 
+Integrated HTML patterns are backend asset-registration samples. They omit the optional `rolldown-runtime` module-preload hint so internal chunk splitting does not require backend template changes. The React loader imports that helper automatically; deploy the complete generated asset directory, including imported chunks. Static HTML retains the preload for performance, and other preload hints remain unchanged.
+
 ### Migration Notes
 
 - Node 24+ is now the shared framework/starter minimum.

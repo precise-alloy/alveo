@@ -61,6 +61,7 @@ The test verifies:
 - HTML payload substitution is literal, and dev/prerender share asset relocation and URL rules while retaining dev refresh versus deterministic content versions.
 - Integration destinations reject ancestors, descendants, equal/nested outputs, and symlink aliases before destructive copying. Missing future directories are resolved through their existing ancestors; filesystem errors are diagnostic.
 - Consecutive integration builds mirror the exclusively owned asset directory, removing obsolete root files, folders, and hidden entries while regenerating metadata. Cleanup preserves the destination root and its validated symlink, removes child links without following them, and propagates cleanup/copy failures without claiming rollback.
+- Integrated patterns omit only the internal `rolldown-runtime` module-preload hint, preserving other assets, formatting, and script/comment examples. Static HTML retains its preload, and the loader plus imported runtime are copied unchanged so backend entry-asset registrations stay stable.
 - Every non-production mode may use mocks, but missing handlers are optional and must not pull an unresolved mock module into the build.
 - Vite-managed `?url` modules must not be mistaken for consumer public-file references merely because their filesystem path contains `/assets/`.
 - Script compilation discovers entries only, bundles imports, excludes tests, detects output collisions, writes maps, and watches real directories/dependencies.
