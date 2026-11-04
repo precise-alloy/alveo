@@ -90,7 +90,9 @@ describe('package distribution', () => {
     expect(config.plugins).not.toHaveProperty('@next/next');
     expect(config.rules).not.toHaveProperty('@next/next/no-img-element');
     expect(config.rules['react-refresh/only-export-components']).toEqual([2]);
-  });
+    // Cold-loading ESLint and its plugins takes <1s alone but exceeded the 5s
+    // default when the parallel suite is also building and installing packages.
+  }, 30_000);
 
   it('installs a clean tarball with working production dependencies, CLI, and consumer types', async () => {
     // Expand Windows 8.3 short names (RUNNER~1): Bun cannot extract a tarball
