@@ -112,6 +112,72 @@ describe('alveo/integration-core.ts', () => {
       expect(normalizePatternHtml(input)).toBe(expected);
     });
 
+    it('omits the runtime preload without reformatting the backend sample', () => {
+      const input = [
+        '<!doctype html>',
+        '<html lang="en">',
+        '<head>',
+        '  <script type="module"',
+        '    src="/assets/js/react-loader.0xAbCdEf12.js"></script>',
+        '  <link rel="modulepreload"',
+        '    crossorigin=""',
+        '    href="/assets/js/rolldown-runtime.0xD9-fqq9M.js">',
+        '  <link href="/assets/css/header.css"',
+        '    rel="stylesheet">',
+        '</head>',
+        '<body></body>',
+        '</html>',
+      ].join('\r\n');
+      const expected = [
+        '<!doctype html>',
+        '<html lang="en">',
+        '<head>',
+        '  <script type="module"',
+        '    src="/assets/js/react-loader.0x00000000.js"></script>',
+        '  <link href="/assets/css/header.css"',
+        '    rel="stylesheet">',
+        '</head>',
+        '<body></body>',
+        '</html>',
+      ].join('\n');
+
+      expect(normalizePatternHtml(input)).toBe(expected);
+    });
+
+    it.each([
+      ['assets/js/rolldown-runtime.0xD9-fqq9M.js'],
+      ['/subpath/assets/js/rolldown-runtime.0xAbCdEf1234_-.js?v=123#helper'],
+      ['https://cdn.example.com/assets/js/rolldown-runtime.0xD9-fqq9M.js'],
+    ])('omits runtime preloads with the URL %s', (href) => {
+      const link = `<link crossorigin href='${href}' rel='modulepreload'>`;
+
+      expect(normalizePatternHtml(link)).toBe('');
+      expect(normalizePatternHtml(`  ${link}  \n<p>Keep</p>`)).toBe('<p>Keep</p>');
+      expect(normalizePatternHtml(`<head>${link}</head>`)).toBe('<head></head>');
+      expect(normalizePatternHtml(`${link}<script src="/main.js"></script>`)).toBe('<script src="/main.js"></script>');
+    });
+
+    it('removes multiple runtime hints but preserves other preloads and script/comment examples', () => {
+      const runtime = '/assets/js/rolldown-runtime.0xD9-fqq9M.js';
+      const keep = [
+        '<link rel="modulepreload" href="/assets/js/vendor.0xAbCdEf12.js">',
+        `<link rel="preload" as="script" href="${runtime}">`,
+        `<link rel="stylesheet" href="${runtime}">`,
+        '<link rel="modulepreload">',
+        '<link rel="modulepreload" href="/assets/js/rolldown-runtime.0xshort.js">',
+        '<link rel="modulepreload" href="/assets/js/not-rolldown-runtime.0xD9-fqq9M.js">',
+        '<link rel="modulepreload" href="/assets/js/rolldown-runtime.0xD9-fqq9M.js.txt">',
+        `<link rel="modulepreload" href="/assets/js/app.js?next=${runtime}">`,
+        `<link rel="modulepreload" href="/assets/js/app.js#${runtime}">`,
+        `<!-- <link rel="modulepreload" href="${runtime}"> -->`,
+        `<script>const example = '<link rel="modulepreload" href="${runtime}">';</script>`,
+      ].join('\n');
+      const input = `<link rel="modulepreload" href="${runtime}">\n${keep}\n  <link rel="modulepreload" href="${runtime}">`;
+
+      expect(normalizePatternHtml(input)).toBe(keep + '\n');
+      expect(normalizePatternHtml(keep)).toBe(keep);
+    });
+
     it('applies all normalizations together', () => {
       const input =
         '<img src="/assets/images/logo.svg?v=xyz">\r\n<script src="/assets/js/react-loader.0xBBBBBBBB.js"></script>\r\n</footer>\n\n\n  <script type="module"\n  defer=""\n  src="/assets/js/pl-states.js"></script>';
@@ -590,6 +656,57 @@ describe('alveo/integration-core.ts', () => {
   });
 
   describe('runIntegrationBuild', () => {
+    it('omits runtime preload hints only from patterns while preserving static HTML and imported assets', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-inte-runtime-'));
+
+      try {
+        const staticBasePath = slash(path.join(root, 'project/dist/static'));
+        const srcBasePath = slash(path.join(staticBasePath, 'assets'));
+        const destBasePath = slash(path.join(root, 'integration/assets'));
+        const patternPath = slash(path.join(root, 'integration/patterns'));
+        const runtimeName = 'rolldown-runtime.0xD9-fqq9M.js';
+        const loaderName = 'react-loader.0xAbCdEf12.js';
+        const runtime = 'export const initialize = () => 1;\n';
+        const loader = `import { initialize } from './${runtimeName}';\ninitialize();\n`;
+        const preload = `  <link rel="modulepreload" href="/assets/js/${runtimeName}">\n`;
+        const html = [
+          '<html><head>',
+          `  <script type="module" src="/assets/js/${loaderName}"></script>`,
+          '  <link rel="modulepreload" href="/assets/js/vendor.0xAbCdEf12.js">',
+          '</head><body>Sample</body></html>',
+        ].join('\n');
+        const staticHtml = html.replace('</head>', preload + '</head>');
+
+        fs.mkdirSync(path.join(srcBasePath, 'js'), { recursive: true });
+        fs.mkdirSync(path.join(staticBasePath, 'pages'), { recursive: true });
+        fs.writeFileSync(path.join(srcBasePath, 'js', runtimeName), runtime);
+        fs.writeFileSync(path.join(srcBasePath, 'js', loaderName), loader);
+        fs.writeFileSync(path.join(staticBasePath, 'pages/home.html'), staticHtml);
+
+        const result = runIntegrationBuild(
+          {
+            argv: [],
+            staticBasePath,
+            srcBasePath,
+            destBasePath,
+            patternPath,
+            copyItems: [{ from: 'js' }],
+            hashItems: ['js'],
+            checkExistFileList: [{ folder: 'js', fileName: runtimeName }],
+          },
+          filesystemDependencies
+        );
+
+        expect(result).toEqual({ isValid: true, missing: [] });
+        expect(fs.readFileSync(path.join(staticBasePath, 'pages/home.html'), 'utf8')).toBe(staticHtml);
+        expect(fs.readFileSync(path.join(patternPath, 'pages-home.html'), 'utf8')).toBe(html.replace(loaderName, 'react-loader.0x00000000.js'));
+        expect(fs.readFileSync(path.join(destBasePath, 'js', runtimeName), 'utf8')).toBe(runtime);
+        expect(fs.readFileSync(path.join(destBasePath, 'js', loaderName), 'utf8')).toBe(loader);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
     // Destination validation covers directories, not entries inside them. A
     // pre-existing link at a write target must be replaced, never followed.
     it('replaces destination symlinks instead of writing through them to project files', (context) => {

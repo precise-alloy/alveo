@@ -1,6 +1,8 @@
 import path from 'path';
 import fs from 'node:fs';
 
+import * as cheerio from 'cheerio';
+import MagicString from 'magic-string';
 import slash from 'slash';
 
 import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.ts';
@@ -290,10 +292,35 @@ export const getPatternCopyTarget = (
 };
 
 export const normalizePatternHtml = (text: string): string => {
-  return normalizeTextLineEndings(text)
+  const html = normalizeTextLineEndings(text)
     .replaceAll(/react-loader\.0x[a-z0-9_-]{8,12}\.js/gi, 'react-loader.0x00000000.js')
     .replaceAll(/\.svg\?v=[a-z0-9_-]+/gi, '.svg')
     .replaceAll(/(<\/footer>)\n{2,}(\s*<script\s+type="module"\n\s+defer=""\n\s+src="\/assets\/js\/pl-states\.js"><\/script>)/g, '$1\n$2');
+
+  if (!html.includes('rolldown-runtime.')) return html;
+
+  // Backend samples list entry assets, not the loader's internal CommonJS
+  // helper. Its ES import still loads the copied chunk; keep the preload in
+  // dist/static HTML for performance, but omit this optional hint in patterns.
+  const $ = cheerio.load(html, { sourceCodeLocationInfo: true });
+  const result = new MagicString(html);
+
+  $('link[rel="modulepreload"][href]').each((_, element) => {
+    const pathname = $(element).attr('href')!.split(/[?#]/, 1)[0]!;
+
+    if (!/(?:^|\/)rolldown-runtime\.0x[a-z0-9_-]{8,12}\.js$/i.test(pathname)) return;
+
+    // Literal link nodes have parse5 source offsets. Edit those bytes rather
+    // than reserializing: preserve formatting and script/comment examples.
+    const { startOffset, endOffset } = element.sourceCodeLocation!;
+    const lineStart = html.lastIndexOf('\n', startOffset - 1) + 1;
+    const trailingWhitespace = /^[\t ]*(?:\n|$)/.exec(html.slice(endOffset));
+    const standalone = /^[\t ]*$/.test(html.slice(lineStart, startOffset)) && trailingWhitespace;
+
+    result.remove(standalone ? lineStart : startOffset, standalone ? endOffset + standalone[0].length : endOffset);
+  });
+
+  return result.toString();
 };
 
 export const normalizeGeneratedTextFiles = (
