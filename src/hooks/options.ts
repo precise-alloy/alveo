@@ -136,40 +136,26 @@ export const resolveEntryIsolatedId = async (
   return { ...resolved, id: `${cleanResolved}?${nextQuery}` };
 };
 
-const hasSharedNonEntryImport = (imports: string[], bundle: OutputBundleLike): boolean =>
-  imports.some((imp) => {
-    const target = bundle[imp];
+const ROLLDOWN_RUNTIME_CHUNK_REGEX = /(?:^|\/)rolldown-runtime\.0x[a-z0-9_-]{8,12}\.js$/i;
 
-    return target?.type === 'chunk' && !target.isEntry && !target.isDynamicEntry;
-  });
-
-const getChunkFlattenMode = (chunk: BundleChunkLike, bundle: OutputBundleLike): 'standalone' | 'preserve-entries' | undefined => {
+const getChunkFlattenMode = (chunk: BundleChunkLike, bundle: OutputBundleLike): 'standalone' | 'loader-runtime' | undefined => {
   const isStandaloneEntry = chunk.isEntry && Boolean(chunk.facadeModuleId && isScriptEntry(chunk.facadeModuleId));
 
   if (isStandaloneEntry) {
     return chunk.imports.length > 0 || chunk.dynamicImports.length > 0 ? 'standalone' : undefined;
   }
 
-  if ((chunk.isEntry || chunk.isDynamicEntry) && hasSharedNonEntryImport(chunk.imports, bundle)) {
-    return 'preserve-entries';
-  }
+  // Only inline the stateless `rolldown-runtime` CJS helper into `react-loader`.
+  // Shared chunks between lazy React components (such as React contexts or stores)
+  // must keep their single shared chunk instance to preserve module identity.
+  const isReactLoader = chunk.isEntry && chunk.fileName.startsWith('assets/js/react-loader.');
+  const hasRuntimeImport = chunk.imports.some((imp) => ROLLDOWN_RUNTIME_CHUNK_REGEX.test(imp) && bundle[imp]?.type === 'chunk');
 
-  return undefined;
+  return isReactLoader && hasRuntimeImport ? 'loader-runtime' : undefined;
 };
 
-const getExternalChunksForFlatten = (fileName: string, mode: 'standalone' | 'preserve-entries', bundle: OutputBundleLike): Set<string> => {
-  if (mode === 'standalone') {
-    return new Set<string>();
-  }
-
-  return new Set(
-    Object.values(bundle)
-      .filter((candidate): candidate is BundleChunkLike =>
-        Boolean(candidate.type === 'chunk' && (candidate.isEntry || candidate.isDynamicEntry) && candidate.fileName !== fileName)
-      )
-      .map((candidate) => candidate.fileName)
-  );
-};
+const shouldInlineImport = (targetKey: string, mode: 'standalone' | 'loader-runtime', bundle: OutputBundleLike): boolean =>
+  bundle[targetKey]?.type === 'chunk' && (mode === 'standalone' || ROLLDOWN_RUNTIME_CHUNK_REGEX.test(targetKey));
 
 const pruneUnreferencedChunks = (bundle: OutputBundleLike): void => {
   const referenced = new Set<string>();
@@ -191,14 +177,14 @@ const pruneUnreferencedChunks = (bundle: OutputBundleLike): void => {
 };
 
 /**
- * Flattens any residual chunk imports (such as CommonJS `rolldown-runtime`,
- * entry-local dynamic imports, or shared non-entry micro-chunks between lazy
- * components) so every emitted `*.entry.*` file in `assets/js/` is 100%
- * self-contained and lazy components have no intermediate micro-chunk hops.
+ * Flattens any residual chunk imports (such as CommonJS `rolldown-runtime` or
+ * entry-local dynamic imports) into standalone entry chunks so every emitted
+ * `*.entry.*` file in `assets/js/` is 100% self-contained, and inlines the
+ * stateless `rolldown-runtime` helper into `react-loader` when present.
  */
 export const inlineBundleEntryImports = async (
   bundle: OutputBundleLike,
-  sourcemap: boolean,
+  sourcemap: boolean | 'inline' | 'hidden' = false,
   buildFn: typeof rolldownBuild = rolldownBuild
 ): Promise<void> => {
   let flattenedAny = false;
@@ -209,7 +195,6 @@ export const inlineBundleEntryImports = async (
 
     if (!mode) continue;
     flattenedAny = true;
-    const externalChunks = getExternalChunksForFlatten(fileName, mode, bundle);
     const result = await buildFn({
       input: '/' + fileName,
       write: false,
@@ -218,16 +203,19 @@ export const inlineBundleEntryImports = async (
           name: 'alveo-memory-bundle',
           resolveId(source, importer) {
             if (!importer) return source;
+            if (!source.startsWith('.') && !source.startsWith('/')) {
+              return { id: source, external: true };
+            }
             const resolved = path.posix.resolve(path.posix.dirname(importer), source);
 
-            if (externalChunks.has(resolved.slice(1))) {
+            if (!shouldInlineImport(resolved.slice(1), mode, bundle)) {
               return { id: source, external: true };
             }
 
             return resolved;
           },
           load(id) {
-            // Every non-external module in the in-memory pass is an existing chunk in `bundle`.
+            // Every non-external module in the in-memory pass is a verified chunk in `bundle`.
             const candidate = bundle[id.slice(1)] as BundleChunkLike;
 
             return {
@@ -251,8 +239,7 @@ export const inlineBundleEntryImports = async (
 
     item.code = outChunk.code;
     item.map = outChunk.map;
-    item.imports =
-      mode === 'standalone' ? [] : outChunk.imports.map((imp) => path.posix.normalize(path.posix.join(path.posix.dirname(fileName), imp)));
+    item.imports = mode === 'standalone' ? [] : item.imports.filter((imp) => !ROLLDOWN_RUNTIME_CHUNK_REGEX.test(imp));
     if (mode === 'standalone') item.dynamicImports = [];
     const mapAsset = bundle[fileName + '.map'];
 
@@ -325,7 +312,7 @@ const options = (context: AlveoContext): PluginOption => {
     },
 
     async generateBundle(outputOptions, bundle) {
-      await inlineBundleEntryImports(bundle as unknown as OutputBundleLike, Boolean(outputOptions.sourcemap));
+      await inlineBundleEntryImports(bundle as unknown as OutputBundleLike, outputOptions.sourcemap ?? false);
     },
   };
 };
