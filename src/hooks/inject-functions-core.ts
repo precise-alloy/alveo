@@ -20,7 +20,8 @@ export type InjectFunctionsDependencies = {
 
 export const defaultInjectFunctionsDependencies: InjectFunctionsDependencies = {
   readFileSync: ((targetPath: fs.PathOrFileDescriptor, options: BufferEncoding) => {
-    if (typeof targetPath === 'string' && !fs.existsSync(targetPath)) {
+    // Fresh source checkouts have no dist build; only the default path falls back to source.
+    if (targetPath === getFunctionsSourcePath() && !fs.existsSync(targetPath)) {
       return fs.readFileSync(slash(path.resolve(getPackageRoot(), 'src/scripts/functions.ts')), options);
     }
 

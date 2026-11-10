@@ -110,12 +110,6 @@ export const resolveEntryIsolatedId = async (
     return undefined;
   }
 
-  const owner = getEntryOwner(importer);
-
-  if (!owner && !source.includes('.entry')) {
-    return undefined;
-  }
-
   const cleanImporter = importer.split('?', 1)[0]!;
   const resolved = await resolve(source, cleanImporter, { ...resolveOptions, skipSelf: true });
 
@@ -127,8 +121,10 @@ export const resolveEntryIsolatedId = async (
 
   assertNotCrossEntryImport(cleanResolved, cleanImporter);
 
-  if (!isolate || !owner || !shouldIsolateModule(resolved.id, cleanResolved, query)) {
-    return resolved;
+  const owner = isolate ? getEntryOwner(importer) : undefined;
+
+  if (!owner || !shouldIsolateModule(resolved.id, cleanResolved, query)) {
+    return importer.includes('?') ? resolved : undefined;
   }
 
   const encodedOwner = encodeURIComponent(owner);
@@ -139,6 +135,7 @@ export const resolveEntryIsolatedId = async (
 
 const ROLLDOWN_RUNTIME_CHUNK_REGEX = /(?:^|\/)rolldown-runtime\.0x[a-z0-9_-]{8,12}\.js$/i;
 const TRAILING_SOURCEMAP_COMMENT_REGEX = /(?:^|\r?\n)\/\/# sourceMappingURL=[^\r\n]*\s*$/;
+const VIRTUAL_BUNDLE_ROOT = '/__alveo_bundle__/d1/d2/d3/d4';
 
 const getChunkFlattenMode = (chunk: BundleChunkLike, bundle: OutputBundleLike): 'standalone' | 'loader-runtime' | undefined => {
   const isStandaloneEntry = chunk.isEntry && Boolean(chunk.facadeModuleId && isScriptEntry(chunk.facadeModuleId));
@@ -202,9 +199,12 @@ const normalizeChunkSourceMap = (map: ExistingRawSourceMap | null | undefined): 
 const resolveBundleImports = (chunkFileName: string, imports: string[], bundle: OutputBundleLike): string[] => {
   const dir = path.posix.dirname(chunkFileName);
 
-  return imports
-    .map((imp) => (imp.startsWith('.') ? path.posix.normalize(path.posix.join(dir, imp)) : imp))
-    .filter((key) => bundle[key]?.type === 'chunk');
+  return imports.map((imp) => {
+    if (!imp.startsWith('.')) return imp;
+    const candidate = path.posix.normalize(path.posix.join(dir, imp));
+
+    return bundle[candidate]?.type === 'chunk' ? candidate : imp;
+  });
 };
 
 /**
@@ -226,20 +226,22 @@ export const inlineBundleEntryImports = async (
 
     if (!mode) continue;
     flattenedAny = true;
+    const virtualEntry = path.posix.join(VIRTUAL_BUNDLE_ROOT, fileName);
     const result = await buildFn({
-      input: '/' + fileName,
+      input: virtualEntry,
       write: false,
       plugins: [
         {
           name: 'alveo-memory-bundle',
           resolveId(source, importer) {
             if (!importer) return source;
-            if (!source.startsWith('.') && !source.startsWith('/')) {
+            if (!source.startsWith('.')) {
               return { id: source, external: true };
             }
             const resolved = path.posix.resolve(path.posix.dirname(importer), source);
+            const targetKey = path.posix.relative(VIRTUAL_BUNDLE_ROOT, resolved);
 
-            if (!shouldInlineImport(resolved.slice(1), mode, bundle)) {
+            if (!shouldInlineImport(targetKey, mode, bundle)) {
               return { id: source, external: true };
             }
 
@@ -247,7 +249,8 @@ export const inlineBundleEntryImports = async (
           },
           load(id) {
             // Every non-external module in the in-memory pass is a verified chunk in `bundle`.
-            const candidate = bundle[id.slice(1)] as BundleChunkLike;
+            const targetKey = path.posix.relative(VIRTUAL_BUNDLE_ROOT, id);
+            const candidate = bundle[targetKey] as BundleChunkLike;
 
             return {
               code: candidate.code.replace(TRAILING_SOURCEMAP_COMMENT_REGEX, ''),
@@ -257,7 +260,8 @@ export const inlineBundleEntryImports = async (
         },
       ],
       output: {
-        file: path.posix.basename(fileName),
+        dir: path.posix.dirname(virtualEntry),
+        entryFileNames: path.posix.basename(fileName),
         format: 'es',
         minify: true,
         sourcemap,
@@ -270,8 +274,8 @@ export const inlineBundleEntryImports = async (
 
     item.code = normalizeTextLineEndings(outChunk.code);
     item.map = normalizeChunkSourceMap(outChunk.map);
-    item.imports = mode === 'standalone' ? [] : resolveBundleImports(fileName, outChunk.imports, bundle);
-    if (mode === 'standalone') item.dynamicImports = [];
+    item.imports = resolveBundleImports(fileName, outChunk.imports, bundle);
+    item.dynamicImports = resolveBundleImports(fileName, outChunk.dynamicImports, bundle);
     const mapAsset = bundle[fileName + '.map'];
 
     if (outMap && mapAsset?.type === 'asset') {

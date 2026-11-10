@@ -97,19 +97,20 @@ describe('script entry bundles', () => {
     });
   });
 
-  it('rejects cross-entry imports between standalone *.entry.* scripts, including aliased imports', async () => {
+  it('rejects cross-entry imports between standalone *.entry.* scripts, including transitive aliased imports', async () => {
     const root = fixture();
 
     write(root, 'package.json', JSON.stringify({ name: 'probe', imports: { '#main': './src/assets/scripts/main.entry.ts' } }));
     write(root, 'src/assets/scripts/main.entry.ts', 'export const shared = 1;');
-    const bad = write(root, 'src/assets/scripts/header.entry.ts', "import { shared } from '#main';\nglobalThis.v = shared;");
+    write(root, 'src/assets/scripts/helper.ts', "import { shared } from '#main';\nexport const viaHelper = shared;");
+    const bad = write(root, 'src/assets/scripts/header.entry.ts', "import { viaHelper } from './helper';\nglobalThis.v = viaHelper;");
     const result = await compileScript(bad, root, { ...defaultScriptCoreDependencies, log: vi.fn() });
 
     expect(result.ok).toBe(false);
     expect(String(result.errors[0]?.error)).toContain('Entry script');
   });
 
-  it('preserves canonical real paths for dependencies outside a symlinked project root', async () => {
+  it('preserves canonical real paths for dependencies outside a symlinked project root and handles vanished moduleIds', async () => {
     const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-scripts-ws-'));
 
     roots.push(workspace);
@@ -119,7 +120,7 @@ describe('script entry bundles', () => {
 
     fs.mkdirSync(path.join(realSite, 'src/assets/scripts'), { recursive: true });
     fs.mkdirSync(aliasDir, { recursive: true });
-    fs.symlinkSync(realSite, aliasSite, 'dir');
+    fs.symlinkSync(realSite, aliasSite, process.platform === 'win32' ? 'junction' : 'dir');
     const outsideFile = path.join(workspace, 'real/outside.ts');
 
     fs.writeFileSync(outsideFile, 'globalThis.v = 7;\n');
@@ -131,6 +132,18 @@ describe('script entry bundles', () => {
     expect(result.ok).toBe(true);
     expect(result.inputs).toContain(fs.realpathSync(outsideFile));
     expect(result.inputs).toContain(entry);
+
+    // ENOENT fallback when a reported moduleId disappears before realpathSync runs.
+    const vanishedBuild = vi.fn().mockResolvedValue({
+      output: [{ type: 'chunk', fileName: 'main.js', code: 'globalThis.v=1;', moduleIds: ['src/assets/scripts/vanished.ts'] }],
+    });
+    const vanishedResult = await compileScript(entry, aliasSite, {
+      ...defaultScriptCoreDependencies,
+      build: vanishedBuild as unknown as typeof defaultScriptCoreDependencies.build,
+    });
+
+    expect(vanishedResult.ok).toBe(true);
+    expect(vanishedResult.inputs).toEqual([path.resolve(aliasSite, 'src/assets/scripts/vanished.ts')]);
   });
 
   it('injects alveo helper functions and applies production transforms before static imports in standalone entry scripts', async () => {
@@ -140,7 +153,7 @@ describe('script entry bundles', () => {
     write(
       root,
       'src/assets/scripts/init.ts',
-      '/* ALVEO_BEGIN_DEVELOPMENT_ONLY */ globalThis.devOnly = true; /* ALVEO_END_DEVELOPMENT_ONLY */ const { VITE_CUSTOM_FLAG } = import.meta.env; globalThis.customFlag = VITE_CUSTOM_FLAG; globalThis.extId = "VITE_EXTENSION_UNIQUE_ID"; globalThis.hasGetModifiers = typeof globalThis.getModifiers === "function"; globalThis.pageUrl = globalThis.viteAbsoluteUrl("about", true);'
+      '/* ALVEO_BEGIN_DEVELOPMENT_ONLY */ globalThis.devOnly = true; /* ALVEO_END_DEVELOPMENT_ONLY */ const { VITE_CUSTOM_FLAG, PROD, MODE } = import.meta.env; globalThis.customFlag = `${VITE_CUSTOM_FLAG}:${PROD}:${MODE}:${import.meta.env.PROD}`; globalThis.extId = "VITE_EXTENSION_UNIQUE_ID"; globalThis.hasGetModifiers = typeof globalThis.getModifiers === "function"; globalThis.pageUrl = globalThis.viteAbsoluteUrl("about", true);'
     );
     const input = write(root, 'src/assets/scripts/main.entry.ts', '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */\nimport "./init";\n');
     const result = await compileScript(input, root);
@@ -152,7 +165,7 @@ describe('script entry bundles', () => {
     expect(context.hasGetModifiers).toBe(true);
     expect(context.pageUrl).toBe('/custom/about.html');
     expect(context.extId).toBe('ext-id');
-    expect(context.customFlag).toBe('enabled');
+    expect(context.customFlag).toBe('enabled:true:production:true');
     expect(context.devOnly).toBeUndefined();
   });
 
