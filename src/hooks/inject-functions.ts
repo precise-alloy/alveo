@@ -8,12 +8,15 @@ import {
   RESOLVED_VIRTUAL_FUNCTIONS_ID,
   VIRTUAL_FUNCTIONS_ID,
   containsFunctionsPlaceholder,
+  getFunctionsFallbackSourcePath,
   getFunctionsSourcePath,
   loadFunctionsSource,
+  resolveFunctionsSourcePath,
 } from './inject-functions-core.ts';
 
 const injectFunctions = (): PluginOption => {
   const functionsSourcePath = getFunctionsSourcePath();
+  const fallbackSourcePath = getFunctionsFallbackSourcePath();
   let cachedSource: string | undefined;
 
   return {
@@ -25,7 +28,7 @@ const injectFunctions = (): PluginOption => {
     },
 
     watchChange(id) {
-      if (id === functionsSourcePath) cachedSource = undefined;
+      if (id === functionsSourcePath || id === fallbackSourcePath) cachedSource = undefined;
     },
 
     resolveId(id) {
@@ -45,19 +48,26 @@ const injectFunctions = (): PluginOption => {
         return undefined;
       }
 
-      this.addWatchFile(functionsSourcePath);
+      const activeSourcePath = resolveFunctionsSourcePath(functionsSourcePath);
 
-      return (cachedSource ??= loadFunctionsSource(functionsSourcePath));
+      this.addWatchFile(activeSourcePath);
+
+      return (cachedSource ??= loadFunctionsSource(activeSourcePath));
     },
 
     transform(code, id) {
       const cleanId = id.split('?', 1)[0]!;
 
-      if (cleanId === functionsSourcePath || id.startsWith(RESOLVED_VIRTUAL_FUNCTIONS_ID) || !containsFunctionsPlaceholder(code)) {
+      if (
+        cleanId === functionsSourcePath ||
+        cleanId === fallbackSourcePath ||
+        id.startsWith(RESOLVED_VIRTUAL_FUNCTIONS_ID) ||
+        !containsFunctionsPlaceholder(code)
+      ) {
         return undefined;
       }
 
-      this.addWatchFile(functionsSourcePath);
+      this.addWatchFile(resolveFunctionsSourcePath(functionsSourcePath));
 
       // Replace the placeholder with an ESM import rather than inline statements.
       // In ES modules, static `import './api'` declarations hoist above top-level

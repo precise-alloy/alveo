@@ -8,8 +8,10 @@ import {
   FUNCTIONS_PLACEHOLDER,
   RESOLVED_VIRTUAL_FUNCTIONS_ID,
   VIRTUAL_FUNCTIONS_ID,
+  getFunctionsFallbackSourcePath,
   getFunctionsSourcePath,
   loadFunctionsSource,
+  resolveFunctionsSourcePath,
 } from './inject-functions-core.ts';
 
 vi.mock('./inject-functions-core.ts', async (importOriginal) => {
@@ -17,7 +19,9 @@ vi.mock('./inject-functions-core.ts', async (importOriginal) => {
 
   return {
     ...actual,
-    getFunctionsSourcePath: vi.fn().mockReturnValue('/mock/alveo/src/scripts/functions.ts'),
+    getFunctionsSourcePath: vi.fn().mockReturnValue('/mock/alveo/dist/scripts/functions.js'),
+    getFunctionsFallbackSourcePath: vi.fn().mockReturnValue('/mock/alveo/src/scripts/functions.ts'),
+    resolveFunctionsSourcePath: vi.fn().mockReturnValue('/mock/alveo/src/scripts/functions.ts'),
     loadFunctionsSource: vi.fn().mockReturnValue('// injected functions source'),
   };
 });
@@ -75,9 +79,12 @@ describe('alveo/hooks/inject-functions.ts', () => {
       expect(context.addWatchFile).toHaveBeenCalledWith('/mock/alveo/src/scripts/functions.ts');
       plugin.watchChange(getFunctionsSourcePath());
       expect(plugin.load.call(context, RESOLVED_VIRTUAL_FUNCTIONS_ID)).toBe('// injected functions source');
+      plugin.watchChange(getFunctionsFallbackSourcePath());
+      expect(plugin.load.call(context, RESOLVED_VIRTUAL_FUNCTIONS_ID)).toBe('// injected functions source');
       plugin.buildStart();
       expect(plugin.load.call(context, RESOLVED_VIRTUAL_FUNCTIONS_ID)).toBe('// injected functions source');
-      expect(loadFunctionsSource).toHaveBeenCalledTimes(3);
+      expect(loadFunctionsSource).toHaveBeenCalledTimes(4);
+      expect(resolveFunctionsSourcePath).toHaveBeenCalledWith('/mock/alveo/dist/scripts/functions.js');
     });
   });
 
@@ -98,6 +105,7 @@ describe('alveo/hooks/inject-functions.ts', () => {
       const codeWithPlaceholder = `before\n${FUNCTIONS_PLACEHOLDER}\nafter`;
 
       expect(plugin.transform.call(context, codeWithPlaceholder, functionsPath)).toBeUndefined();
+      expect(plugin.transform.call(context, codeWithPlaceholder, getFunctionsFallbackSourcePath())).toBeUndefined();
       expect(plugin.transform.call(context, codeWithPlaceholder, `${functionsPath}?alveo-entry=main`)).toBeUndefined();
       expect(plugin.transform.call(context, codeWithPlaceholder, RESOLVED_VIRTUAL_FUNCTIONS_ID)).toBeUndefined();
     });
