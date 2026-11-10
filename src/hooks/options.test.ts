@@ -4,6 +4,7 @@ import type { AlveoContext } from './types.ts';
 import fs from 'node:fs';
 
 import { glob } from 'glob';
+import { SourceMapConsumer } from 'source-map-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SCRIPT_ENTRY_IGNORE_PATTERNS } from '../filename.ts';
@@ -210,13 +211,26 @@ describe('optional mocks and Vite entry discovery', () => {
     expect(Object.keys(cleanBundle)).toEqual(['assets/js/main.js']);
 
     const bundle: OutputBundleLike = {
+      'assets/js/transitive-helper.0x99999999.js': {
+        type: 'chunk',
+        fileName: 'assets/js/transitive-helper.0x99999999.js',
+        isEntry: false,
+        imports: [],
+        dynamicImports: [],
+        code: 'export const step = (v) => v + 1;\n',
+      },
+      'assets/js/transitive-helper.0x99999999.js.map': {
+        type: 'asset',
+        fileName: 'assets/js/transitive-helper.0x99999999.js.map',
+        source: '{}',
+      },
       'assets/js/rolldown-runtime.0x12345678.js': {
         type: 'chunk',
         fileName: 'assets/js/rolldown-runtime.0x12345678.js',
         isEntry: false,
-        imports: [],
+        imports: ['assets/js/transitive-helper.0x99999999.js'],
         dynamicImports: [],
-        code: 'export const rt = (v) => v + 1;\n//# sourceMappingURL=rolldown-runtime.0x12345678.js.map',
+        code: 'import { step } from "./transitive-helper.0x99999999.js"; export const rt = (v) => step(v);\n//# sourceMappingURL=rolldown-runtime.0x12345678.js.map',
       },
       'assets/js/rolldown-runtime.0x12345678.js.map': {
         type: 'asset',
@@ -230,7 +244,14 @@ describe('optional mocks and Vite entry discovery', () => {
         isDynamicEntry: true,
         imports: [],
         dynamicImports: [],
-        code: 'export const d = 40;',
+        code: 'export const d = 40;\n',
+        map: {
+          version: 3,
+          sources: ['../../../src/dyn.ts'],
+          sourcesContent: ['export const d = 40;\r\n'],
+          names: [],
+          mappings: 'AAAA',
+        },
       },
       'assets/js/main.js': {
         type: 'chunk',
@@ -240,6 +261,13 @@ describe('optional mocks and Vite entry discovery', () => {
         imports: ['assets/js/rolldown-runtime.0x12345678.js'],
         dynamicImports: ['assets/js/dyn.0x87654321.js'],
         code: 'import "external-cdn"; import "./external-relative.js"; import { rt } from "./rolldown-runtime.0x12345678.js"; import("./dyn.0x87654321.js").then(m => { globalThis.total = rt(m.d); });\n//# sourceMappingURL=main.js.map',
+        map: {
+          version: 3,
+          sources: ['../../../src/main.entry.ts'],
+          sourcesContent: ['globalThis.total = 41;\r\n'],
+          names: ['total'],
+          mappings: 'AAAA',
+        },
       },
       'assets/js/main.js.map': {
         type: 'asset',
@@ -276,6 +304,44 @@ describe('optional mocks and Vite entry discovery', () => {
     };
 
     const hook = plugin();
+    const nullContentMap = {
+      version: 3,
+      sources: ['a.ts', 'b.ts'],
+      sourcesContent: ['const a = 1;\r\n', null] as unknown as string[],
+      names: [],
+      mappings: 'AAAA',
+    };
+    const nullContentBundle: OutputBundleLike = {
+      'assets/js/rolldown-runtime.0x12345678.js': {
+        type: 'chunk',
+        fileName: 'assets/js/rolldown-runtime.0x12345678.js',
+        isEntry: false,
+        imports: [],
+        dynamicImports: [],
+        code: 'export const rt = (v) => v + 1;',
+      },
+      'assets/js/main.js': {
+        type: 'chunk',
+        fileName: 'assets/js/main.js',
+        isEntry: true,
+        facadeModuleId: '/project/src/main.entry.ts',
+        imports: ['assets/js/rolldown-runtime.0x12345678.js'],
+        dynamicImports: [],
+        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; globalThis.v = rt(1);',
+      },
+    };
+
+    await inlineBundleEntryImports(
+      nullContentBundle,
+      true,
+      vi.fn().mockResolvedValue({
+        output: [{ type: 'chunk', code: 'globalThis.v=2;\r\n', map: nullContentMap, imports: [], dynamicImports: [] }],
+      }) as unknown as typeof import('rolldown').build
+    );
+    expect((nullContentBundle['assets/js/main.js'] as { map?: { sourcesContent?: Array<string | null> } }).map?.sourcesContent).toEqual([
+      'const a = 1;\n',
+      null,
+    ]);
 
     await hook.generateBundle({ sourcemap: true }, bundle);
     const mainChunk = bundle['assets/js/main.js'];
@@ -288,6 +354,21 @@ describe('optional mocks and Vite entry discovery', () => {
     if (mainChunk?.type === 'chunk') {
       expect(mainChunk.code).not.toContain('rolldown-runtime');
       expect(mainChunk.code).toContain('external-cdn');
+      expect(mainChunk.map?.sourcesContent?.join('\n')).not.toContain('\r');
+    }
+    const mainMapAsset = bundle['assets/js/main.js.map'];
+
+    expect(mainMapAsset?.type).toBe('asset');
+    if (mainMapAsset?.type === 'asset' && mainChunk?.type === 'chunk') {
+      const mapText = String(mainMapAsset.source);
+
+      expect(mapText).not.toContain('\\r');
+      const consumer = new SourceMapConsumer(JSON.parse(mapText));
+      const totalIndex = mainChunk.code.indexOf('total');
+      const mapped = consumer.originalPositionFor({ line: 1, column: totalIndex });
+
+      expect(mapped.source).toContain('src/main.entry.ts');
+      expect(mapped.line).toBe(1);
     }
     const loaderChunk = bundle['assets/js/react-loader.0xaaaaaaaa.js'];
 
@@ -298,6 +379,8 @@ describe('optional mocks and Vite entry discovery', () => {
     });
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js']).toBeUndefined();
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js.map']).toBeUndefined();
+    expect(bundle['assets/js/transitive-helper.0x99999999.js']).toBeUndefined();
+    expect(bundle['assets/js/transitive-helper.0x99999999.js.map']).toBeUndefined();
     expect(bundle['assets/js/dyn.0x87654321.js']).toBeUndefined();
     // Shared stateful/context chunks between React components stay a single instance.
     expect(bundle['assets/js/shared-context.0xcccccccc.js']).toBeDefined();

@@ -11,6 +11,7 @@ import slash from 'slash';
 
 import { getPackageRoot } from '../paths.ts';
 import { getScriptEntryName, isScriptEntry, SCRIPT_ENTRY_IGNORE_PATTERNS } from '../filename.ts';
+import { normalizeTextLikeContent, normalizeTextLineEndings } from '../text-normalization.ts';
 
 export interface ResolveResult {
   id: string;
@@ -158,22 +159,43 @@ const shouldInlineImport = (targetKey: string, mode: 'standalone' | 'loader-runt
   bundle[targetKey]?.type === 'chunk' && (mode === 'standalone' || ROLLDOWN_RUNTIME_CHUNK_REGEX.test(targetKey));
 
 const pruneUnreferencedChunks = (bundle: OutputBundleLike): void => {
-  const referenced = new Set<string>();
+  const reachable = new Set<string>();
+  const queue: string[] = [];
 
-  for (const item of Object.values(bundle)) {
-    if (item.type === 'chunk') {
-      for (const target of [...item.imports, ...item.dynamicImports]) {
-        referenced.add(target);
+  for (const [fileName, item] of Object.entries(bundle)) {
+    if (item.type === 'chunk' && item.isEntry) {
+      reachable.add(fileName);
+      queue.push(fileName);
+    }
+  }
+
+  while (queue.length > 0) {
+    // Only verified `type === 'chunk'` keys are enqueued.
+    const current = bundle[queue.pop()!] as BundleChunkLike;
+
+    for (const target of [...current.imports, ...current.dynamicImports]) {
+      if (!reachable.has(target) && bundle[target]?.type === 'chunk') {
+        reachable.add(target);
+        queue.push(target);
       }
     }
   }
 
   for (const [fileName, item] of Object.entries(bundle)) {
-    if (item.type === 'chunk' && !item.isEntry && !referenced.has(fileName)) {
+    if (item.type === 'chunk' && !reachable.has(fileName)) {
       delete bundle[fileName];
       delete bundle[fileName + '.map'];
     }
   }
+};
+
+const normalizeChunkSourceMap = (map: ExistingRawSourceMap | null | undefined): ExistingRawSourceMap | null | undefined => {
+  if (!map?.sourcesContent) return map;
+
+  return {
+    ...map,
+    sourcesContent: map.sourcesContent.map((content) => (typeof content === 'string' ? normalizeTextLineEndings(content) : content)),
+  };
 };
 
 /**
@@ -237,14 +259,14 @@ export const inlineBundleEntryImports = async (
     const outChunk = result.output.find((entry): entry is OutputChunk => entry.type === 'chunk')!;
     const outMap = result.output.find((entry): entry is OutputAsset => entry.type === 'asset');
 
-    item.code = outChunk.code;
-    item.map = outChunk.map;
+    item.code = normalizeTextLineEndings(outChunk.code);
+    item.map = normalizeChunkSourceMap(outChunk.map);
     item.imports = mode === 'standalone' ? [] : item.imports.filter((imp) => !ROLLDOWN_RUNTIME_CHUNK_REGEX.test(imp));
     if (mode === 'standalone') item.dynamicImports = [];
     const mapAsset = bundle[fileName + '.map'];
 
     if (outMap && mapAsset?.type === 'asset') {
-      mapAsset.source = outMap.source;
+      mapAsset.source = normalizeTextLikeContent(fileName + '.map', Buffer.from(outMap.source));
     }
   }
 

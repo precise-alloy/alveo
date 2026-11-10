@@ -64,6 +64,9 @@ describe('targeted source transforms', () => {
     expect(isPureReexportModule('export * as helpers from "alveo/helpers";\nexport type { RequireCssProps } from "alveo/helpers";\n')).toBe(true);
     // Arbitrary consumer/vendor barrels may re-export modules for their side effects and must not be overridden.
     expect(isPureReexportModule("export * from './register-polyfills';\n")).toBe(false);
+    expect(isPureReexportModule("export * from 'https://cdn.example.com/alveo/helpers';\n")).toBe(false);
+    // Comment markers inside string literals must not hide side-effectful statements between two strings.
+    expect(isPureReexportModule("export { RequireCss } from 'alveo/helpers';\nconst a = '/*'; sideEffect(); const b = '*/';\n")).toBe(false);
     expect(isPureReexportModule("import 'alveo/helpers';\nconst x = 1;\nexport { x };")).toBe(false);
     expect(isPureReexportModule('/* alveo/helpers comment only */')).toBe(false);
     expect(hook.transform(reexport, '/project/src/_helpers/RequireCss.tsx')).toEqual({

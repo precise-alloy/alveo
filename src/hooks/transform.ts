@@ -8,6 +8,9 @@ import { ASSET_HASH_REGEX, createAppendAssetHash, createDefaultAssetHashDependen
 const ALVEO_HELPER_REEXPORT_STATEMENT_REGEX =
   /^export\s+(?:\*\s*(?:as\s+[A-Za-z_$][\w$]*\s+)?from|type\s*\{[^};]*\}\s*from|\{[^};]*\}\s*from)\s*(?:'alveo\/helpers'|"alveo\/helpers")$/;
 
+const stripCommentsOutsideStrings = (code: string): string =>
+  code.replace(/'[^'\\\r\n]*'|"[^"\\\r\n]*"|\/\*[\s\S]*?\*\/|\/\/.*$/gm, (match) => (match.startsWith('/') ? '' : match));
+
 /**
  * Detects pure barrel wrapper modules that only re-export from `'alveo/helpers'`
  * (such as the starter's `src/_helpers/RequireCss.tsx` and `RequireJs.tsx`).
@@ -17,7 +20,7 @@ const ALVEO_HELPER_REEXPORT_STATEMENT_REGEX =
  */
 export const isPureReexportModule = (code: string): boolean => {
   if (!code.includes('alveo/helpers')) return false;
-  const stripped = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '').trim();
+  const stripped = stripCommentsOutsideStrings(code).trim();
 
   if (!stripped) return false;
   const statements = stripped

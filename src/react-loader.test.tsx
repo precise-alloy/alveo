@@ -16,7 +16,12 @@ describe('browser loader entry', () => {
     const dispatch = vi.spyOn(window, 'dispatchEvent');
     const listeners = vi.spyOn(window, 'addEventListener');
 
-    await import('./react-loader.tsx');
+    const loaderModule = await import('./react-loader.tsx');
+    const helpersModule = await import('./helpers.tsx');
+
+    expect(loaderModule.ReactSection).toBe(helpersModule.ReactSection);
+    expect(loaderModule.RequireCss).toBe(helpersModule.RequireCss);
+    expect(loaderModule.RequireJs).toBe(helpersModule.RequireJs);
     expect(mount).toHaveBeenCalledOnce();
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'react-loaded' }));
     await window.renderComponents();
