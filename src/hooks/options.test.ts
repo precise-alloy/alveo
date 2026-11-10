@@ -150,7 +150,7 @@ describe('optional mocks and Vite entry discovery', () => {
       if (source === './icon.svg?url') return { id: '/project/src/icon.svg?url' };
       if (source === './logo.svg') return { id: '/project/src/logo.svg' };
       if (source === './shared.ts?v=1') return { id: '/project/src/shared.ts?v=1' };
-      if (source === './other.entry') return { id: '/project/src/other.entry.ts' };
+      if (source === './other.entry' || source === '#aliased-entry') return { id: '/project/src/other.entry.ts' };
 
       return { id: `/project/src/${source.replace('./', '')}.ts` };
     });
@@ -162,6 +162,9 @@ describe('optional mocks and Vite entry discovery', () => {
     await expect(resolveEntryIsolatedId(resolve, './other.entry', '/project/src/organisms/header.tsx')).rejects.toThrow(
       'Entry script "/project/src/other.entry.ts" cannot be imported by "/project/src/organisms/header.tsx".'
     );
+    await expect(resolveEntryIsolatedId(resolve, '#aliased-entry', '/project/src/main.entry.ts', undefined, false)).rejects.toThrow(
+      'Entry script "/project/src/other.entry.ts" cannot be imported by "/project/src/main.entry.ts".'
+    );
     expect(await resolveEntryIsolatedId(resolve, 'unresolved', '/project/src/main.entry.ts')).toBeUndefined();
     expect(await resolveEntryIsolatedId(resolve, 'external-pkg', '/project/src/main.entry.ts')).toBeUndefined();
     expect(await resolveEntryIsolatedId(resolve, 'virtual', '/project/src/main.entry.ts')).toEqual({ id: '\0rolldown/runtime.js' });
@@ -171,7 +174,9 @@ describe('optional mocks and Vite entry discovery', () => {
     expect(await resolveEntryIsolatedId(resolve, './already', '/project/src/main.entry.ts')).toEqual({
       id: '/project/src/already.ts?alveo-entry=main',
     });
-    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts', undefined, false)).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts', undefined, false)).toEqual({
+      id: '/project/src/shared.ts',
+    });
     expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts')).toEqual({
       id: '/project/src/shared.ts?alveo-entry=main',
     });
@@ -211,6 +216,32 @@ describe('optional mocks and Vite entry discovery', () => {
     expect(Object.keys(cleanBundle)).toEqual(['assets/js/main.js']);
 
     const bundle: OutputBundleLike = {
+      'assets/js/orphan-leaf.0x66666666.js': {
+        type: 'chunk',
+        fileName: 'assets/js/orphan-leaf.0x66666666.js',
+        isEntry: false,
+        imports: [],
+        dynamicImports: [],
+        code: 'export const leaf = 1;\n',
+      },
+      'assets/js/orphan-leaf.0x66666666.js.map': {
+        type: 'asset',
+        fileName: 'assets/js/orphan-leaf.0x66666666.js.map',
+        source: '{}',
+      },
+      'assets/js/orphan-mid.0x55555555.js': {
+        type: 'chunk',
+        fileName: 'assets/js/orphan-mid.0x55555555.js',
+        isEntry: false,
+        imports: ['assets/js/orphan-leaf.0x66666666.js'],
+        dynamicImports: [],
+        code: 'import { leaf } from "./orphan-leaf.0x66666666.js"; export const mid = leaf + 1;\n',
+      },
+      'assets/js/orphan-mid.0x55555555.js.map': {
+        type: 'asset',
+        fileName: 'assets/js/orphan-mid.0x55555555.js.map',
+        source: '{}',
+      },
       'assets/js/transitive-helper.0x99999999.js': {
         type: 'chunk',
         fileName: 'assets/js/transitive-helper.0x99999999.js',
@@ -258,9 +289,9 @@ describe('optional mocks and Vite entry discovery', () => {
         fileName: 'assets/js/main.js',
         isEntry: true,
         facadeModuleId: '/project/src/main.entry.ts',
-        imports: ['assets/js/rolldown-runtime.0x12345678.js'],
+        imports: ['assets/js/rolldown-runtime.0x12345678.js', 'assets/js/orphan-mid.0x55555555.js'],
         dynamicImports: ['assets/js/dyn.0x87654321.js'],
-        code: 'import "external-cdn"; import "./external-relative.js"; import { rt } from "./rolldown-runtime.0x12345678.js"; import("./dyn.0x87654321.js").then(m => { globalThis.total = rt(m.d); });\n//# sourceMappingURL=main.js.map',
+        code: 'import "external-cdn"; import "./external-relative.js"; import { mid } from "./orphan-mid.0x55555555.js"; import { rt } from "./rolldown-runtime.0x12345678.js"; globalThis.literal = "//# sourceMappingURL=example.map"; import("./dyn.0x87654321.js").then(m => { globalThis.total = rt(m.d) + mid; });\n//# sourceMappingURL=main.js.map',
         map: {
           version: 3,
           sources: ['../../../src/main.entry.ts'],
@@ -281,7 +312,7 @@ describe('optional mocks and Vite entry discovery', () => {
         facadeModuleId: '/project/index.html',
         imports: ['assets/js/rolldown-runtime.0x12345678.js', 'assets/js/shared-context.0xcccccccc.js'],
         dynamicImports: ['assets/js/people.0xbbbbbbbb.js'],
-        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; import { ctx } from "./shared-context.0xcccccccc.js"; export const load = () => import("./people.0xbbbbbbbb.js"); export const v = rt(ctx);',
+        code: 'import "external-loader-dep"; import { rt } from "./rolldown-runtime.0x12345678.js"; import { ctx } from "./shared-context.0xcccccccc.js"; export const load = () => import("./people.0xbbbbbbbb.js"); export const v = rt(ctx);',
       },
       'assets/js/shared-context.0xcccccccc.js': {
         type: 'chunk',
@@ -354,6 +385,7 @@ describe('optional mocks and Vite entry discovery', () => {
     if (mainChunk?.type === 'chunk') {
       expect(mainChunk.code).not.toContain('rolldown-runtime');
       expect(mainChunk.code).toContain('external-cdn');
+      expect(mainChunk.code).toContain('//# sourceMappingURL=example.map');
       expect(mainChunk.map?.sourcesContent?.join('\n')).not.toContain('\r');
     }
     const mainMapAsset = bundle['assets/js/main.js.map'];
@@ -374,13 +406,16 @@ describe('optional mocks and Vite entry discovery', () => {
 
     expect(loaderChunk).toMatchObject({
       type: 'chunk',
-      imports: ['assets/js/shared-context.0xcccccccc.js'],
+      imports: expect.arrayContaining(['assets/js/transitive-helper.0x99999999.js', 'assets/js/shared-context.0xcccccccc.js']),
       dynamicImports: ['assets/js/people.0xbbbbbbbb.js'],
     });
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js']).toBeUndefined();
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js.map']).toBeUndefined();
-    expect(bundle['assets/js/transitive-helper.0x99999999.js']).toBeUndefined();
-    expect(bundle['assets/js/transitive-helper.0x99999999.js.map']).toBeUndefined();
+    expect(bundle['assets/js/orphan-mid.0x55555555.js']).toBeUndefined();
+    expect(bundle['assets/js/orphan-mid.0x55555555.js.map']).toBeUndefined();
+    expect(bundle['assets/js/orphan-leaf.0x66666666.js']).toBeUndefined();
+    expect(bundle['assets/js/orphan-leaf.0x66666666.js.map']).toBeUndefined();
+    expect(bundle['assets/js/transitive-helper.0x99999999.js']).toBeDefined();
     expect(bundle['assets/js/dyn.0x87654321.js']).toBeUndefined();
     // Shared stateful/context chunks between React components stay a single instance.
     expect(bundle['assets/js/shared-context.0xcccccccc.js']).toBeDefined();
@@ -388,8 +423,11 @@ describe('optional mocks and Vite entry discovery', () => {
       type: 'chunk',
       imports: ['assets/js/shared-context.0xcccccccc.js'],
     });
+  });
 
-    // Preserve `'inline'`, `'hidden'`, and omitted sourcemap modes.
+  it('preserves inline, hidden, and omitted sourcemap modes and normalizes CRLF in inline maps', async () => {
+    const hook = plugin();
+
     for (const [mode, hasInlineDataUrl, hasMapLink] of [
       ['inline', true, true],
       ['hidden', false, false],
@@ -412,6 +450,13 @@ describe('optional mocks and Vite entry discovery', () => {
           imports: ['assets/js/rolldown-runtime.0x12345678.js'],
           dynamicImports: [],
           code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; globalThis.v = rt(1);',
+          map: {
+            version: 3,
+            sources: ['../../../src/main.entry.ts'],
+            sourcesContent: ['globalThis.v = 1;\r\n'],
+            names: [],
+            mappings: 'AAAA',
+          },
         },
       };
 
@@ -422,6 +467,11 @@ describe('optional mocks and Vite entry discovery', () => {
       if (flattenedMain?.type === 'chunk') {
         expect(flattenedMain.code.includes('sourceMappingURL=data:application/json')).toBe(hasInlineDataUrl);
         expect(flattenedMain.code.includes('sourceMappingURL=')).toBe(hasMapLink);
+        if (hasInlineDataUrl) {
+          const base64 = flattenedMain.code.split('base64,')[1]?.trim() ?? '';
+
+          expect(Buffer.from(base64, 'base64').toString('utf8')).not.toContain('\\r');
+        }
       }
     }
   });

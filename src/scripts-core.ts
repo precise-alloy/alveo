@@ -102,6 +102,17 @@ export const getScriptBuildOptions = (inputPath: string, projectRoot: string): B
   };
 };
 
+const resolveWatchedModulePath = (projectRoot: string, realProjectRoot: string, cleanId: string): string => {
+  const resolvedId = fs.realpathSync(cleanId);
+  const relativeToRoot = path.relative(realProjectRoot, resolvedId);
+
+  if (relativeToRoot && !relativeToRoot.startsWith('..') && !path.isAbsolute(relativeToRoot)) {
+    return path.resolve(projectRoot, relativeToRoot);
+  }
+
+  return resolvedId;
+};
+
 export async function compileScript(
   inputPath: string,
   projectRoot: string,
@@ -118,8 +129,8 @@ export async function compileScript(
     }
 
     // Rolldown resolves symlinks in `moduleIds` (e.g. `/var` -> `/private/var` on macOS).
-    // Re-anchor module paths relative to the real project root onto `projectRoot` so
-    // callers and watchers receive paths matching their supplied `projectRoot` spelling.
+    // Re-anchor module paths inside the real project root onto `projectRoot`, while
+    // keeping canonical real paths for dependencies outside a symlinked project root.
     const realProjectRoot = fs.realpathSync(projectRoot);
     const inputs: string[] = [];
 
@@ -132,9 +143,7 @@ export async function compileScript(
       if (item.type !== 'chunk') continue;
       for (const id of item.moduleIds) {
         if (!id.startsWith('\0')) {
-          const cleanId = id.split('?', 1)[0]!;
-
-          inputs.push(path.resolve(projectRoot, path.relative(realProjectRoot, fs.realpathSync(cleanId))));
+          inputs.push(resolveWatchedModulePath(projectRoot, realProjectRoot, id.split('?', 1)[0]!));
         }
       }
     }
