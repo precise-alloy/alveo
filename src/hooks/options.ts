@@ -242,7 +242,12 @@ export const inlineBundleEntryImports = async (
             const targetKey = path.posix.relative(VIRTUAL_BUNDLE_ROOT, resolved);
 
             if (!shouldInlineImport(targetKey, mode, bundle)) {
-              return { id: source, external: true };
+              const relativeExternal = path.posix.relative(path.posix.dirname(virtualEntry), resolved);
+
+              return {
+                id: relativeExternal.startsWith('.') ? relativeExternal : './' + relativeExternal,
+                external: true,
+              };
             }
 
             return resolved;
