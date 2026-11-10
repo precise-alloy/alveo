@@ -57,6 +57,14 @@ export const getScriptBuildOptions = (inputPath: string, projectRoot: string): B
   const paths = createPaths(projectRoot, 'production');
   const env = paths.alveoEnv;
   const baseUrl = env.VITE_BASE_URL ?? '/';
+  const fullEnv = {
+    ...env,
+    BASE_URL: baseUrl,
+    MODE: paths.mode,
+    DEV: false,
+    PROD: true,
+    SSR: false,
+  };
   const context = {
     projectRoot: paths.root,
     packageRoot: getPackageRoot(),
@@ -76,9 +84,8 @@ export const getScriptBuildOptions = (inputPath: string, projectRoot: string): B
     transform: {
       jsx: 'react-jsx',
       define: {
-        'import.meta.env.BASE_URL': JSON.stringify(baseUrl),
-        ...Object.fromEntries(Object.entries(env).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
-        'import.meta.env': JSON.stringify({ ...env, BASE_URL: baseUrl }),
+        ...Object.fromEntries(Object.entries(fullEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
+        'import.meta.env': JSON.stringify(fullEnv),
       },
     },
     plugins: [
@@ -103,7 +110,7 @@ export const getScriptBuildOptions = (inputPath: string, projectRoot: string): B
 };
 
 const resolveWatchedModulePath = (projectRoot: string, realProjectRoot: string, cleanId: string): string => {
-  const resolvedId = fs.realpathSync(cleanId);
+  const resolvedId = fs.existsSync(cleanId) ? fs.realpathSync(cleanId) : path.resolve(projectRoot, cleanId);
   const relativeToRoot = path.relative(realProjectRoot, resolvedId);
 
   if (relativeToRoot && !relativeToRoot.startsWith('..') && !path.isAbsolute(relativeToRoot)) {

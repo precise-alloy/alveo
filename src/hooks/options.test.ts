@@ -157,26 +157,25 @@ describe('optional mocks and Vite entry discovery', () => {
 
     expect(await resolveEntryIsolatedId(resolve, './shared', undefined)).toBeUndefined();
     expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/organisms/header.tsx')).toBeUndefined();
-    expect(resolve).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledOnce();
 
     await expect(resolveEntryIsolatedId(resolve, './other.entry', '/project/src/organisms/header.tsx')).rejects.toThrow(
       'Entry script "/project/src/other.entry.ts" cannot be imported by "/project/src/organisms/header.tsx".'
     );
-    await expect(resolveEntryIsolatedId(resolve, '#aliased-entry', '/project/src/main.entry.ts', undefined, false)).rejects.toThrow(
-      'Entry script "/project/src/other.entry.ts" cannot be imported by "/project/src/main.entry.ts".'
+    await expect(resolveEntryIsolatedId(resolve, '#aliased-entry', '/project/src/helper.ts', undefined, false)).rejects.toThrow(
+      'Entry script "/project/src/other.entry.ts" cannot be imported by "/project/src/helper.ts".'
     );
     expect(await resolveEntryIsolatedId(resolve, 'unresolved', '/project/src/main.entry.ts')).toBeUndefined();
     expect(await resolveEntryIsolatedId(resolve, 'external-pkg', '/project/src/main.entry.ts')).toBeUndefined();
-    expect(await resolveEntryIsolatedId(resolve, 'virtual', '/project/src/main.entry.ts')).toEqual({ id: '\0rolldown/runtime.js' });
+    expect(await resolveEntryIsolatedId(resolve, 'virtual', '/project/src/main.entry.ts')).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, 'virtual', '/project/src/shared.ts?alveo-entry=main')).toEqual({
+      id: '\0rolldown/runtime.js',
+    });
     expect(await resolveEntryIsolatedId(resolve, 'virtual-fn', '/project/src/main.entry.ts')).toEqual({
       id: '\0virtual:alveo/functions?alveo-entry=main',
     });
-    expect(await resolveEntryIsolatedId(resolve, './already', '/project/src/main.entry.ts')).toEqual({
-      id: '/project/src/already.ts?alveo-entry=main',
-    });
-    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts', undefined, false)).toEqual({
-      id: '/project/src/shared.ts',
-    });
+    expect(await resolveEntryIsolatedId(resolve, './already', '/project/src/main.entry.ts')).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts', undefined, false)).toBeUndefined();
     expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts')).toEqual({
       id: '/project/src/shared.ts?alveo-entry=main',
     });
@@ -379,7 +378,7 @@ describe('optional mocks and Vite entry discovery', () => {
 
     expect(mainChunk).toMatchObject({
       type: 'chunk',
-      imports: [],
+      imports: ['external-cdn', './external-relative.js'],
       dynamicImports: [],
     });
     if (mainChunk?.type === 'chunk') {
@@ -399,7 +398,7 @@ describe('optional mocks and Vite entry discovery', () => {
       const totalIndex = mainChunk.code.indexOf('total');
       const mapped = consumer.originalPositionFor({ line: 1, column: totalIndex });
 
-      expect(mapped.source).toContain('src/main.entry.ts');
+      expect(mapped.source).toBe('../../../src/main.entry.ts');
       expect(mapped.line).toBe(1);
     }
     const loaderChunk = bundle['assets/js/react-loader.0xaaaaaaaa.js'];

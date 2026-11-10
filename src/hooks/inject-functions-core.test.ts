@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import fs from 'node:fs';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -104,14 +106,19 @@ describe('alveo/hooks/inject-functions-core.ts', () => {
       expect(mockReadFileSync).toHaveBeenCalledWith('/any/path.ts', 'utf8');
     });
 
-    it('falls back to src/scripts/functions.ts when dist/scripts/functions.js has not been built yet', () => {
-      const source = loadFunctionsSource('/nonexistent/dist/scripts/functions.js');
+    it('falls back to src/scripts/functions.ts only when the default dist/scripts/functions.js path is missing', () => {
+      const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+      const source = loadFunctionsSource();
 
+      expect(existsSpy).toHaveBeenCalledWith(getFunctionsSourcePath());
       expect(source).toContain('getModifiers');
       expect(source).toContain('viteAbsoluteUrl');
+      existsSpy.mockRestore();
+
       const existingSource = loadFunctionsSource(getFunctionsSourcePath().replace('dist/scripts/functions.js', 'src/scripts/functions.ts'));
 
       expect(existingSource).toBe(source);
+      expect(() => loadFunctionsSource('/nonexistent/custom/functions.js')).toThrow();
     });
   });
 });
