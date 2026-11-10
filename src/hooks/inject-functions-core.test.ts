@@ -10,8 +10,11 @@ import {
   RESOLVED_VIRTUAL_FUNCTIONS_ID,
   VIRTUAL_FUNCTIONS_ID,
   containsFunctionsPlaceholder,
+  defaultInjectFunctionsDependencies,
+  getFunctionsFallbackSourcePath,
   getFunctionsSourcePath,
   loadFunctionsSource,
+  resolveFunctionsSourcePath,
   InjectFunctionsDependencies,
 } from './inject-functions-core.ts';
 
@@ -115,9 +118,20 @@ describe('alveo/hooks/inject-functions-core.ts', () => {
       expect(source).toContain('viteAbsoluteUrl');
       existsSpy.mockRestore();
 
-      const existingSource = loadFunctionsSource(getFunctionsSourcePath().replace('dist/scripts/functions.js', 'src/scripts/functions.ts'));
+      expect(resolveFunctionsSourcePath(getFunctionsSourcePath(), () => false)).toBe(getFunctionsFallbackSourcePath());
+      expect(resolveFunctionsSourcePath(getFunctionsSourcePath(), () => true)).toBe(getFunctionsSourcePath());
+      expect(resolveFunctionsSourcePath('/custom/path.js', () => false)).toBe('/custom/path.js');
+
+      const existingSource = loadFunctionsSource(getFunctionsFallbackSourcePath());
 
       expect(existingSource).toBe(source);
+      const fd = fs.openSync(getFunctionsFallbackSourcePath(), 'r');
+
+      try {
+        expect(defaultInjectFunctionsDependencies.readFileSync(fd, 'utf8')).toBe(source);
+      } finally {
+        fs.closeSync(fd);
+      }
       expect(() => loadFunctionsSource('/nonexistent/custom/functions.js')).toThrow();
     });
   });

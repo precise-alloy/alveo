@@ -14,18 +14,31 @@ export const getFunctionsSourcePath = (): string => {
   return slash(path.resolve(getPackageRoot(), 'dist/scripts/functions.js'));
 };
 
+export const getFunctionsFallbackSourcePath = (): string => {
+  return slash(path.resolve(getPackageRoot(), 'src/scripts/functions.ts'));
+};
+
+export const resolveFunctionsSourcePath = (
+  sourcePath = getFunctionsSourcePath(),
+  existsSync: (targetPath: string) => boolean = fs.existsSync
+): string => {
+  // Fresh source checkouts have no dist build; only the default path falls back to source.
+  if (sourcePath === getFunctionsSourcePath() && !existsSync(sourcePath)) {
+    return getFunctionsFallbackSourcePath();
+  }
+
+  return sourcePath;
+};
+
 export type InjectFunctionsDependencies = {
   readFileSync: typeof fs.readFileSync;
 };
 
 export const defaultInjectFunctionsDependencies: InjectFunctionsDependencies = {
   readFileSync: ((targetPath: fs.PathOrFileDescriptor, options: BufferEncoding) => {
-    // Fresh source checkouts have no dist build; only the default path falls back to source.
-    if (targetPath === getFunctionsSourcePath() && !fs.existsSync(targetPath)) {
-      return fs.readFileSync(slash(path.resolve(getPackageRoot(), 'src/scripts/functions.ts')), options);
-    }
+    const resolvedPath = typeof targetPath === 'string' ? resolveFunctionsSourcePath(targetPath) : targetPath;
 
-    return fs.readFileSync(targetPath, options);
+    return fs.readFileSync(resolvedPath, options);
   }) as typeof fs.readFileSync,
 };
 
