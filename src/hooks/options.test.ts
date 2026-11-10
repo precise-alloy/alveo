@@ -215,26 +215,26 @@ describe('optional mocks and Vite entry discovery', () => {
     expect(Object.keys(cleanBundle)).toEqual(['assets/js/main.js']);
 
     const bundle: OutputBundleLike = {
-      'assets/js/orphan-leaf.0x66666666.js': {
+      'assets/js/chunks/orphan-leaf.0x66666666.js': {
         type: 'chunk',
-        fileName: 'assets/js/orphan-leaf.0x66666666.js',
+        fileName: 'assets/js/chunks/orphan-leaf.0x66666666.js',
         isEntry: false,
         imports: [],
         dynamicImports: [],
-        code: 'export const leaf = 1;\n',
+        code: 'import "../../vendors/library.js"; export const leaf = 1;\n',
       },
-      'assets/js/orphan-leaf.0x66666666.js.map': {
+      'assets/js/chunks/orphan-leaf.0x66666666.js.map': {
         type: 'asset',
-        fileName: 'assets/js/orphan-leaf.0x66666666.js.map',
+        fileName: 'assets/js/chunks/orphan-leaf.0x66666666.js.map',
         source: '{}',
       },
       'assets/js/orphan-mid.0x55555555.js': {
         type: 'chunk',
         fileName: 'assets/js/orphan-mid.0x55555555.js',
         isEntry: false,
-        imports: ['assets/js/orphan-leaf.0x66666666.js'],
+        imports: ['assets/js/chunks/orphan-leaf.0x66666666.js'],
         dynamicImports: [],
-        code: 'import { leaf } from "./orphan-leaf.0x66666666.js"; export const mid = leaf + 1;\n',
+        code: 'import { leaf } from "./chunks/orphan-leaf.0x66666666.js"; export const mid = leaf + 1;\n',
       },
       'assets/js/orphan-mid.0x55555555.js.map': {
         type: 'asset',
@@ -378,12 +378,13 @@ describe('optional mocks and Vite entry discovery', () => {
 
     expect(mainChunk).toMatchObject({
       type: 'chunk',
-      imports: ['external-cdn', './external-relative.js'],
+      imports: ['external-cdn', './external-relative.js', '../vendors/library.js'],
       dynamicImports: [],
     });
     if (mainChunk?.type === 'chunk') {
       expect(mainChunk.code).not.toContain('rolldown-runtime');
       expect(mainChunk.code).toContain('external-cdn');
+      expect(mainChunk.code).toContain('../vendors/library.js');
       expect(mainChunk.code).toContain('//# sourceMappingURL=example.map');
       expect(mainChunk.map?.sourcesContent?.join('\n')).not.toContain('\r');
     }
@@ -412,8 +413,8 @@ describe('optional mocks and Vite entry discovery', () => {
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js.map']).toBeUndefined();
     expect(bundle['assets/js/orphan-mid.0x55555555.js']).toBeUndefined();
     expect(bundle['assets/js/orphan-mid.0x55555555.js.map']).toBeUndefined();
-    expect(bundle['assets/js/orphan-leaf.0x66666666.js']).toBeUndefined();
-    expect(bundle['assets/js/orphan-leaf.0x66666666.js.map']).toBeUndefined();
+    expect(bundle['assets/js/chunks/orphan-leaf.0x66666666.js']).toBeUndefined();
+    expect(bundle['assets/js/chunks/orphan-leaf.0x66666666.js.map']).toBeUndefined();
     expect(bundle['assets/js/transitive-helper.0x99999999.js']).toBeDefined();
     expect(bundle['assets/js/dyn.0x87654321.js']).toBeUndefined();
     // Shared stateful/context chunks between React components stay a single instance.
