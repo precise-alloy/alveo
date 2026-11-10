@@ -84,6 +84,14 @@ describe('alveo/manual-chunk.ts', () => {
 
       expect(result).toBeUndefined();
     });
+
+    it('never splits standalone *.entry.* scripts into a separate manual chunk', () => {
+      const api = makeApi(true);
+      const result = manualChunk('/project/src/assets/banner.entry.ts', api);
+
+      expect(result).toBeUndefined();
+      expect(api.getModuleInfo).not.toHaveBeenCalled();
+    });
   });
 
   describe('entry modules outside srcRoot', () => {

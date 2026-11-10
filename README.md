@@ -175,9 +175,9 @@ Base styles, atoms, and molecules compile through one ordered Sass module graph.
 
 ## Standalone Scripts
 
-`alveo scripts` bundles only `src/assets/scripts/**/*.entry.{js,jsx,ts,tsx}`. Imported helpers are bundled, while tests and non-entry files are not independent outputs. Entry names use the same lowercase-dashed normalization as Vite and produce `public/assets/js/<name>.js`, without `.entry` in the filename. Duplicate output names are errors.
+`alveo scripts` bundles only `src/assets/scripts/**/*.entry.{js,jsx,ts,tsx}` with Rolldown. Imported helpers are inlined directly into each compiled entry so every `<name>.js` file is self-contained with zero transitive imports, while tests and non-entry files are not independent outputs. Cross-entry imports between `*.entry.*` files are rejected: extract shared logic into ordinary helper modules instead. Entry names use the same lowercase-dashed normalization as Vite and produce `public/assets/js/<name>.js`, without `.entry` in the filename. Duplicate output names are errors.
 
-Normal entries have linked external sourcemaps; names containing `critical` omit them. Watch mode follows imported files as well as entry discovery. This standalone esbuild command does not run Vite plugins or virtual modules; use `build`/`generate` for the complete Vite application pipeline.
+Normal entries have linked external sourcemaps; names containing `critical` omit them. Watch mode follows imported files as well as entry discovery. Use `build`/`generate` for the complete Vite application pipeline.
 
 ## Build Outputs
 
@@ -237,7 +237,7 @@ bun run typecheck
 
 ### Dependency Ownership
 
-Alveo ships unbundled JavaScript, so tools its CLI invokes in consumer projects belong in `dependencies`, even when Alveo itself is installed as a dev dependency. This includes Vite, Sass, Lightning CSS, esbuild, and the server utilities. Vite 8 makes esbuild optional, but Alveo's standalone script compiler still needs it for minified ESM output and its existing sourcemap behavior. MSW is also a runtime dependency because non-production builds with handlers include Alveo's mock entry. Lodash remains server-side for Unicode-aware route naming; it is not imported by the catalog browser code.
+Alveo ships unbundled JavaScript, so tools its CLI invokes in consumer projects belong in `dependencies`, even when Alveo itself is installed as a dev dependency. This includes Vite, Rolldown, Sass, Lightning CSS, and the server utilities. Both Vite builds and Alveo's standalone script compiler use Rolldown directly. MSW is also a runtime dependency because non-production builds with handlers include Alveo's mock entry. Lodash remains server-side for Unicode-aware route naming; it is not imported by the catalog browser code.
 
 React, React DOM, and React Router are peer dependencies so the application and framework share component and routing contexts. Development copies support Alveo's own build and tests. TypeScript is an optional peer: TypeScript consumers install it and their React/Node typings as dev dependencies, while JavaScript consumers do not need a compiler at runtime.
 

@@ -7,7 +7,15 @@ import { globSync } from 'glob';
 import slash from 'slash';
 import { describe, expect, it } from 'vitest';
 
-import { getAssetFileName, getEntryFileName, getChunkFileName, getScriptEntryName, SCRIPT_ENTRY_IGNORE_PATTERNS } from './filename.ts';
+import {
+  getAssetFileName,
+  getEntryFileName,
+  getChunkFileName,
+  getScriptEntryName,
+  isScriptEntry,
+  stripEntryIsolationQuery,
+  SCRIPT_ENTRY_IGNORE_PATTERNS,
+} from './filename.ts';
 
 describe('asset filenames', () => {
   it.each([
@@ -34,6 +42,14 @@ describe('asset filenames', () => {
     expect(getChunkFileName({ name: 'myChunk' })).toBe('assets/js/my-chunk.0x[hash].js');
     expect(getChunkFileName({})).toBe('assets/js/.0x[hash].js');
     expect(getScriptEntryName('src\\MyComponent.entry.tsx')).toBe('my-component');
+    expect(isScriptEntry('src/assets/scripts/main.entry.ts')).toBe(true);
+    expect(isScriptEntry('src/assets/scripts/main.entry.tsx?alveo-entry=main')).toBe(true);
+    expect(isScriptEntry('src/assets/scripts/helper.ts')).toBe(false);
+    expect(isScriptEntry('src/assets/scripts/.entry.ts')).toBe(false);
+    expect(stripEntryIsolationQuery('../../shared.ts?alveo-entry=header')).toBe('../../shared.ts');
+    expect(stripEntryIsolationQuery('../../icon.svg?url&alveo-entry=pl-states')).toBe('../../icon.svg?url');
+    expect(stripEntryIsolationQuery('../../icon.svg?alveo-entry=pl-states&url')).toBe('../../icon.svg?url');
+    expect(stripEntryIsolationQuery('../../shared.ts')).toBe('../../shared.ts');
   });
 });
 

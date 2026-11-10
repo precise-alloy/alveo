@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import { loadEnv, mergeConfig } from 'vite';
 
 import { createAliases } from './alias.ts';
-import { getAssetFileName, getChunkFileName, getEntryFileName } from './filename.ts';
+import { getAssetFileName, getChunkFileName, getEntryFileName, stripEntryIsolationQuery } from './filename.ts';
 import { createManualChunk } from './manual-chunk.ts';
 import { createPaths, getPackageRoot } from './paths.ts';
 import { virtualModules } from './virtual-modules.ts';
@@ -89,6 +89,7 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
   const consumerPlugins = userOptions?.plugins ?? [];
 
   const config: UserConfig = {
+    ...(userOptions?.root === undefined ? {} : { root: paths.root }),
     // Only an explicit consumer base is part of the static config. The env
     // default is resolved in `alveo-context` for the actual Vite mode so it can
     // never masquerade as an explicit base and override CLI/inline values.
@@ -102,10 +103,15 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
     },
     build: {
       rolldownOptions: {
+        optimization: {
+          inlineConst: true,
+        },
+        preserveEntrySignatures: 'allow-extension',
         output: {
           entryFileNames: getEntryFileName,
           chunkFileNames: getChunkFileName,
           assetFileNames: getAssetFileName,
+          sourcemapPathTransform: stripEntryIsolationQuery,
           manualChunks,
         },
       },

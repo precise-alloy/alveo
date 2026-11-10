@@ -94,7 +94,7 @@ The mocks directory is optional. Handlers enable mocking in every non-production
 
 The helpers in `_helpers/` re-export `alveo/helpers` so they receive framework fixes, including safe JSON script serialization. Framework icons are packaged with Alveo and do not need copies in `public/`. The `types.d.ts` reference to `alveo/types` supplies framework globals and virtual-module types.
 
-Standalone asset scripts should be named `*.entry.ts` (or `.js`, `.jsx`, `.tsx`). `alveo scripts` bundles them to `public/assets/js/<name>.js` with linked maps, except for critical entries. Tests and ordinary helpers are not standalone entries.
+Standalone asset scripts should be named `*.entry.ts` (or `.js`, `.jsx`, `.tsx`). Both Vite builds and `alveo scripts` inline imported helpers into each `<name>.js` bundle and reject cross-entry imports so component scripts can load in any combination after `main.js`. Tests and ordinary helpers are not standalone entries.
 
 ## Adding Components
 

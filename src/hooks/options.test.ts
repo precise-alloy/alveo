@@ -8,7 +8,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SCRIPT_ENTRY_IGNORE_PATTERNS } from '../filename.ts';
 
-import options, { isMockApiEnabled } from './options.ts';
+import options, {
+  assertNotCrossEntryImport,
+  getEntryOwner,
+  inlineBundleEntryImports,
+  isMockApiEnabled,
+  resolveEntryIsolatedId,
+  type OutputBundleLike,
+  type ResolveResult,
+} from './options.ts';
 import transformIndexHtml from './transform-index-html.ts';
 
 vi.mock('glob', () => ({ glob: { sync: vi.fn() } }));
@@ -20,7 +28,17 @@ const context = (mode = 'development'): AlveoContext => ({
   mode,
   env: {},
 });
-const plugin = (ctx = context()) => options(ctx) as { options: (options: { input?: string | Record<string, string> }) => unknown };
+const plugin = (ctx = context()) =>
+  options(ctx) as {
+    options: (options: { input?: string | Record<string, string> }) => unknown;
+    resolveId: (
+      this: { resolve: (source: string, importer?: string, options?: object) => Promise<ResolveResult | null> },
+      source: string,
+      importer?: string,
+      resolveOptions?: object
+    ) => Promise<ResolveResult | undefined>;
+    generateBundle: (outputOptions: { sourcemap?: boolean }, bundle: OutputBundleLike) => Promise<void>;
+  };
 const htmlPlugin = (base: string, ctx?: AlveoContext) =>
   transformIndexHtml(base, ctx) as {
     configResolved: (config: { base: string }) => void;
@@ -110,5 +128,180 @@ describe('optional mocks and Vite entry discovery', () => {
 
     expect(hook.transformIndexHtml(inline)).toBe(inline);
     expect(hook.transformIndexHtml('<script src=/assets/js/mock-api.js?v=1></script><script src=""></script>')).not.toContain('mock-api.js');
+  });
+
+  it('isolates *.entry.* dependency graphs and rejects cross-entry imports', async () => {
+    expect(getEntryOwner('/project/src/assets/scripts/Header.entry.ts')).toBe('header');
+    expect(getEntryOwner('/project/src/assets/scripts/shared.ts?alveo-entry=header')).toBe('header');
+    expect(getEntryOwner('/project/src/organisms/header/index.tsx')).toBeUndefined();
+
+    expect(() => assertNotCrossEntryImport('/project/src/a.entry.ts', '/project/src/a.entry.ts')).not.toThrow();
+    expect(() => assertNotCrossEntryImport('/project/src/b.entry.ts', '/project/src/a.entry.ts')).toThrow(
+      'Entry script "/project/src/b.entry.ts" cannot be imported by "/project/src/a.entry.ts".'
+    );
+
+    const resolve = vi.fn(async (source: string) => {
+      if (source === 'unresolved') return null;
+      if (source === 'external-pkg') return { id: 'external-pkg', external: true };
+      if (source === 'virtual') return { id: '\0rolldown/runtime.js' };
+      if (source === 'virtual-fn') return { id: '\0virtual:alveo/functions' };
+      if (source === './already') return { id: '/project/src/already.ts?alveo-entry=main' };
+      if (source === './icon.svg?url') return { id: '/project/src/icon.svg?url' };
+      if (source === './logo.svg') return { id: '/project/src/logo.svg' };
+      if (source === './shared.ts?v=1') return { id: '/project/src/shared.ts?v=1' };
+      if (source === './other.entry') return { id: '/project/src/other.entry.ts' };
+
+      return { id: `/project/src/${source.replace('./', '')}.ts` };
+    });
+
+    expect(await resolveEntryIsolatedId(resolve, './shared', undefined)).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/organisms/header.tsx')).toBeUndefined();
+    expect(resolve).not.toHaveBeenCalled();
+
+    await expect(resolveEntryIsolatedId(resolve, './other.entry', '/project/src/organisms/header.tsx')).rejects.toThrow(
+      'Entry script "/project/src/other.entry.ts" cannot be imported by "/project/src/organisms/header.tsx".'
+    );
+    expect(await resolveEntryIsolatedId(resolve, 'unresolved', '/project/src/main.entry.ts')).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, 'external-pkg', '/project/src/main.entry.ts')).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, 'virtual', '/project/src/main.entry.ts')).toEqual({ id: '\0rolldown/runtime.js' });
+    expect(await resolveEntryIsolatedId(resolve, 'virtual-fn', '/project/src/main.entry.ts')).toEqual({
+      id: '\0virtual:alveo/functions?alveo-entry=main',
+    });
+    expect(await resolveEntryIsolatedId(resolve, './already', '/project/src/main.entry.ts')).toEqual({
+      id: '/project/src/already.ts?alveo-entry=main',
+    });
+    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts', undefined, false)).toBeUndefined();
+    expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/main.entry.ts')).toEqual({
+      id: '/project/src/shared.ts?alveo-entry=main',
+    });
+    expect(await resolveEntryIsolatedId(resolve, './shared.ts?v=1', '/project/src/shared.ts?alveo-entry=main')).toEqual({
+      id: '/project/src/shared.ts?v=1&alveo-entry=main',
+    });
+    // Asset URLs and non-script files must not have `?alveo-entry=` appended to emitted asset paths.
+    expect(await resolveEntryIsolatedId(resolve, './icon.svg?url', '/project/src/shared.ts?alveo-entry=main')).toEqual({
+      id: '/project/src/icon.svg?url',
+    });
+    expect(await resolveEntryIsolatedId(resolve, './logo.svg', '/project/src/shared.ts?alveo-entry=main')).toEqual({
+      id: '/project/src/logo.svg',
+    });
+
+    const hook = plugin();
+    const resolveContext = { resolve: vi.fn().mockResolvedValue({ id: '/project/src/helper.ts' }) };
+
+    await expect(hook.resolveId.call(resolveContext, './helper', '/project/src/header.entry.ts', {})).resolves.toEqual({
+      id: '/project/src/helper.ts?alveo-entry=header',
+    });
+  });
+
+  it('inlines residual entry chunk imports and prunes unreferenced intermediate chunks', async () => {
+    const cleanBundle: OutputBundleLike = {
+      'assets/js/main.js': {
+        type: 'chunk',
+        fileName: 'assets/js/main.js',
+        isEntry: true,
+        facadeModuleId: '/project/src/main.entry.ts',
+        imports: [],
+        dynamicImports: [],
+        code: 'globalThis.main=1;',
+      },
+    };
+
+    await inlineBundleEntryImports(cleanBundle, false);
+    expect(Object.keys(cleanBundle)).toEqual(['assets/js/main.js']);
+
+    const bundle: OutputBundleLike = {
+      'assets/js/rolldown-runtime.0x12345678.js': {
+        type: 'chunk',
+        fileName: 'assets/js/rolldown-runtime.0x12345678.js',
+        isEntry: false,
+        imports: [],
+        dynamicImports: [],
+        code: 'export const rt = (v) => v + 1;\n//# sourceMappingURL=rolldown-runtime.0x12345678.js.map',
+      },
+      'assets/js/rolldown-runtime.0x12345678.js.map': {
+        type: 'asset',
+        fileName: 'assets/js/rolldown-runtime.0x12345678.js.map',
+        source: '{}',
+      },
+      'assets/js/dyn.0x87654321.js': {
+        type: 'chunk',
+        fileName: 'assets/js/dyn.0x87654321.js',
+        isEntry: false,
+        isDynamicEntry: true,
+        imports: [],
+        dynamicImports: [],
+        code: 'export const d = 40;',
+      },
+      'assets/js/main.js': {
+        type: 'chunk',
+        fileName: 'assets/js/main.js',
+        isEntry: true,
+        facadeModuleId: '/project/src/main.entry.ts',
+        imports: ['assets/js/rolldown-runtime.0x12345678.js'],
+        dynamicImports: ['assets/js/dyn.0x87654321.js'],
+        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; import("./dyn.0x87654321.js").then(m => { globalThis.total = rt(m.d); });\n//# sourceMappingURL=main.js.map',
+      },
+      'assets/js/main.js.map': {
+        type: 'asset',
+        fileName: 'assets/js/main.js.map',
+        source: '{}',
+      },
+      'assets/js/react-loader.0xaaaaaaaa.js': {
+        type: 'chunk',
+        fileName: 'assets/js/react-loader.0xaaaaaaaa.js',
+        isEntry: true,
+        facadeModuleId: '/project/index.html',
+        imports: ['assets/js/rolldown-runtime.0x12345678.js'],
+        dynamicImports: ['assets/js/people.0xbbbbbbbb.js'],
+        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; export const load = () => import("./people.0xbbbbbbbb.js"); export const v = rt(1);',
+      },
+      'assets/js/buttons.0xcccccccc.js': {
+        type: 'chunk',
+        fileName: 'assets/js/buttons.0xcccccccc.js',
+        isEntry: false,
+        isDynamicEntry: false,
+        imports: ['assets/js/react-loader.0xaaaaaaaa.js'],
+        dynamicImports: [],
+        code: 'import { v } from "./react-loader.0xaaaaaaaa.js"; export const btn = v + 1;',
+      },
+      'assets/js/people.0xbbbbbbbb.js': {
+        type: 'chunk',
+        fileName: 'assets/js/people.0xbbbbbbbb.js',
+        isEntry: false,
+        isDynamicEntry: true,
+        imports: ['assets/js/buttons.0xcccccccc.js'],
+        dynamicImports: [],
+        code: 'import { btn } from "./buttons.0xcccccccc.js"; export default btn;',
+      },
+    };
+
+    const hook = plugin();
+
+    await hook.generateBundle({ sourcemap: true }, bundle);
+    const mainChunk = bundle['assets/js/main.js'];
+
+    expect(mainChunk).toMatchObject({
+      type: 'chunk',
+      imports: [],
+      dynamicImports: [],
+    });
+    if (mainChunk?.type === 'chunk') {
+      expect(mainChunk.code).not.toContain('rolldown-runtime');
+    }
+    const loaderChunk = bundle['assets/js/react-loader.0xaaaaaaaa.js'];
+
+    expect(loaderChunk).toMatchObject({
+      type: 'chunk',
+      imports: [],
+      dynamicImports: ['assets/js/people.0xbbbbbbbb.js'],
+    });
+    expect(bundle['assets/js/rolldown-runtime.0x12345678.js']).toBeUndefined();
+    expect(bundle['assets/js/rolldown-runtime.0x12345678.js.map']).toBeUndefined();
+    expect(bundle['assets/js/dyn.0x87654321.js']).toBeUndefined();
+    expect(bundle['assets/js/buttons.0xcccccccc.js']).toBeUndefined();
+    expect(bundle['assets/js/people.0xbbbbbbbb.js']).toMatchObject({
+      type: 'chunk',
+      imports: ['assets/js/react-loader.0xaaaaaaaa.js'],
+    });
   });
 });
