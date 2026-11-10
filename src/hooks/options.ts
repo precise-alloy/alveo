@@ -110,7 +110,7 @@ export const resolveEntryIsolatedId = async (
     return undefined;
   }
 
-  const owner = isolate ? getEntryOwner(importer) : undefined;
+  const owner = getEntryOwner(importer);
 
   if (!owner && !source.includes('.entry')) {
     return undefined;
@@ -127,7 +127,7 @@ export const resolveEntryIsolatedId = async (
 
   assertNotCrossEntryImport(cleanResolved, cleanImporter);
 
-  if (!owner || !shouldIsolateModule(resolved.id, cleanResolved, query)) {
+  if (!isolate || !owner || !shouldIsolateModule(resolved.id, cleanResolved, query)) {
     return resolved;
   }
 
@@ -138,6 +138,7 @@ export const resolveEntryIsolatedId = async (
 };
 
 const ROLLDOWN_RUNTIME_CHUNK_REGEX = /(?:^|\/)rolldown-runtime\.0x[a-z0-9_-]{8,12}\.js$/i;
+const TRAILING_SOURCEMAP_COMMENT_REGEX = /(?:^|\r?\n)\/\/# sourceMappingURL=[^\r\n]*\s*$/;
 
 const getChunkFlattenMode = (chunk: BundleChunkLike, bundle: OutputBundleLike): 'standalone' | 'loader-runtime' | undefined => {
   const isStandaloneEntry = chunk.isEntry && Boolean(chunk.facadeModuleId && isScriptEntry(chunk.facadeModuleId));
@@ -198,6 +199,14 @@ const normalizeChunkSourceMap = (map: ExistingRawSourceMap | null | undefined): 
   };
 };
 
+const resolveBundleImports = (chunkFileName: string, imports: string[], bundle: OutputBundleLike): string[] => {
+  const dir = path.posix.dirname(chunkFileName);
+
+  return imports
+    .map((imp) => (imp.startsWith('.') ? path.posix.normalize(path.posix.join(dir, imp)) : imp))
+    .filter((key) => bundle[key]?.type === 'chunk');
+};
+
 /**
  * Flattens any residual chunk imports (such as CommonJS `rolldown-runtime` or
  * entry-local dynamic imports) into standalone entry chunks so every emitted
@@ -241,8 +250,8 @@ export const inlineBundleEntryImports = async (
             const candidate = bundle[id.slice(1)] as BundleChunkLike;
 
             return {
-              code: candidate.code.replace(/\/\/# sourceMappingURL=.*$/m, ''),
-              map: candidate.map ?? undefined,
+              code: candidate.code.replace(TRAILING_SOURCEMAP_COMMENT_REGEX, ''),
+              map: normalizeChunkSourceMap(candidate.map) ?? undefined,
             };
           },
         },
@@ -261,7 +270,7 @@ export const inlineBundleEntryImports = async (
 
     item.code = normalizeTextLineEndings(outChunk.code);
     item.map = normalizeChunkSourceMap(outChunk.map);
-    item.imports = mode === 'standalone' ? [] : item.imports.filter((imp) => !ROLLDOWN_RUNTIME_CHUNK_REGEX.test(imp));
+    item.imports = mode === 'standalone' ? [] : resolveBundleImports(fileName, outChunk.imports, bundle);
     if (mode === 'standalone') item.dynamicImports = [];
     const mapAsset = bundle[fileName + '.map'];
 

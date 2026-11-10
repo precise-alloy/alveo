@@ -97,15 +97,40 @@ describe('script entry bundles', () => {
     });
   });
 
-  it('rejects cross-entry imports between standalone *.entry.* scripts', async () => {
+  it('rejects cross-entry imports between standalone *.entry.* scripts, including aliased imports', async () => {
     const root = fixture();
 
+    write(root, 'package.json', JSON.stringify({ name: 'probe', imports: { '#main': './src/assets/scripts/main.entry.ts' } }));
     write(root, 'src/assets/scripts/main.entry.ts', 'export const shared = 1;');
-    const bad = write(root, 'src/assets/scripts/header.entry.ts', "import { shared } from './main.entry';\nglobalThis.v = shared;");
+    const bad = write(root, 'src/assets/scripts/header.entry.ts', "import { shared } from '#main';\nglobalThis.v = shared;");
     const result = await compileScript(bad, root, { ...defaultScriptCoreDependencies, log: vi.fn() });
 
     expect(result.ok).toBe(false);
     expect(String(result.errors[0]?.error)).toContain('Entry script');
+  });
+
+  it('preserves canonical real paths for dependencies outside a symlinked project root', async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-scripts-ws-'));
+
+    roots.push(workspace);
+    const realSite = path.join(workspace, 'real/site');
+    const aliasDir = path.join(workspace, 'aliases');
+    const aliasSite = path.join(aliasDir, 'site');
+
+    fs.mkdirSync(path.join(realSite, 'src/assets/scripts'), { recursive: true });
+    fs.mkdirSync(aliasDir, { recursive: true });
+    fs.symlinkSync(realSite, aliasSite, 'dir');
+    const outsideFile = path.join(workspace, 'real/outside.ts');
+
+    fs.writeFileSync(outsideFile, 'globalThis.v = 7;\n');
+    const entry = path.join(aliasSite, 'src/assets/scripts/main.entry.ts');
+
+    fs.writeFileSync(entry, "import '../../../../outside';\n");
+    const result = await compileScript(entry, aliasSite);
+
+    expect(result.ok).toBe(true);
+    expect(result.inputs).toContain(fs.realpathSync(outsideFile));
+    expect(result.inputs).toContain(entry);
   });
 
   it('injects alveo helper functions and applies production transforms before static imports in standalone entry scripts', async () => {
