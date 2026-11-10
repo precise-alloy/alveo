@@ -111,11 +111,11 @@ describe('script entry bundles', () => {
   it('injects alveo helper functions and applies production transforms before static imports in standalone entry scripts', async () => {
     const root = fixture();
 
-    write(root, '.env', 'VITE_BASE_URL=/custom/\nVITE_PATH_EXTENSION=.html\nVITE_EXTENSION_UNIQUE_ID=ext-id\n');
+    write(root, '.env', 'VITE_BASE_URL=/custom/\nVITE_PATH_EXTENSION=.html\nVITE_EXTENSION_UNIQUE_ID=ext-id\nVITE_CUSTOM_FLAG=enabled\n');
     write(
       root,
       'src/assets/scripts/init.ts',
-      '/* ALVEO_BEGIN_DEVELOPMENT_ONLY */ globalThis.devOnly = true; /* ALVEO_END_DEVELOPMENT_ONLY */ globalThis.extId = "VITE_EXTENSION_UNIQUE_ID"; globalThis.hasGetModifiers = typeof globalThis.getModifiers === "function"; globalThis.pageUrl = globalThis.viteAbsoluteUrl("about", true);'
+      '/* ALVEO_BEGIN_DEVELOPMENT_ONLY */ globalThis.devOnly = true; /* ALVEO_END_DEVELOPMENT_ONLY */ const { VITE_CUSTOM_FLAG } = import.meta.env; globalThis.customFlag = VITE_CUSTOM_FLAG; globalThis.extId = "VITE_EXTENSION_UNIQUE_ID"; globalThis.hasGetModifiers = typeof globalThis.getModifiers === "function"; globalThis.pageUrl = globalThis.viteAbsoluteUrl("about", true);'
     );
     const input = write(root, 'src/assets/scripts/main.entry.ts', '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */\nimport "./init";\n');
     const result = await compileScript(input, root);
@@ -127,6 +127,7 @@ describe('script entry bundles', () => {
     expect(context.hasGetModifiers).toBe(true);
     expect(context.pageUrl).toBe('/custom/about.html');
     expect(context.extId).toBe('ext-id');
+    expect(context.customFlag).toBe('enabled');
     expect(context.devOnly).toBeUndefined();
   });
 

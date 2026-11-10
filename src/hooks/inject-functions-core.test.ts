@@ -18,7 +18,7 @@ describe('alveo/hooks/inject-functions-core.ts', () => {
     it('has the expected constant value', () => {
       expect(FUNCTIONS_PLACEHOLDER).toBe('/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */');
       expect(VIRTUAL_FUNCTIONS_ID).toBe('virtual:alveo/functions');
-      expect(RESOLVED_VIRTUAL_FUNCTIONS_ID).toBe('\0virtual:alveo/functions');
+      expect(RESOLVED_VIRTUAL_FUNCTIONS_ID).toBe('\0virtual:alveo/functions.ts');
       expect(FUNCTIONS_IMPORT_STATEMENT).toBe("import 'virtual:alveo/functions';");
     });
 
@@ -102,6 +102,16 @@ describe('alveo/hooks/inject-functions-core.ts', () => {
       loadFunctionsSource('/any/path.ts', deps);
 
       expect(mockReadFileSync).toHaveBeenCalledWith('/any/path.ts', 'utf8');
+    });
+
+    it('falls back to src/scripts/functions.ts when dist/scripts/functions.js has not been built yet', () => {
+      const source = loadFunctionsSource('/nonexistent/dist/scripts/functions.js');
+
+      expect(source).toContain('getModifiers');
+      expect(source).toContain('viteAbsoluteUrl');
+      const existingSource = loadFunctionsSource(getFunctionsSourcePath().replace('dist/scripts/functions.js', 'src/scripts/functions.ts'));
+
+      expect(existingSource).toBe(source);
     });
   });
 });

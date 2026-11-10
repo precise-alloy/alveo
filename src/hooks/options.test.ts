@@ -239,7 +239,7 @@ describe('optional mocks and Vite entry discovery', () => {
         facadeModuleId: '/project/src/main.entry.ts',
         imports: ['assets/js/rolldown-runtime.0x12345678.js'],
         dynamicImports: ['assets/js/dyn.0x87654321.js'],
-        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; import("./dyn.0x87654321.js").then(m => { globalThis.total = rt(m.d); });\n//# sourceMappingURL=main.js.map',
+        code: 'import "external-cdn"; import "./external-relative.js"; import { rt } from "./rolldown-runtime.0x12345678.js"; import("./dyn.0x87654321.js").then(m => { globalThis.total = rt(m.d); });\n//# sourceMappingURL=main.js.map',
       },
       'assets/js/main.js.map': {
         type: 'asset',
@@ -251,27 +251,27 @@ describe('optional mocks and Vite entry discovery', () => {
         fileName: 'assets/js/react-loader.0xaaaaaaaa.js',
         isEntry: true,
         facadeModuleId: '/project/index.html',
-        imports: ['assets/js/rolldown-runtime.0x12345678.js'],
+        imports: ['assets/js/rolldown-runtime.0x12345678.js', 'assets/js/shared-context.0xcccccccc.js'],
         dynamicImports: ['assets/js/people.0xbbbbbbbb.js'],
-        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; export const load = () => import("./people.0xbbbbbbbb.js"); export const v = rt(1);',
+        code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; import { ctx } from "./shared-context.0xcccccccc.js"; export const load = () => import("./people.0xbbbbbbbb.js"); export const v = rt(ctx);',
       },
-      'assets/js/buttons.0xcccccccc.js': {
+      'assets/js/shared-context.0xcccccccc.js': {
         type: 'chunk',
-        fileName: 'assets/js/buttons.0xcccccccc.js',
+        fileName: 'assets/js/shared-context.0xcccccccc.js',
         isEntry: false,
         isDynamicEntry: false,
-        imports: ['assets/js/react-loader.0xaaaaaaaa.js'],
+        imports: [],
         dynamicImports: [],
-        code: 'import { v } from "./react-loader.0xaaaaaaaa.js"; export const btn = v + 1;',
+        code: 'export const ctx = 1;',
       },
       'assets/js/people.0xbbbbbbbb.js': {
         type: 'chunk',
         fileName: 'assets/js/people.0xbbbbbbbb.js',
         isEntry: false,
         isDynamicEntry: true,
-        imports: ['assets/js/buttons.0xcccccccc.js'],
+        imports: ['assets/js/shared-context.0xcccccccc.js'],
         dynamicImports: [],
-        code: 'import { btn } from "./buttons.0xcccccccc.js"; export default btn;',
+        code: 'import { ctx } from "./shared-context.0xcccccccc.js"; export default ctx;',
       },
     };
 
@@ -287,21 +287,59 @@ describe('optional mocks and Vite entry discovery', () => {
     });
     if (mainChunk?.type === 'chunk') {
       expect(mainChunk.code).not.toContain('rolldown-runtime');
+      expect(mainChunk.code).toContain('external-cdn');
     }
     const loaderChunk = bundle['assets/js/react-loader.0xaaaaaaaa.js'];
 
     expect(loaderChunk).toMatchObject({
       type: 'chunk',
-      imports: [],
+      imports: ['assets/js/shared-context.0xcccccccc.js'],
       dynamicImports: ['assets/js/people.0xbbbbbbbb.js'],
     });
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js']).toBeUndefined();
     expect(bundle['assets/js/rolldown-runtime.0x12345678.js.map']).toBeUndefined();
     expect(bundle['assets/js/dyn.0x87654321.js']).toBeUndefined();
-    expect(bundle['assets/js/buttons.0xcccccccc.js']).toBeUndefined();
+    // Shared stateful/context chunks between React components stay a single instance.
+    expect(bundle['assets/js/shared-context.0xcccccccc.js']).toBeDefined();
     expect(bundle['assets/js/people.0xbbbbbbbb.js']).toMatchObject({
       type: 'chunk',
-      imports: ['assets/js/react-loader.0xaaaaaaaa.js'],
+      imports: ['assets/js/shared-context.0xcccccccc.js'],
     });
+
+    // Preserve `'inline'`, `'hidden'`, and omitted sourcemap modes.
+    for (const [mode, hasInlineDataUrl, hasMapLink] of [
+      ['inline', true, true],
+      ['hidden', false, false],
+      [undefined, false, false],
+    ] as const) {
+      const modeBundle: OutputBundleLike = {
+        'assets/js/rolldown-runtime.0x12345678.js': {
+          type: 'chunk',
+          fileName: 'assets/js/rolldown-runtime.0x12345678.js',
+          isEntry: false,
+          imports: [],
+          dynamicImports: [],
+          code: 'export const rt = (v) => v + 1;',
+        },
+        'assets/js/main.js': {
+          type: 'chunk',
+          fileName: 'assets/js/main.js',
+          isEntry: true,
+          facadeModuleId: '/project/src/main.entry.ts',
+          imports: ['assets/js/rolldown-runtime.0x12345678.js'],
+          dynamicImports: [],
+          code: 'import { rt } from "./rolldown-runtime.0x12345678.js"; globalThis.v = rt(1);',
+        },
+      };
+
+      await hook.generateBundle({ sourcemap: mode }, modeBundle);
+      const flattenedMain = modeBundle['assets/js/main.js'];
+
+      expect(flattenedMain?.type).toBe('chunk');
+      if (flattenedMain?.type === 'chunk') {
+        expect(flattenedMain.code.includes('sourceMappingURL=data:application/json')).toBe(hasInlineDataUrl);
+        expect(flattenedMain.code.includes('sourceMappingURL=')).toBe(hasMapLink);
+      }
+    }
   });
 });

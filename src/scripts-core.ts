@@ -78,7 +78,7 @@ export const getScriptBuildOptions = (inputPath: string, projectRoot: string): B
       define: {
         'import.meta.env.BASE_URL': JSON.stringify(baseUrl),
         ...Object.fromEntries(Object.entries(env).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
-        'import.meta.env': JSON.stringify({ BASE_URL: baseUrl }),
+        'import.meta.env': JSON.stringify({ ...env, BASE_URL: baseUrl }),
       },
     },
     plugins: [
@@ -117,6 +117,10 @@ export async function compileScript(
       throw new Error(`Script compiler returned incomplete output for ${inputPath}`);
     }
 
+    // Rolldown resolves symlinks in `moduleIds` (e.g. `/var` -> `/private/var` on macOS).
+    // Re-anchor module paths relative to the real project root onto `projectRoot` so
+    // callers and watchers receive paths matching their supplied `projectRoot` spelling.
+    const realProjectRoot = fs.realpathSync(projectRoot);
     const inputs: string[] = [];
 
     for (const item of result.output) {
@@ -127,7 +131,11 @@ export async function compileScript(
       dependencies.writeFileSync(filePath, normalizeTextLikeContent(filePath, raw));
       if (item.type !== 'chunk') continue;
       for (const id of item.moduleIds) {
-        if (!id.startsWith('\0')) inputs.push(path.resolve(projectRoot, id.split('?', 1)[0]!));
+        if (!id.startsWith('\0')) {
+          const cleanId = id.split('?', 1)[0]!;
+
+          inputs.push(path.resolve(projectRoot, path.relative(realProjectRoot, fs.realpathSync(cleanId))));
+        }
       }
     }
 

@@ -5,20 +5,27 @@ import MagicString, { SourceMapOptions } from 'magic-string';
 
 import { ASSET_HASH_REGEX, createAppendAssetHash, createDefaultAssetHashDependencies } from '../asset-hash.ts';
 
+const ALVEO_HELPER_REEXPORT_STATEMENT_REGEX =
+  /^export\s+(?:\*\s*(?:as\s+[A-Za-z_$][\w$]*\s+)?from|type\s*\{[^};]*\}\s*from|\{[^};]*\}\s*from)\s*(?:'alveo\/helpers'|"alveo\/helpers")$/;
+
 /**
- * Detects pure barrel re-export modules (`export { ... } from '...'` or
- * `export * from '...'` with no executable statements). Marking them
- * side-effect-free lets Rolldown link callers directly to the re-exported
- * target chunk (such as `react-loader`) instead of emitting tiny empty barrel
- * chunks like `require-css.0x[hash].js`.
+ * Detects pure barrel wrapper modules that only re-export from `'alveo/helpers'`
+ * (such as the starter's `src/_helpers/RequireCss.tsx` and `RequireJs.tsx`).
+ * Marking only these known stateless wrappers as `moduleSideEffects: false`
+ * lets Rolldown link callers directly to `react-loader` without risking
+ * dropping side-effectful initialization in arbitrary consumer or vendor barrels.
  */
 export const isPureReexportModule = (code: string): boolean => {
+  if (!code.includes('alveo/helpers')) return false;
   const stripped = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '').trim();
 
-  return (
-    stripped.length > 0 &&
-    /^(?:export\s+(?:\*\s*(?:as\s+[A-Za-z_$][\w$]*\s+)?from|type\s*\{[^}]*\}\s*from|\{[^}]*\}\s*from)\s*['"][^'"]+['"]\s*;?\s*)+$/.test(stripped)
-  );
+  if (!stripped) return false;
+  const statements = stripped
+    .split(/;|\r?\n/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+
+  return statements.every((statement) => ALVEO_HELPER_REEXPORT_STATEMENT_REGEX.test(statement));
 };
 
 const transform = (context: AlveoContext): PluginOption => {

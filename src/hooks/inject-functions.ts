@@ -29,8 +29,12 @@ const injectFunctions = (): PluginOption => {
     },
 
     resolveId(id) {
-      if (id === VIRTUAL_FUNCTIONS_ID || id.startsWith(VIRTUAL_FUNCTIONS_ID + '?')) {
-        return '\0' + id;
+      if (id === VIRTUAL_FUNCTIONS_ID) {
+        return RESOLVED_VIRTUAL_FUNCTIONS_ID;
+      }
+
+      if (id.startsWith(VIRTUAL_FUNCTIONS_ID + '?')) {
+        return RESOLVED_VIRTUAL_FUNCTIONS_ID + id.slice(VIRTUAL_FUNCTIONS_ID.length);
       }
 
       return undefined;
