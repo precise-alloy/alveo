@@ -3,7 +3,7 @@ import type { AlveoContext } from './types.ts';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import transform from './transform.ts';
+import transform, { isPureReexportModule } from './transform.ts';
 const { allocation } = vi.hoisted(() => ({ allocation: vi.fn() }));
 
 vi.mock('magic-string', async (original) => {
@@ -54,6 +54,27 @@ describe('targeted source transforms', () => {
     const empty = context();
 
     empty.env = {};
-    expect(plugin(empty).transform('"VITE_EXTENSION_UNIQUE_ID"', '/source.js')?.code).toBe('""');
+    expect(plugin(empty).transform('"VITE_EXTENSION_UNIQUE_ID"', '/source.js?alveo-entry=main')?.code).toBe('""');
+  });
+  it('marks pure re-export barrels as side-effect-free without allocating MagicString', () => {
+    const hook = plugin(context());
+    const reexport = "export { RequireCss as default, RequireCss } from 'alveo/helpers';\n";
+
+    expect(isPureReexportModule(reexport)).toBe(true);
+    expect(isPureReexportModule("export * as helpers from 'alveo/helpers';\nexport type { Foo } from './foo';\n")).toBe(true);
+    expect(isPureReexportModule('const x = 1;\nexport { x };')).toBe(false);
+    expect(hook.transform(reexport, '/project/src/_helpers/RequireCss.tsx')).toEqual({
+      code: reexport,
+      map: null,
+      moduleSideEffects: false,
+    });
+    expect(allocation).not.toHaveBeenCalled();
+    const reexportWithAssetComment = "// /assets/ comment\nexport { RequireJs } from 'alveo/helpers';\n";
+
+    expect(hook.transform(reexportWithAssetComment, '/project/src/_helpers/RequireJs.tsx')).toEqual({
+      code: reexportWithAssetComment,
+      map: null,
+      moduleSideEffects: false,
+    });
   });
 });

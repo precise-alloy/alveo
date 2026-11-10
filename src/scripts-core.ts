@@ -4,10 +4,15 @@ import path from 'node:path';
 import chokidar from 'chokidar';
 import debounce from 'debounce';
 import { globSync } from 'glob';
-import { build, type BuildOptions } from 'esbuild';
+import { build, type BuildOptions, type RolldownPluginOption } from 'rolldown';
 import slash from 'slash';
 
-import { getScriptEntryName, SCRIPT_ENTRY_IGNORE_PATTERNS } from './filename.ts';
+import { createAliases } from './alias.ts';
+import { getScriptEntryName, isScriptEntry, SCRIPT_ENTRY_IGNORE_PATTERNS } from './filename.ts';
+import injectFunctions from './hooks/inject-functions.ts';
+import { resolveEntryIsolatedId } from './hooks/options.ts';
+import transform from './hooks/transform.ts';
+import { createPaths, getPackageRoot } from './paths.ts';
 import { normalizeTextLikeContent } from './text-normalization.ts';
 
 export interface ScriptCoreDependencies {
@@ -40,30 +45,62 @@ export const defaultScriptCoreDependencies: ScriptCoreDependencies = {
   log: console.error.bind(console),
 };
 
-const isEntry = (file: string) => /\.entry\.[jt]sx?$/i.test(file);
-
 export function getScriptOutputPath(inputPath: string, projectRoot: string): string {
   const name = getScriptEntryName(inputPath);
 
-  if (!isEntry(inputPath) || !name) throw new Error(`Script entry must be named <name>.entry.{js,jsx,ts,tsx}: ${inputPath}`);
+  if (!isScriptEntry(inputPath) || !name) throw new Error(`Script entry must be named <name>.entry.{js,jsx,ts,tsx}: ${inputPath}`);
 
   return path.resolve(projectRoot, 'public/assets/js', name + '.js');
 }
 
-export const getScriptBuildOptions = (inputPath: string, projectRoot: string): BuildOptions => ({
-  absWorkingDir: projectRoot,
-  entryPoints: [inputPath],
-  outfile: getScriptOutputPath(inputPath, projectRoot),
-  bundle: true,
-  platform: 'browser',
-  format: 'esm',
-  jsx: 'automatic',
-  minify: true,
-  sourcemap: path.basename(inputPath).includes('critical') ? false : 'linked',
-  sourcesContent: true,
-  metafile: true,
-  write: false,
-});
+export const getScriptBuildOptions = (inputPath: string, projectRoot: string): BuildOptions => {
+  const paths = createPaths(projectRoot, 'production');
+  const env = paths.alveoEnv;
+  const baseUrl = env.VITE_BASE_URL ?? '/';
+  const context = {
+    projectRoot: paths.root,
+    packageRoot: getPackageRoot(),
+    srcRoot: paths.srcRoot,
+    outDir: paths.outDir,
+    env,
+    mode: paths.mode,
+  };
+
+  return {
+    cwd: projectRoot,
+    input: inputPath,
+    platform: 'browser',
+    resolve: {
+      alias: Object.fromEntries(createAliases(projectRoot).map(({ find, replacement }) => [find, replacement])),
+    },
+    transform: {
+      jsx: 'react-jsx',
+      define: {
+        'import.meta.env.BASE_URL': JSON.stringify(baseUrl),
+        ...Object.fromEntries(Object.entries(env).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
+        'import.meta.env': JSON.stringify({ BASE_URL: baseUrl }),
+      },
+    },
+    plugins: [
+      injectFunctions() as RolldownPluginOption,
+      {
+        name: 'alveo-forbid-cross-entry-import',
+        resolveId(source, importer, resolveOptions) {
+          return resolveEntryIsolatedId(this.resolve.bind(this), source, importer, resolveOptions, false);
+        },
+      },
+      transform(context) as RolldownPluginOption,
+    ],
+    write: false,
+    output: {
+      file: getScriptOutputPath(inputPath, projectRoot),
+      format: 'esm',
+      minify: true,
+      sourcemap: path.basename(inputPath).includes('critical') ? false : true,
+      codeSplitting: false,
+    },
+  };
+};
 
 export async function compileScript(
   inputPath: string,
@@ -72,15 +109,29 @@ export async function compileScript(
 ): Promise<ScriptBuildResult> {
   dependencies.log('compile:', slash(inputPath));
   try {
+    const outputFilePath = getScriptOutputPath(inputPath, projectRoot);
+    const outputDir = path.dirname(outputFilePath);
     const result = await dependencies.build(getScriptBuildOptions(inputPath, projectRoot));
 
-    if (!result.outputFiles || !result.metafile) throw new Error(`Script compiler returned incomplete output for ${inputPath}`);
-    for (const file of result.outputFiles) {
-      dependencies.mkdirSync(path.dirname(file.path), { recursive: true });
-      dependencies.writeFileSync(file.path, normalizeTextLikeContent(file.path, Buffer.from(file.contents)));
+    if (!result || !('output' in result) || !Array.isArray(result.output) || result.output.length === 0) {
+      throw new Error(`Script compiler returned incomplete output for ${inputPath}`);
     }
 
-    return { ok: true, errors: [], inputs: Object.keys(result.metafile.inputs).map((file) => path.resolve(projectRoot, file)) };
+    const inputs: string[] = [];
+
+    for (const item of result.output) {
+      const filePath = path.resolve(outputDir, item.fileName);
+      const raw = item.type === 'chunk' ? Buffer.from(item.code) : Buffer.from(item.source);
+
+      dependencies.mkdirSync(path.dirname(filePath), { recursive: true });
+      dependencies.writeFileSync(filePath, normalizeTextLikeContent(filePath, raw));
+      if (item.type !== 'chunk') continue;
+      for (const id of item.moduleIds) {
+        if (!id.startsWith('\0')) inputs.push(path.resolve(projectRoot, id.split('?', 1)[0]!));
+      }
+    }
+
+    return { ok: true, errors: [], inputs };
   } catch (error) {
     dependencies.log(error);
 
@@ -122,7 +173,7 @@ export async function watchScripts(
   dependencies: ScriptCoreDependencies = defaultScriptCoreDependencies
 ): Promise<ReturnType<typeof chokidar.watch>> {
   // Chokidar 5 does not expand globs. Watch the source directory for discovery
-  // and add esbuild's actual dependency graph, including imports outside src.
+  // and add Rolldown's actual dependency graph, including imports outside src.
   const watcher = dependencies.createWatcher(path.join(projectRoot, 'src'), { ignoreInitial: true });
   let pending = Promise.resolve();
   const rebuild = () => {
@@ -139,7 +190,7 @@ export async function watchScripts(
   }, 100);
 
   watcher.on('all', (event, file) => {
-    if (event === 'unlink' && isEntry(file)) {
+    if (event === 'unlink' && isScriptEntry(file)) {
       const output = getScriptOutputPath(file, projectRoot);
 
       for (const target of [output, output + '.map', output.replace(/\.js$/, '.css'), output.replace(/\.js$/, '.css.map')]) {

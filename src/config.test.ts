@@ -26,8 +26,12 @@ describe('Alveo configuration', () => {
       entryFileNames: expect.any(Function),
       chunkFileNames: expect.any(Function),
       assetFileNames: expect.any(Function),
+      sourcemapPathTransform: expect.any(Function),
       manualChunks: expect.any(Function),
     });
+    expect(config.build?.rolldownOptions?.optimization).toEqual({ inlineConst: true });
+    expect(config.build?.rolldownOptions?.preserveEntrySignatures).toBe('allow-extension');
+    expect(config.root).toBe(slash(path.resolve('/project')));
     expect(config.build?.minify).toBe('oxc');
     expect(config.css?.preprocessorOptions?.scss).toMatchObject({ quietDeps: true });
     expect(config.plugins).toContain(extra);
@@ -46,8 +50,9 @@ describe('Alveo configuration', () => {
     const config = defineAlveoConfig();
     const lifecycle = config.plugins![0] as { config: (config: object, env: { mode: string }) => { base: string } | undefined };
 
-    // No static base: an env default must never look like an explicit base.
+    // No static base or root when omitted: defaults must not look like explicit overrides.
     expect(config).not.toHaveProperty('base');
+    expect(config).not.toHaveProperty('root');
 
     vi.mocked(loadEnv).mockReturnValueOnce({ VITE_BASE_URL: '/development/' });
     expect(lifecycle.config({}, { mode: 'development' })).toEqual({ base: '/development/' });

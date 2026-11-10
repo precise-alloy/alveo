@@ -6,6 +6,9 @@ import slash from 'slash';
 import { getPackageRoot } from '../paths.ts';
 
 export const FUNCTIONS_PLACEHOLDER = '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */';
+export const VIRTUAL_FUNCTIONS_ID = 'virtual:alveo/functions';
+export const RESOLVED_VIRTUAL_FUNCTIONS_ID = '\0' + VIRTUAL_FUNCTIONS_ID;
+export const FUNCTIONS_IMPORT_STATEMENT = `import '${VIRTUAL_FUNCTIONS_ID}';`;
 
 export const getFunctionsSourcePath = (): string => {
   return slash(path.resolve(getPackageRoot(), 'dist/scripts/functions.js'));

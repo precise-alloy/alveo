@@ -2,6 +2,7 @@ import path from 'path';
 
 import slash from 'slash';
 
+import { isScriptEntry } from './filename.ts';
 import { getAbsolutePath } from './paths.ts';
 
 type ManualChunkMeta = {
@@ -13,6 +14,13 @@ type ModuleInfo = {
 };
 
 const getInternalName = (id: string, api: ManualChunkMeta, srcRoot: string, projectRoot: string): string | null | void => {
+  // Standalone `*.entry.*` scripts must remain self-contained in their own entry
+  // bundle rather than being extracted into a `category~component` chunk that
+  // forces a transitive ES import at runtime.
+  if (isScriptEntry(id)) {
+    return;
+  }
+
   const moduleInfo = api.getModuleInfo(id);
 
   if (!moduleInfo?.isEntry) {

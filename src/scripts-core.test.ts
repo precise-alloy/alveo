@@ -92,7 +92,42 @@ describe('script entry bundles', () => {
     expect((await compileScript(input, root)).ok).toBe(true);
     expect(fs.readFileSync(getScriptOutputPath(input, root), 'utf8')).not.toContain('sourceMappingURL');
     expect(fs.existsSync(getScriptOutputPath(input, root) + '.map')).toBe(false);
-    expect(getScriptBuildOptions(input, root)).toMatchObject({ minify: true, format: 'esm', bundle: true, sourcemap: false });
+    expect(getScriptBuildOptions(input, root)).toMatchObject({
+      output: { minify: true, format: 'esm', sourcemap: false, codeSplitting: false },
+    });
+  });
+
+  it('rejects cross-entry imports between standalone *.entry.* scripts', async () => {
+    const root = fixture();
+
+    write(root, 'src/assets/scripts/main.entry.ts', 'export const shared = 1;');
+    const bad = write(root, 'src/assets/scripts/header.entry.ts', "import { shared } from './main.entry';\nglobalThis.v = shared;");
+    const result = await compileScript(bad, root, { ...defaultScriptCoreDependencies, log: vi.fn() });
+
+    expect(result.ok).toBe(false);
+    expect(String(result.errors[0]?.error)).toContain('Entry script');
+  });
+
+  it('injects alveo helper functions and applies production transforms before static imports in standalone entry scripts', async () => {
+    const root = fixture();
+
+    write(root, '.env', 'VITE_BASE_URL=/custom/\nVITE_PATH_EXTENSION=.html\nVITE_EXTENSION_UNIQUE_ID=ext-id\n');
+    write(
+      root,
+      'src/assets/scripts/init.ts',
+      '/* ALVEO_BEGIN_DEVELOPMENT_ONLY */ globalThis.devOnly = true; /* ALVEO_END_DEVELOPMENT_ONLY */ globalThis.extId = "VITE_EXTENSION_UNIQUE_ID"; globalThis.hasGetModifiers = typeof globalThis.getModifiers === "function"; globalThis.pageUrl = globalThis.viteAbsoluteUrl("about", true);'
+    );
+    const input = write(root, 'src/assets/scripts/main.entry.ts', '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */\nimport "./init";\n');
+    const result = await compileScript(input, root);
+
+    expect(result.ok).toBe(true);
+    const context: Record<string, unknown> = {};
+
+    new Script(fs.readFileSync(getScriptOutputPath(input, root), 'utf8')).runInNewContext(context);
+    expect(context.hasGetModifiers).toBe(true);
+    expect(context.pageUrl).toBe('/custom/about.html');
+    expect(context.extId).toBe('ext-id');
+    expect(context.devOnly).toBeUndefined();
   });
 
   it('uses the same normalized entry names as Vite', () => {
@@ -104,11 +139,7 @@ describe('script entry bundles', () => {
   it('reports compiler, incomplete-output, and write failures', async () => {
     const log = vi.fn();
 
-    for (const build of [
-      vi.fn().mockRejectedValue(new Error('compile')),
-      vi.fn().mockResolvedValue({}),
-      vi.fn().mockResolvedValue({ outputFiles: [] }),
-    ]) {
+    for (const build of [vi.fn().mockRejectedValue(new Error('compile')), vi.fn().mockResolvedValue({}), vi.fn().mockResolvedValue({ output: [] })]) {
       expect((await compileScript('/src/main.entry.ts', '/project', { ...defaultScriptCoreDependencies, build, log })).ok).toBe(false);
     }
     const root = fixture();

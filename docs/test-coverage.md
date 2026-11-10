@@ -64,7 +64,9 @@ The test verifies:
 - Integrated patterns omit only the internal `rolldown-runtime` module-preload hint, preserving other assets, formatting, and script/comment examples. Static HTML retains its preload, and the loader plus imported runtime are copied unchanged so backend entry-asset registrations stay stable.
 - Every non-production mode may use mocks, but missing handlers are optional and must not pull an unresolved mock module into the build.
 - Vite-managed `?url` modules must not be mistaken for consumer public-file references merely because their filesystem path contains `/assets/`.
-- Script compilation discovers entries only, bundles imports, excludes tests, detects output collisions, writes maps, and watches real directories/dependencies.
+- Script compilation discovers entries only, inlines imported helpers per entry without transitive chunks, rejects cross-entry imports, excludes tests, detects output collisions, writes maps, and watches real directories/dependencies.
+- The `/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */` marker is transformed into a static virtual import (`virtual:alveo/functions`) so `getModifiers`, `viteAbsoluteUrl`, and `getCookie` evaluate before sibling ESM imports in `main.entry.ts`.
+- `react-loader` re-exports `alveo/helpers` so `rolldown-runtime`, `react/jsx-runtime`, and `alveo/helpers` merge into `react-loader.0x[hash].js`, eliminating extra micro-chunk hops for lazy client components.
 - Sass aggregation must preserve base/atom/molecule cascade and real source ownership. Tests use `SourceMapConsumer` to verify final original file/line positions, not only the presence of filenames or `sourcesContent`.
 - Sass intermediate output stays expanded; compressed Sass output can collapse cross-module mappings. LightningCSS performs final minification/target lowering for both source and precompiled framework CSS.
 - One-shot styles do not debounce/sleep, failed styles reject the pipeline, and watch startup compiles each entry once with `ignoreInitial: true`.

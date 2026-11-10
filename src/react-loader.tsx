@@ -4,6 +4,13 @@ import { clientComponents } from 'virtual:alveo/client-components';
 
 import { createComponentRenderer } from './react-loader-core.tsx';
 
+// Re-export the shared React/JSX helpers from the loader entry so Rolldown's
+// common-chunk merging keeps `react/jsx-runtime`, `rolldown-runtime`, and
+// `alveo/helpers` inside `react-loader.0x[hash].js`. Lazy client components
+// are only ever loaded by `react-loader`, so bundling these tiny helpers here
+// eliminates extra micro-chunk network waterfalls when mounting components.
+export { ReactSection, RequireCss, RequireJs } from './helpers.tsx';
+
 const renderComponent = createComponentRenderer({
   root: lazy(() => import('./root/index.tsx')),
   ...clientComponents,

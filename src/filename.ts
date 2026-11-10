@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 type AssetPathInfo = {
   name?: string;
   ext: string;
@@ -52,7 +54,7 @@ export const getAssetFileName = (chunkInfo: PreRenderedAsset): string => {
 
 /**
  * Glob ignore patterns shared by every script-entry discovery path (Vite
- * `alveo-options` inputs and the standalone esbuild script build). Keeping one
+ * `alveo-options` inputs and the standalone Rolldown script build). Keeping one
  * list prevents test/spec entries or __tests__/__mocks__ fixtures from being
  * shipped by one pipeline while the other excludes them.
  */
@@ -60,6 +62,23 @@ export const SCRIPT_ENTRY_IGNORE_PATTERNS: readonly string[] = ['**/*.{test,spec
 
 export const getScriptEntryName = (file: string): string =>
   toLowerDashed(path.posix.basename(file.replaceAll('\\', '/')).replace(/\.entry\.[jt]sx?$/i, ''));
+
+/**
+ * Checks whether a module path is a standalone `*.entry.{js,jsx,ts,tsx}` script
+ * with a non-empty entry basename.
+ */
+export const isScriptEntry = (file: string): boolean => {
+  const cleanPath = file.split('?', 1)[0]!;
+
+  return /\.entry\.[jt]sx?$/i.test(cleanPath) && Boolean(getScriptEntryName(cleanPath));
+};
+
+/**
+ * Removes the internal `alveo-entry` module-isolation query parameter from
+ * sourcemap paths so emitted `.map` files reference the original source files.
+ */
+export const stripEntryIsolationQuery = (sourcePath: string): string =>
+  sourcePath.replace(/([?&])alveo-entry=[^&#]+(&|$)/g, (_, prefix: string, suffix: string) => (suffix ? prefix : ''));
 
 export const getEntryFileName = (chunkInfo: PreRenderedChunk): string => {
   if (chunkInfo.name === 'entry-server') {
@@ -76,4 +95,3 @@ export const getEntryFileName = (chunkInfo: PreRenderedChunk): string => {
 export const getChunkFileName = (chunkInfo: PreRenderedChunk): string => {
   return getAssetPath({ name: chunkInfo.name, ext: 'js' });
 };
-import path from 'node:path';

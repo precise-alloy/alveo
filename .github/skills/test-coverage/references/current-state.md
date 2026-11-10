@@ -85,6 +85,9 @@ Additional tests cover CLI sequencing, real stylesheet orchestration, prerender 
 - Preserve keyboard/ARIA behavior, both text directions, print stability, and timer cleanup when changing catalog controls.
 - Let responsive CSS distinguish collapsed mobile/top-panel menus from the always-visible desktop sidebar; do not unconditionally apply `inert` from a toggle state. Check compiled print-selector scope and browser-computed styles.
 - Skip public-asset hashing for Vite-managed `?url` modules; their filesystem paths can contain `/assets/` without referring to a consumer public file.
+- Isolate `*.entry.*` module graphs per entry so shared helpers are inlined into each entry output with zero transitive imports, and reject imports targeting another `*.entry.*` script.
+- Transform `/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */` into a static `virtual:alveo/functions` import so `functions.ts` globals initialize before sibling ESM imports in `main.entry.ts`.
+- Keep `rolldown-runtime`, `react/jsx-runtime`, and `alveo/helpers` inside `react-loader.0x[hash].js` and mark pure re-export barrels as side-effect-free so lazy client components do not chain through micro-chunks.
 
 ## Repeatable Techniques
 

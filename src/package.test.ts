@@ -47,10 +47,11 @@ describe('package distribution', () => {
   it('keeps compiler and mocking dependencies installed and shares React peers with consumers', async () => {
     const manifest = JSON.parse(await readFile(join(PACKAGE_ROOT, 'package.json'), 'utf8'));
 
-    for (const dependency of ['esbuild', 'msw', 'vite', 'sass']) {
+    for (const dependency of ['rolldown', 'msw', 'vite', 'sass']) {
       expect(manifest.dependencies).toHaveProperty(dependency);
       expect(manifest.devDependencies).not.toHaveProperty(dependency);
     }
+    expect(manifest.dependencies).not.toHaveProperty('esbuild');
     for (const dependency of ['react', 'react-dom', 'react-router-dom']) {
       expect(manifest.dependencies).not.toHaveProperty(dependency);
       expect(manifest.peerDependencies[dependency]).toBe(manifest.devDependencies[dependency]);
@@ -216,7 +217,7 @@ describe('package distribution', () => {
             'const consumerRequire = createRequire(import.meta.url);',
             "const packageRequire = createRequire(consumerRequire.resolve('alveo'));",
             "assert.equal(typeof createPaths, 'function');",
-            "for (const dependency of ['esbuild', 'msw']) assert.ok(packageRequire.resolve(dependency));",
+            "for (const dependency of ['rolldown', 'msw']) assert.ok(packageRequire.resolve(dependency));",
             "for (const dependency of ['react', 'react-dom', 'react-router-dom']) {",
             '  assert.equal(packageRequire.resolve(dependency), consumerRequire.resolve(dependency));',
             '}',
@@ -369,7 +370,10 @@ describe('package distribution', () => {
         // `$&`/`$$` are String.replace patterns: prerender must insert them literally.
         'src/pages/Home.tsx':
           'import { createElement } from \'react\'; export default function Home() { return createElement("p", null, "Price $& $$"); }',
-        'src/assets/scripts/main.entry.ts': 'globalThis.mainReady = true;\n',
+        'src/assets/scripts/shared.ts': 'export const formatReady = (label: string) => `${label}:${typeof globalThis.getModifiers}`;\n',
+        'src/assets/scripts/init-order.ts': 'import { formatReady } from "./shared";\nglobalThis.mainReady = formatReady("main");\n',
+        'src/assets/scripts/main.entry.ts': '/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */\nimport "./init-order";\n',
+        'src/assets/scripts/widget.entry.ts': 'import { formatReady } from "./shared";\nglobalThis.widgetReady = formatReady("widget");\n',
         'src/assets/styles/00-abstracts/_abstracts.scss': '',
         'src/assets/styles/01-functions/_functions.scss': '',
         'src/assets/styles/01-mixins/_mixins.scss': '',
@@ -411,6 +415,19 @@ describe('package distribution', () => {
       };
 
       visit('index.html');
+      expect(manifestGraph['index.html']?.imports ?? []).toEqual([]);
+      const mainCode = await readFile(join(staticRoot, 'assets/js/main.js'), 'utf8');
+      const widgetCode = await readFile(join(staticRoot, 'assets/js/widget.js'), 'utf8');
+
+      expect(mainCode).not.toContain('import ');
+      expect(widgetCode).not.toContain('import ');
+      const pageScriptContext: Record<string, unknown> = {};
+
+      new Script(mainCode).runInNewContext(pageScriptContext);
+      new Script(widgetCode).runInNewContext(pageScriptContext);
+      expect(pageScriptContext['mainReady']).toBe('main:function');
+      expect(pageScriptContext['widgetReady']).toBe('widget:function');
+
       const sources = async (file: string): Promise<string[]> => JSON.parse(await readFile(join(staticRoot, file + '.map'), 'utf8')).sources;
       const eagerSources = (await Promise.all([...eager].map(sources))).flat().join('\n');
 
@@ -418,7 +435,7 @@ describe('package distribution', () => {
       const jsFiles = (await readdir(join(staticRoot, 'assets/js'))).filter((file) => file.endsWith('.js'));
       const allClientSources = (await Promise.all(jsFiles.map((file) => sources('assets/js/' + file)))).flat().join('\n');
 
-      expect(allClientSources).not.toMatch(/cheerio|lodash/);
+      expect(allClientSources).not.toMatch(/cheerio|lodash|alveo-entry=/);
       expect(allClientSources).toContain('js-yaml');
 
       // Stage generated output without making a commit. Rebuilding CRLF source

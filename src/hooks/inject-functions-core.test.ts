@@ -3,7 +3,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  FUNCTIONS_IMPORT_STATEMENT,
   FUNCTIONS_PLACEHOLDER,
+  RESOLVED_VIRTUAL_FUNCTIONS_ID,
+  VIRTUAL_FUNCTIONS_ID,
   containsFunctionsPlaceholder,
   getFunctionsSourcePath,
   loadFunctionsSource,
@@ -11,9 +14,12 @@ import {
 } from './inject-functions-core.ts';
 
 describe('alveo/hooks/inject-functions-core.ts', () => {
-  describe('FUNCTIONS_PLACEHOLDER', () => {
+  describe('FUNCTIONS_PLACEHOLDER and virtual module constants', () => {
     it('has the expected constant value', () => {
       expect(FUNCTIONS_PLACEHOLDER).toBe('/* DO NOT REMOVE - AUTO-IMPORTS FUNCTIONS PLACEHOLDER */');
+      expect(VIRTUAL_FUNCTIONS_ID).toBe('virtual:alveo/functions');
+      expect(RESOLVED_VIRTUAL_FUNCTIONS_ID).toBe('\0virtual:alveo/functions');
+      expect(FUNCTIONS_IMPORT_STATEMENT).toBe("import 'virtual:alveo/functions';");
     });
 
     it('is a non-empty string', () => {
