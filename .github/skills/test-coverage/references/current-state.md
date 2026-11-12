@@ -40,6 +40,7 @@ The 35-file gate in `vitest.config.ts` includes:
 - `src/root/active-item-options.tsx`
 - `src/root/catalog.ts`
 - `src/root/frame-controls.tsx`
+- `src/root/frame-width.ts`
 - `src/root/svg-symbols.ts`
 - `src/scaffold.ts`
 - `src/scripts-core.ts`

@@ -3,8 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // SVG <use> rejects data URLs, even when a consumer raises assetsInlineLimit.
 import rootSprite from '../assets/root.svg?url&no-inline';
 
-const MIN_FRAME_SIZE = 350;
-const MSG_IFRAME_SIZE = 'MSG_IFRAME_SIZE';
+import { MIN_FRAME_SIZE, applyFrameWidth, getFrameWrapper, getMaxFrameWidth, persistFrameWidth } from './frame-width.ts';
 
 const randomIntFromInterval = (min: number, max: number): number => {
   // min and max included
@@ -30,19 +29,24 @@ export default function FrameControls() {
     };
   }, [stopDisco]);
 
+  // Widths that would push the drag handle past the viewport fall back to the
+  // Full Width view (and clear the stored width) instead of overflowing.
   const setIFrameWidth = (width?: number) => {
-    const wrapper = document.getElementById('root-iframe-wrapper');
+    const wrapper = getFrameWrapper();
 
     if (!wrapper) {
       return;
     }
 
-    if (width) {
-      wrapper.style.maxWidth = `min(100%, ${width}px)`;
-      sessionStorage.setItem(MSG_IFRAME_SIZE, width + '');
-    } else {
-      wrapper.style.removeProperty('max-width');
-    }
+    persistFrameWidth(applyFrameWidth(wrapper, width));
+  };
+
+  // Upper bound for generated widths, derived from the preview cell rather than
+  // the body so top-panel and narrow layouts are respected.
+  const getMaxWidth = () => {
+    const wrapper = getFrameWrapper();
+
+    return wrapper ? getMaxFrameWidth(wrapper) : 0;
   };
 
   const handleMobileClick = () => {
@@ -64,9 +68,7 @@ export default function FrameControls() {
   const handleDesktopClick = () => {
     stopDisco();
 
-    const maxWidth = document.body.clientWidth - 300;
-
-    const width = randomIntFromInterval(1024, Math.max(1024, maxWidth));
+    const width = randomIntFromInterval(1024, Math.max(1024, getMaxWidth()));
 
     setIFrameWidth(width);
   };
@@ -75,15 +77,12 @@ export default function FrameControls() {
     stopDisco();
 
     setIFrameWidth(undefined);
-    sessionStorage.removeItem(MSG_IFRAME_SIZE);
   };
 
   const handleRandomClick = () => {
     stopDisco();
 
-    const maxWidth = document.body.clientWidth - 300;
-
-    const width = randomIntFromInterval(MIN_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, maxWidth));
+    const width = randomIntFromInterval(MIN_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, getMaxWidth()));
 
     setIFrameWidth(width);
   };
@@ -96,9 +95,7 @@ export default function FrameControls() {
     }
 
     discoTimer.current = setInterval(() => {
-      const maxWidth = document.body.clientWidth - 300;
-
-      const width = randomIntFromInterval(MIN_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, maxWidth));
+      const width = randomIntFromInterval(MIN_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, getMaxWidth()));
 
       setIFrameWidth(width);
     }, 2000);

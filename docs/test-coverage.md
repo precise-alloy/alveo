@@ -26,7 +26,7 @@ The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate c
 | Vite hooks | `hooks/inject-functions.ts`, `hooks/inject-functions-core.ts`, `hooks/options.ts`, `hooks/transform.ts`, `hooks/transform-index-html.ts` |
 | Build cores | `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
 | Browser runtime | `react-loader-core.tsx`, `scripts/functions.ts`, `scripts/state-markup.ts` |
-| Catalog | `root/catalog.ts`, `root/svg-symbols.ts`, `root/active-item-options.tsx`, `root/frame-controls.tsx` |
+| Catalog | `root/catalog.ts`, `root/svg-symbols.ts`, `root/active-item-options.tsx`, `root/frame-controls.tsx`, `root/frame-width.ts` |
 
 All paths above are relative to `src/`. Type-only models do not contain executable logic. This is a scoped per-file gate, **not** a claim of 100% coverage of the entire repository.
 

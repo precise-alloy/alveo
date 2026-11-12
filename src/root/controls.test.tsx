@@ -34,6 +34,11 @@ afterEach(() => {
 });
 
 describe('frame controls', () => {
+  // Mirrors the root template: the wrapper is the last root grid item and owns the drag handle.
+  const mountFrame = (columns: string) => {
+    document.body.innerHTML = `<main style="grid-template-columns: ${columns}"><div id="root-iframe-wrapper"><div id="root-iframe-resizer" style="width: 20px"></div></div></main>`;
+  };
+
   const expectNoTimers = () => {
     // jsdom schedules storage-event delivery on zero-delay timers. Flush those
     // without advancing a live Disco interval before asserting its cleanup.
@@ -47,7 +52,7 @@ describe('frame controls', () => {
     document.documentElement.dir = direction;
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    document.body.innerHTML = '<div id="root-iframe-wrapper"></div>';
+    mountFrame('300px 2000px');
     const { unmount } = render(<FrameControls />);
     const disco = screen.getByRole('button', { name: 'Disco Mode View' });
     const wrapper = document.getElementById('root-iframe-wrapper')!;
@@ -78,10 +83,30 @@ describe('frame controls', () => {
     unmount();
     expectNoTimers();
   });
+  it('switches to Full Width instead of overflowing when a width does not fit', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    sessionStorage.setItem('MSG_IFRAME_SIZE', '640');
+    // 900px cell: the 1024px minimum Desktop width cannot fit beside the handle.
+    mountFrame('300px 900px');
+    render(<FrameControls />);
+    const wrapper = document.getElementById('root-iframe-wrapper')!;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Desktop View' }));
+    expect(wrapper.style.maxWidth).toBe('');
+    expect(wrapper).not.toHaveClass('is-constrained');
+    expect(sessionStorage.getItem('MSG_IFRAME_SIZE')).toBeNull();
+
+    // Random widths are bounded by the space left for the handle (900 - 2 * 21).
+    fireEvent.click(screen.getByRole('button', { name: 'Random Width View' }));
+    expect(wrapper.style.maxWidth).toBe(`min(100%, ${Math.floor(0.5 * (858 - 350 + 1) + 350)}px)`);
+    expect(wrapper).toHaveClass('is-constrained');
+  });
   it('tolerates a missing frame without leaving a timer behind', () => {
     const { unmount } = render(<FrameControls />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Mobile View' }));
+    for (const name of ['Mobile View', 'Desktop View', 'Random Width View']) {
+      fireEvent.click(screen.getByRole('button', { name }));
+    }
     unmount();
   });
 });

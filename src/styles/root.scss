@@ -93,6 +93,11 @@ body {
   height: 100dvh;
   display: grid;
   grid-template-rows: min-content 1fr;
+  // Safety net: nothing inside the root (the off-cell resizer, the wrapper's
+  // 1px edge lines) may ever create horizontal scrollable overflow. Unlike
+  // `hidden`, `clip` also blocks programmatic/drag scrolling that would shift
+  // the page and cut off its start side, and it leaves the block axis visible.
+  overflow-x: clip;
 
   @include lg {
     grid-template-columns: px2rem(300px) 1fr;
@@ -147,6 +152,10 @@ body {
   }
 
   &__target-resizer {
+    // Hidden in Full Width view: the handle sits outside the wrapper, which
+    // already fills its cell, so it would only overflow the viewport. The
+    // frame-width helpers add `is-constrained` only when the handle fits.
+    display: none;
     width: px2rem(20px);
     height: 100%;
     position: absolute;
@@ -189,6 +198,10 @@ body {
     height: 100%;
     background-color: transparent;
     display: none;
+  }
+
+  &__target-wrapper.is-constrained &__target-resizer {
+    display: block;
   }
 
   &.top-panel .alveo-t-root__target-wrapper {

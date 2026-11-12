@@ -47,6 +47,7 @@ export default defineConfig({
         'src/root/catalog.ts',
         'src/root/active-item-options.tsx',
         'src/root/frame-controls.tsx',
+        'src/root/frame-width.ts',
         'src/root/svg-symbols.ts',
         'src/scripts-core.ts',
         'src/scaffold.ts',

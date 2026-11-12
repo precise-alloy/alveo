@@ -156,6 +156,11 @@ describe('optional mocks and Vite entry discovery', () => {
     });
 
     expect(await resolveEntryIsolatedId(resolve, './shared', undefined)).toBeUndefined();
+    // Vite's dev optimizer scan resolves rollup inputs with `isEntry: true` and a
+    // synthesized `<root>/index.html` importer; that must not trip the cross-entry guard.
+    expect(await resolveEntryIsolatedId(resolve, './other.entry', '/project/index.html', { isEntry: true })).toBeUndefined();
+    // Its Rolldown scan pass re-resolves the same inputs without `isEntry` but with `scan: true`.
+    expect(await resolveEntryIsolatedId(resolve, './other.entry', '/project/index.html', { scan: true })).toBeUndefined();
     expect(await resolveEntryIsolatedId(resolve, './shared', '/project/src/organisms/header.tsx')).toBeUndefined();
     expect(resolve).toHaveBeenCalledOnce();
 

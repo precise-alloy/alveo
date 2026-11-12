@@ -93,6 +93,28 @@ export const assertNotCrossEntryImport = (resolvedPath: string, importerPath: st
   }
 };
 
+type EntryResolveOptions = {
+  assertions?: Record<string, string>;
+  custom?: Record<string, unknown>;
+  isEntry?: boolean;
+  scan?: boolean;
+};
+
+/**
+ * Root inputs are not imports, so they can never be cross-entry imports.
+ * Vite's dev plugin container substitutes `<root>/index.html` as the importer
+ * whenever none is given, and the dependency optimizer resolves every
+ * `build.rollupOptions.input` that way (`isEntry`, and again without `isEntry`
+ * from its Rolldown scan pass). Without these bail-outs every `*.entry.*` input
+ * looks like it is imported by index.html, the scan aborts, and CJS deps such
+ * as react-dom are served un-prebundled (breaking `createRoot` imports). The
+ * scan only collects bare dependency imports for pre-bundling; real builds and
+ * dev transforms still enforce the cross-entry rule and apply `?alveo-entry=`
+ * isolation.
+ */
+const isImportResolution = (importer: string | undefined, resolveOptions?: EntryResolveOptions): importer is string =>
+  Boolean(importer) && !resolveOptions?.isEntry && !resolveOptions?.scan;
+
 /**
  * Isolates every module imported within a standalone `*.entry.*` dependency
  * subgraph by tagging its resolved ID with `?alveo-entry=<owner>`. This causes
@@ -103,10 +125,10 @@ export const resolveEntryIsolatedId = async (
   resolve: ResolveFunction,
   source: string,
   importer?: string,
-  resolveOptions?: { assertions?: Record<string, string>; custom?: Record<string, unknown>; isEntry?: boolean },
+  resolveOptions?: EntryResolveOptions,
   isolate = true
 ): Promise<ResolveResult | undefined> => {
-  if (!importer) {
+  if (!isImportResolution(importer, resolveOptions)) {
     return undefined;
   }
 
