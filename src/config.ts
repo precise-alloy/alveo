@@ -57,7 +57,7 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
 
   const manualChunks = createManualChunk(paths.srcRoot, paths.root);
 
-  const defaultPlugins: PluginOption[] = [
+  const plugins: PluginOption[] = [
     {
       name: 'alveo-context',
       config(inputConfig, configEnv) {
@@ -89,16 +89,6 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
       name: 'alveo-static-output',
       apply: 'build',
       enforce: 'post',
-      generateBundle(_output, bundle) {
-        // Emit the same canonical bytes used by assetFileNames, including
-        // for in-memory builds where writeBundle never runs.
-        for (const item of Object.values(bundle)) {
-          if (item.type !== 'asset') continue;
-          const text = getOutputAssetText(item);
-
-          if (text !== undefined) item.source = text;
-        }
-      },
       writeBundle({ dir }, bundle) {
         const { build, publicDir } = this.environment.config;
 
@@ -107,9 +97,27 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
         if (!build.ssr && !build.watch && dir) normalizeStaticOutput(dir, Object.keys(bundle), build.copyPublicDir && publicDir);
       },
     },
-  ];
+    ...(userOptions?.plugins ?? []),
+    {
+      // List this after consumer plugins to break ties between post-ordered hooks.
+      name: 'alveo-finalize-assets',
+      apply: 'build',
+      enforce: 'post',
+      generateBundle: {
+        order: 'post',
+        handler(_output, bundle) {
+          // Emit the same canonical bytes used by assetFileNames, including
+          // for in-memory builds where writeBundle never runs.
+          for (const item of Object.values(bundle)) {
+            if (item.type !== 'asset') continue;
+            const text = getOutputAssetText(item);
 
-  const consumerPlugins = userOptions?.plugins ?? [];
+            if (text !== undefined) item.source = text;
+          }
+        },
+      },
+    },
+  ];
 
   const config: UserConfig = {
     ...(userOptions?.root === undefined ? {} : { root: paths.root }),
@@ -117,7 +125,7 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
     // default is resolved in `alveo-context` for the actual Vite mode so it can
     // never masquerade as an explicit base and override CLI/inline values.
     ...(userOptions?.base === undefined ? {} : { base: userOptions.base }),
-    plugins: [...defaultPlugins, ...consumerPlugins],
+    plugins,
     assetsInclude: ['**/*.svg', '**/*.htm', '**/*.cshtml'],
     server: {
       fs: {

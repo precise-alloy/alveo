@@ -56,6 +56,40 @@ describe('Alveo configuration through Vite', () => {
   const resolveBase = async (config: object): Promise<string> =>
     (await resolveConfig({ ...config, configFile: false, logLevel: 'silent' }, 'serve', 'development')).base;
 
+  it.each([undefined, 'post'] as const)('canonicalizes a late consumer asset before returning the bundle (hook order: %s)', async (order) => {
+    fs.writeFileSync(path.join(root, 'index.html'), '<html></html>');
+    const text = 'late notice\n';
+    const fileName = `assets/notice.0x${getAssetVersion(text)}.txt`;
+
+    for (const source of [text, 'late notice\r\n']) {
+      const output = await build({
+        ...defineAlveoConfig({
+          root,
+          build: { write: false },
+          plugins: [
+            {
+              name: 'late-notice',
+              enforce: 'post',
+              generateBundle: {
+                order,
+                handler() {
+                  this.emitFile({ type: 'asset', name: 'notice.txt', source });
+                },
+              },
+            },
+          ],
+        }),
+        configFile: false,
+        logLevel: 'error',
+      });
+
+      if (!('output' in output)) throw new Error('Expected a single in-memory bundle');
+      const notice = output.output.find((item) => item.fileName === fileName);
+
+      expect(notice?.type === 'asset' && Buffer.from(notice.source)).toEqual(Buffer.from(text));
+    }
+  });
+
   it.each([
     { name: 'plugin-icon.svg', prefix: 'assets/images/plugin-icon', ext: '.svg', text: '<svg>\n<circle/>\n</svg>\n', write: true },
     { name: 'notice.txt', prefix: 'assets/notice', ext: '.txt', text: 'one\ntwo\n', write: false },

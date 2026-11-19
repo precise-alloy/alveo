@@ -96,6 +96,8 @@ The fixture also imports an SVG with inlining disabled. Its fingerprint is calcu
 
 A Vite plugin fixture emits an SVG in a written build and a plain-text notice in a `write: false` build. The importer must expose the same runtime URL and the bundle must contain the same LF bytes whether the plugin supplies an LF string, CRLF string, or CRLF buffer. Changing the content must still change its fingerprint. Generated script and stylesheet strings keep Rolldown's hash policy; opaque extensions and binary control bytes are not normalized.
 
+Plugins passed to `defineAlveoConfig({ plugins })` can also emit assets during `generateBundle`. A `write: false` fixture checks that a notice emitted by an `enforce: 'post'` plugin has the LF bytes its filename fingerprints, even if its hook also specifies `order: 'post'`.
+
 An in-memory build checks that unnamed text matches its generated fingerprint while the same bytes emitted under an explicit opaque filename remain unchanged. The LF/CRLF fixture compares minified and unminified builds independently, including a hashed worker with a multiline template literal and its source map. The unminified entry must retain the multiline license footer appended by a consumer render hook, with LF already present in the returned chunk.
 
 Generated source maps are canonicalized in the bundle, including maps emitted as strings. A build with output nested under `publicDir` checks the emitted map, its on-disk bytes, and the original public file. Alveo does not walk overlapping directories to normalize public copies; use separate directories for that guarantee.
