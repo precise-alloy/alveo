@@ -5,7 +5,7 @@ export const isTextLikePath = (filePath: string): boolean => {
 
   // Unknown extensions (including binary formats and byte-sensitive .ics)
   // are opaque. Extensionless consumer templates still get the byte checks.
-  return /(?:^|[/\\])[^./\\]+$|\.(?:css|cjs|csv|htm|html|js|json|jsx|map|md|mjs|scss|svg|ts|tsx|txt|webmanifest|xml|ya?ml)$/i.test(name);
+  return /(?:^|[/\\])[^./\\]+$|\.(?:cshtml|css|cjs|csv|htm|html|js|json|jsx|map|md|mjs|scss|svg|ts|tsx|txt|webmanifest|xml|ya?ml)$/i.test(name);
 };
 
 export const normalizeTextLineEndings = (text: string): string => text.replace(/\r\n?/g, '\n');
