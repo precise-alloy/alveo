@@ -106,7 +106,7 @@ Mocking remains automatic in **all non-production modes**, including custom mode
 
 **Later runs:** Each record lists the relative file paths Alveo generated in that destination. Alveo may replace those files and unlink stale ones, but does not clear directories or scan unrelated files for normalization. Unrelated files and links are left alone, including those nested beside generated files. A link or unexpected directory at an owned file, or a link in its parent path below the destination root, causes refusal. Keep the records with the outputs; do not hand-edit them.
 
-Publishing is not transactional. Do not run competing writers in these directories. If an I/O failure leaves partial output, restore a known-good pair or regenerate into fresh directories and review before switching.
+An existing record is replaced by a same-directory rename, so a failed replacement does not erase the previous record. Publishing the files and both roots is **not** transactional. Do not run competing writers in these directories. If an I/O failure leaves partial output, restore a known-good pair or regenerate into fresh directories and review before switching.
 
 ### tsconfig.json
 
