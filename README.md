@@ -86,13 +86,25 @@ VITE_INTE_ASSET_DIR=../MyProject.Web/wwwroot/assets
 VITE_INTE_PATTERN_DIR=../MyProject.Patterns
 ```
 
-Integration destinations must be outside the project and must not overlap each other or the project, including through symlinks. They must be exclusively owned generated-output directories. Each integration clears all entries in the asset destination, including obsolete hashed files, removed folders, and hidden files such as `.gitkeep`, then copies the current build and regenerates `hashes.json`. The asset destination directory itself is retained, preserving its permissions and any validated external-root symlink. Copying is fail-fast and non-atomic: errors stop the command but can leave partial output; there is no rollback to the previous build.
-
-Everything emitted under `dist/static/assets/` is copied, including assets Vite places at its root (for example a non-inlined `.mp4`) and extra `public/assets/` files or folders; binary bytes are copied unchanged. Existing symlinks inside the destinations are removed without following them, and current assets are copied in their place. Both `generate` and `inte` run state aggregation and stylesheet compilation first and stop on a failed stage or SSR render.
-
 Base URL precedence: an explicit inline/CLI base (`vite --base`, `createServer({ base })`) wins over `defineAlveoConfig({ base })`, which wins over `VITE_BASE_URL` for the active mode; `/` is the final fallback.
 
 Mocking remains automatic in **all non-production modes**, including custom modes, when `src/mocks/handlers` exists. Without handlers the mock entry and its starter HTML tag are omitted. Production never includes the mock entry.
+
+### Integration destinations and first upgrade
+
+`alveo inte` publishes files from `dist/static/assets/`, including root-level and hidden assets, and regenerates the flat `hashes.json`. With `VITE_INTE_PATTERN_DIR` set, it publishes `assets/pages/` relative to the pattern root and flattens prerendered sample names (for example, `atoms/button/index.html` becomes `atoms-button-index.html`). A configured pattern destination requires generated HTML; old samples cannot satisfy validation. Leave the variable unset or empty for assets only.
+
+**First run:** Each destination must be absent or empty, including hidden entries such as `.gitkeep`. The asset and optional pattern directories must be outside the project and must not overlap it or one another, even through symlinks. Alveo checks both destinations and planned filenames before writing to either. An unowned non-empty destination, invalid ownership record, or filename collision stops the publish.
+
+**Upgrading an existing integration (including PreciseAlloy):**
+
+1. Leave both existing outputs untouched. Point `VITE_INTE_ASSET_DIR` and, if used, `VITE_INTE_PATTERN_DIR` at **fresh, separate external directories** for the upgrade build.
+2. Run `alveo inte` there. Compare the generated asset paths, bytes and `hashes.json` with the old assets; review the generated HTML against the backend’s tracked patterns. Run it again with unchanged sources and confirm the outputs, including both hidden ownership records, have no content diff.
+3. Keep a backup of the old trees. Switch to the reviewed directories as a pair, retaining each `.alveo-integration.json` with its corresponding files. Restore only identified, non-colliding backend-owned files. **Do not copy a record alone into a legacy directory, fabricate one, or empty a live directory to force adoption.**
+
+**Later runs:** Each record lists the relative file paths Alveo generated in that destination. Alveo may replace those files and unlink stale ones, but does not clear directories or scan unrelated files for normalization. Unrelated files and links are left alone, including those nested beside generated files. A link or unexpected directory at an owned file, or a link in its parent path below the destination root, causes refusal. Keep the records with the outputs; do not hand-edit them.
+
+Publishing is not transactional. Do not run competing writers in these directories. If an I/O failure leaves partial output, restore a known-good pair or regenerate into fresh directories and review before switching.
 
 ### tsconfig.json
 
