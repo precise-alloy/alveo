@@ -24,7 +24,7 @@ The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate c
 | Resolution/output | `alias.ts`, `asset-hash.ts`, `cryptography.ts`, `filename.ts`, `manual-chunk.ts`, `paths`-dependent virtual module behavior in `virtual-modules.ts` |
 | Server/processes | `dev-supervisor.ts`, `create-server.ts`, `create-vite-dev-server.ts`, `server.ts`, `entry-server.tsx`, `renderer.ts` |
 | Vite hooks | `hooks/inject-functions.ts`, `hooks/inject-functions-core.ts`, `hooks/options.ts`, `hooks/transform.ts`, `hooks/transform-index-html.ts` |
-| Build cores | `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
+| Build cores | `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `static-output.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
 | Browser runtime | `react-loader-core.tsx`, `scripts/functions.ts`, `scripts/state-markup.ts` |
 | Catalog | `root/catalog.ts`, `root/svg-symbols.ts`, `root/active-item-options.tsx`, `root/frame-controls.tsx`, `root/frame-width.ts` |
 
@@ -88,6 +88,8 @@ The test verifies:
 ## Determinism Validation
 
 Normalize text to LF before hashing, writing prerendered HTML, embedding map sources, or copying integration output. Preserve binary bytes unchanged. Do not depend on `.gitattributes`, `core.autocrlf`, or the checkout platform.
+
+A real Vite fixture compares every static output filename and byte across LF/CRLF inputs, including worker maps and public copies. Normalization is restricted to regular text files inventoried by the build; retained unowned files and links are not swept.
 
 For an actual consumer, run its integration command and:
 

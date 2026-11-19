@@ -26,7 +26,7 @@ export const isTextLikeContent = (content: string | Buffer): boolean => {
   return disallowedControlBytes / sample.length <= 0.01;
 };
 
-export const normalizeSourceMapLineEndings = (text: string): string => {
+export const normalizeSourceMapLineEndings = (text: string, canonical = false): string => {
   try {
     const sourceMap = JSON.parse(text) as { sourcesContent?: unknown };
 
@@ -39,7 +39,7 @@ export const normalizeSourceMapLineEndings = (text: string): string => {
       return typeof sourceContent === 'string' ? normalizeTextLineEndings(sourceContent) : sourceContent;
     });
 
-    if (sourcesContent.every((sourceContent, index) => sourceContent === originalSourcesContent[index])) {
+    if (!canonical && sourcesContent.every((sourceContent, index) => sourceContent === originalSourcesContent[index])) {
       return text;
     }
 
@@ -51,10 +51,10 @@ export const normalizeSourceMapLineEndings = (text: string): string => {
   }
 };
 
-export const normalizeTextFileContent = (filePath: string, text: string): string => {
+export const normalizeTextFileContent = (filePath: string, text: string, canonicalMap = false): string => {
   const normalizedText = normalizeTextLineEndings(text);
 
-  return /\.map(?:[?#]|$)/i.test(filePath) ? normalizeSourceMapLineEndings(normalizedText) : normalizedText;
+  return /\.map(?:[?#]|$)/i.test(filePath) ? normalizeSourceMapLineEndings(normalizedText, canonicalMap) : normalizedText;
 };
 
 export const normalizeTextLikeContent = (filePath: string, content: string | Buffer): string | Buffer => {

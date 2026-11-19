@@ -8,6 +8,7 @@ import { createAliases } from './alias.ts';
 import { getAssetFileName, getChunkFileName, getEntryFileName, stripEntryIsolationQuery } from './filename.ts';
 import { createManualChunk } from './manual-chunk.ts';
 import { createPaths, getPackageRoot } from './paths.ts';
+import { normalizeStaticOutput } from './static-output.ts';
 import { virtualModules } from './virtual-modules.ts';
 import handleHotUpdate from './hooks/handle-hot-update.ts';
 import injectFunctions from './hooks/inject-functions.ts';
@@ -84,6 +85,18 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
     transform(context),
     transformIndexHtml(baseUrl ?? '/', context),
     handleHotUpdate(),
+    {
+      name: 'alveo-static-output',
+      apply: 'build',
+      enforce: 'post',
+      writeBundle({ dir }, bundle) {
+        const { build, publicDir } = this.environment.config;
+
+        // Only one-shot static output is handed to publishers. Don't reread
+        // the public tree and large maps on every script-only dev rebuild.
+        if (!build.ssr && !build.watch && dir) normalizeStaticOutput(dir, Object.keys(bundle), build.copyPublicDir && publicDir);
+      },
+    },
   ];
 
   const consumerPlugins = userOptions?.plugins ?? [];

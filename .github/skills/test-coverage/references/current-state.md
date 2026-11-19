@@ -50,6 +50,7 @@ The 35-file gate in `vitest.config.ts` includes:
 - `src/states-core.ts`
 - `src/styles-core.ts`
 - `src/text-normalization.ts`
+- `src/static-output.ts` (bundle inventory and copied public text, including embedded map sources; binary, link and ownership boundaries)
 - `src/virtual-modules.ts`
 
 Additional tests cover CLI sequencing, real stylesheet orchestration, prerender output, loader entry wiring, icon-dialog interactions, and package installation. The scoped gate is not a repo-wide 100% coverage claim.

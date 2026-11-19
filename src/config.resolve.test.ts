@@ -53,6 +53,56 @@ describe('Alveo configuration through Vite', () => {
   const resolveBase = async (config: object): Promise<string> =>
     (await resolveConfig({ ...config, configFile: false, logLevel: 'silent' }, 'serve', 'development')).base;
 
+  it('emits identical static files, including public copies and worker maps, from LF and CRLF inputs', async () => {
+    const scripts = path.join(root, 'src/assets/scripts');
+    const assets = path.join(root, 'public/assets');
+    const dist = path.join(root, 'dist');
+
+    fs.mkdirSync(scripts, { recursive: true });
+    fs.mkdirSync(assets, { recursive: true });
+    const binary = Buffer.from([255, 13, 10, 0]);
+
+    fs.writeFileSync(path.join(assets, 'image.png'), binary);
+
+    const compile = async (eol: string) => {
+      const js = `self.postMessage("ok");${eol}`;
+      const svg = `<svg>${eol}</svg>${eol}`;
+
+      fs.writeFileSync(path.join(root, 'index.html'), `<html><body></body></html>${eol}`);
+      fs.writeFileSync(path.join(scripts, 'layout.entry.ts'), `import Worker from './calc.ts?worker';${eol}new Worker();${eol}`);
+      fs.writeFileSync(path.join(scripts, 'calc.ts'), js);
+      fs.writeFileSync(path.join(assets, 'image.svg'), svg);
+      fs.writeFileSync(path.join(assets, 'vendor.js'), js);
+      fs.writeFileSync(path.join(assets, 'vendor.js.map'), JSON.stringify({ version: 3, sourcesContent: [js] }, null, 2).replaceAll('\n', eol) + eol);
+      fs.rmSync(dist, { recursive: true, force: true });
+      fs.mkdirSync(dist);
+      fs.writeFileSync(path.join(dist, 'unowned.txt'), 'retain\r\n');
+
+      await build({ ...defineAlveoConfig({ root, build: { emptyOutDir: false } }), configFile: false, logLevel: 'error' });
+      expect(fs.readFileSync(path.join(assets, 'image.svg'), 'utf8')).toBe(svg);
+      expect(fs.readFileSync(path.join(dist, 'assets/image.svg'), 'utf8')).toBe('<svg>\n</svg>\n');
+      expect(fs.readFileSync(path.join(dist, 'assets/image.png'))).toEqual(binary);
+      expect(fs.readFileSync(path.join(dist, 'unowned.txt'), 'utf8')).toBe('retain\r\n');
+
+      return Object.fromEntries(
+        fs
+          .readdirSync(dist, { recursive: true, withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => {
+            const file = path.join(entry.parentPath, entry.name);
+
+            return [path.relative(dist, file), fs.readFileSync(file).toString('base64')];
+          })
+      );
+    };
+
+    const lf = await compile('\n');
+    const crlf = await compile('\r\n');
+
+    expect(Object.keys(crlf).sort()).toEqual(Object.keys(lf).sort());
+    for (const name of Object.keys(lf)) expect(crlf[name], name).toBe(lf[name]);
+  });
+
   it('uses the mode environment base only as a default', async () => {
     expect(await resolveBase(defineAlveoConfig({ root }))).toBe('/env/');
   });
