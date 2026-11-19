@@ -39,10 +39,10 @@ const getAssetPath = ({ name, ext, noHash }: AssetPathInfo): string => {
   return `assets/js/${normalizedName}.0x[hash].${ext}`;
 };
 
-// Vite emits file imports as bytes, but generated source maps can also be
-// strings. Leave generated CSS/JS strings under Rolldown's placeholder policy.
+// Plugins can emit SVGs and source maps as strings instead of file bytes.
+// Leave generated CSS/JS strings under Rolldown's placeholder policy.
 const getCanonicalAssetText = (file: string, source: PreRenderedAsset['source']): string | undefined => {
-  if (typeof source === 'string' && /\.map$/i.test(file)) return normalizeTextFileContent(file, source, true);
+  if (typeof source === 'string' && /\.(?:svg|map)$/i.test(file)) return normalizeTextFileContent(file, source, true);
   if (!(source instanceof Uint8Array) || !isTextLikePath(file)) return undefined;
   const content = normalizeTextLikeContent(file, Buffer.from(source.buffer, source.byteOffset, source.byteLength), true);
 
