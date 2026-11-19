@@ -1,5 +1,4 @@
 import path from 'path';
-import { isUtf8 } from 'node:buffer';
 import fs from 'node:fs';
 
 import * as cheerio from 'cheerio';
@@ -260,11 +259,9 @@ const planCopy = (plan: OutputPlan, name: string, source: string) => {
   planFile(plan, name, () => {
     const bytes = fs.readFileSync(source);
 
-    // Unknown public assets may have a text-like prefix and binary data
-    // beyond the normalizer's sample. Never re-encode invalid UTF-8 bytes.
-    if (plan.kind === 'assets') return isUtf8(bytes) ? normalizeTextLikeContent(name, bytes) : bytes;
+    if (plan.kind === 'patterns' && patternHtml(name)) return normalizePatternHtml(bytes.toString('utf8'));
 
-    return patternHtml(name) ? normalizePatternHtml(bytes.toString('utf8')) : bytes;
+    return normalizeTextLikeContent(name, bytes);
   });
 };
 

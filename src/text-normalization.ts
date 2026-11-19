@@ -1,30 +1,17 @@
-export const isTextLikePath = (filePath: string): boolean => {
-  const pathWithoutQuery = filePath.split(/[?#]/, 1)[0];
+import { isUtf8 } from 'node:buffer';
 
-  return /\.(?:css|cjs|htm|html|js|json|jsx|map|md|mjs|scss|svg|ts|tsx|txt|webmanifest|xml)$/i.test(pathWithoutQuery ?? '');
+export const isTextLikePath = (filePath: string): boolean => {
+  const [name = ''] = filePath.split(/[?#]/, 1);
+
+  // Unknown extensions (including binary formats and byte-sensitive .ics)
+  // are opaque. Extensionless consumer templates still get the byte checks.
+  return /(?:^|[/\\])[^./\\]+$|\.(?:css|cjs|csv|htm|html|js|json|jsx|map|md|mjs|scss|svg|ts|tsx|txt|webmanifest|xml|ya?ml)$/i.test(name);
 };
 
 export const normalizeTextLineEndings = (text: string): string => text.replace(/\r\n?/g, '\n');
 
-export const isTextLikeContent = (content: string | Buffer): boolean => {
-  if (typeof content === 'string') {
-    return true;
-  }
-
-  if (content.length === 0) {
-    return true;
-  }
-
-  const sample = content.subarray(0, Math.min(content.length, 4096));
-
-  if (sample.includes(0) || sample.toString('utf-8').includes('\uFFFD')) {
-    return false;
-  }
-
-  const disallowedControlBytes = sample.filter((byte) => byte < 32 && byte !== 9 && byte !== 10 && byte !== 12 && byte !== 13).length;
-
-  return disallowedControlBytes / sample.length <= 0.01;
-};
+export const isTextLikeContent = (content: string | Buffer): boolean =>
+  typeof content === 'string' || (isUtf8(content) && !content.some((byte) => byte < 32 && byte !== 9 && byte !== 10 && byte !== 12 && byte !== 13));
 
 export const normalizeSourceMapLineEndings = (text: string, canonical = false): string => {
   try {
@@ -58,7 +45,7 @@ export const normalizeTextFileContent = (filePath: string, text: string, canonic
 };
 
 export const normalizeTextLikeContent = (filePath: string, content: string | Buffer): string | Buffer => {
-  if (!isTextLikePath(filePath) && !isTextLikeContent(content)) {
+  if (typeof content !== 'string' && (!isTextLikePath(filePath) || !isTextLikeContent(content))) {
     return content;
   }
 

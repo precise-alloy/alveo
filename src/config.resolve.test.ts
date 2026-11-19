@@ -75,6 +75,8 @@ describe('Alveo configuration through Vite', () => {
       fs.writeFileSync(path.join(scripts, 'calc.ts'), js);
       fs.writeFileSync(path.join(assets, 'image.svg'), svg);
       fs.writeFileSync(path.join(assets, 'vendor.js'), js);
+      fs.writeFileSync(path.join(assets, 'unicode.js'), '// ' + 'a'.repeat(4092) + 'é' + eol);
+      for (const name of ['data.csv', 'sample.yaml', 'LICENSE']) fs.writeFileSync(path.join(assets, name), 'sample' + eol);
       fs.writeFileSync(path.join(assets, 'vendor.js.map'), JSON.stringify({ version: 3, sourcesContent: [js] }, null, 2).replaceAll('\n', eol) + eol);
       fs.rmSync(dist, { recursive: true, force: true });
       fs.mkdirSync(dist);
@@ -84,6 +86,7 @@ describe('Alveo configuration through Vite', () => {
       expect(fs.readFileSync(path.join(assets, 'image.svg'), 'utf8')).toBe(svg);
       expect(fs.readFileSync(path.join(dist, 'assets/image.svg'), 'utf8')).toBe('<svg>\n</svg>\n');
       expect(fs.readFileSync(path.join(dist, 'assets/image.png'))).toEqual(binary);
+      for (const name of ['data.csv', 'sample.yaml', 'LICENSE']) expect(fs.readFileSync(path.join(dist, 'assets', name), 'utf8')).toBe('sample\n');
       expect(fs.readFileSync(path.join(dist, 'unowned.txt'), 'utf8')).toBe('retain\r\n');
 
       return Object.fromEntries(
