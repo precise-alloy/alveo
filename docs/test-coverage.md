@@ -90,7 +90,7 @@ The test verifies:
 
 Normalize text to LF before hashing, writing prerendered HTML, embedding map sources, or copying integration output. Preserve binary bytes unchanged. Do not depend on `.gitattributes`, `core.autocrlf`, or the checkout platform.
 
-A real Vite fixture compares every static output filename and byte across LF/CRLF inputs, including worker maps and public copies. Normalization is restricted to regular text files inventoried by the build; retained unowned files and links are not swept.
+A real Vite fixture compares every static output filename and byte across LF/CRLF inputs, including worker maps and public copies. Static and integration copies normalize supported text formats (including CSV, YAML and extensionless text) only after validating the whole buffer. Unknown extensions remain opaque: even a binary PPM can consist entirely of printable UTF-8 and CRLF pixel bytes. Retained unowned files and links are not swept.
 
 For an actual consumer, run its integration command and:
 

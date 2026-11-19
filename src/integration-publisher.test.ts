@@ -76,6 +76,10 @@ describe('owned integration publisher', () => {
     const binary = Buffer.concat([Buffer.alloc(5000, 32), Buffer.from([0, 0xff, 13, 10])]);
 
     write(f.source, 'movie.0xaaaa.mp4', binary);
+    const ppm = Buffer.from('P6\n1 1\n255\n\r\nA');
+
+    write(f.source, 'pixel.ppm', ppm);
+    write(f.source, 'pages/pixel.ppm', ppm);
     write(f.source, 'misc/.nested/old', 'old\r\n');
     write(f.source, 'css/site.css', 'p{}\r\n');
     write(f.source, 'css/.hidden.css', '/* private */\r\n');
@@ -102,7 +106,8 @@ describe('owned integration publisher', () => {
     expect(read(f.build, 'atoms/a/help.html')).toContain(preload);
     expect(read(f.patterns, 'pages-home.html')).toContain('react-loader.0x00000000.js');
     expect(read(f.patterns, 'deep/alt.htm')).toBe('<img src="logo.svg">\n');
-    expect(read(f.patterns, 'data.csv')).toBe('x,y\r\n');
+    expect(read(f.patterns, 'data.csv')).toBe('x,y\n');
+    for (const root of [f.assets, f.patterns]) expect(fs.readFileSync(path.join(root, 'pixel.ppm'))).toEqual(ppm);
     expect(fs.existsSync(path.join(f.assets, 'pages'))).toBe(false);
     const manifest = (root: string) => JSON.parse(read(root, marker)).files;
 
@@ -116,9 +121,10 @@ describe('owned integration publisher', () => {
         'js/main.js.map',
         'misc/.nested/old',
         'movie.0xaaaa.mp4',
+        'pixel.ppm',
       ].sort()
     );
-    expect(manifest(f.patterns)).toEqual(['atoms-a-help.html', 'data.csv', 'deep/alt.htm', 'pages-home.html']);
+    expect(manifest(f.patterns)).toEqual(['atoms-a-help.html', 'data.csv', 'deep/alt.htm', 'pages-home.html', 'pixel.ppm']);
 
     write(f.assets, 'misc/.nested/manual.txt', 'private\r\n');
     write(f.assets, 'docs-reload.txt', '\r\n');

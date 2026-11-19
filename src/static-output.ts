@@ -1,4 +1,3 @@
-import { isUtf8 } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -36,7 +35,7 @@ function normalizeOwnedTextFile(root: string, name: string): void {
   if (!stat?.isFile() || stat.nlink !== 1n || fs.realpathSync(file) !== file) return;
   const bytes = withCheckedFile(file, stat, 'read', (fd) => fs.readFileSync(fd));
 
-  if (!isUtf8(bytes) || !isTextLikeContent(bytes)) return;
+  if (!isTextLikeContent(bytes)) return;
   const text = bytes.toString('utf8');
   // Re-serialize maps with embedded source on both platforms. Otherwise
   // only the CRLF variant loses JSON indentation/trailing whitespace.
