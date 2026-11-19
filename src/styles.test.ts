@@ -55,6 +55,7 @@ describe('stylesheet orchestration', () => {
     fs.mkdirSync(path.join(assets, 'images'), { recursive: true });
     fs.mkdirSync(path.join(assets, 'fonts'));
     fs.writeFileSync(path.join(assets, 'images/icon.svg'), svg.replaceAll('\n', '\r\n'));
+    fs.writeFileSync(path.join(assets, 'images/logo@2x.png'), font);
     fs.writeFileSync(path.join(assets, 'fonts/probe.woff2'), font);
     fs.writeFileSync(
       path.join(root, 'src/assets/styles/style-base.scss'),
@@ -64,6 +65,7 @@ describe('stylesheet orchestration', () => {
         '.b { background: url(/assets/images/icon.svg?v=2) }',
         '.c { background: url(https://example.test/assets/images/icon.svg) }',
         '.d::after { content: "/assets/images/icon.svg" }',
+        '.e { background: url("/assets/images/logo@2x.png") }',
       ].join('\n')
     );
 
@@ -72,6 +74,7 @@ describe('stylesheet orchestration', () => {
 
     expect(css).toContain(`/assets/images/icon.svg?v=${version(svg)}#dot`);
     expect(css).toContain(`/assets/fonts/probe.woff2?v=${version(font)}`);
+    expect(css).toContain(`/assets/images/logo@2x.png?v=${version(font)}`);
     expect(css).toMatch(/\/assets\/images\/icon\.svg\?v=2["']?\)/);
     expect(css).toMatch(/https:\/\/example\.test\/assets\/images\/icon\.svg["']?\)/);
     expect(css).toContain('"/assets/images/icon.svg"');
@@ -81,7 +84,7 @@ describe('stylesheet orchestration', () => {
     fs.writeFileSync(path.join(assets, 'fonts/probe.woff2'), changed);
     await runStyleBuild({ projectRoot: root });
     expect(readCss()).toContain(`/assets/fonts/probe.woff2?v=${version(changed)}`);
-    expect(readCss()).not.toContain(version(font));
+    expect(readCss()).not.toContain(`/assets/fonts/probe.woff2?v=${version(font)}`);
   });
 
   it('preserves base/atom/molecule cascade and real source identities, compiling framework entries once', async () => {

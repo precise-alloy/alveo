@@ -39,6 +39,10 @@ describe('alveo/asset-hash.ts', () => {
       ASSET_HASH_REGEX.lastIndex = 0;
       expect('/assets/clip.mp4'.match(ASSET_HASH_REGEX)).toBeNull();
     });
+
+    it('versions density-qualified image names in source strings', () => {
+      expect(rewriteAssetHashes('"/assets/img/logo@2x.png"', buildDeps())).toBe('"/assets/img/logo@2x.png?v=h1"');
+    });
   });
 
   describe('createAppendAssetHash', () => {
