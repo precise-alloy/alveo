@@ -94,6 +94,8 @@ A real Vite fixture compares every static output filename and byte across LF/CRL
 
 The fixture also imports an SVG with inlining disabled. Its fingerprint is calculated from canonical text at asset naming time; the bundle returns those same bytes before the disk pass. The test checks the importer URL, in-memory asset, and extracted file contents. Binary assets and generated chunks keep the bundler's hashing policy.
 
+An in-memory build checks that unnamed text matches its generated fingerprint while the same bytes emitted under an explicit opaque filename remain unchanged. The LF/CRLF build also compares a hashed worker containing a multiline license comment and template literal, including its source map.
+
 For an actual consumer, run its integration command and:
 
 ```bash

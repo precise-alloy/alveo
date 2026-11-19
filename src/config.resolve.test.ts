@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { build, mergeConfig, resolveConfig } from 'vite';
 
 import { defineAlveoConfig } from './config.ts';
+import { getAssetVersion } from './cryptography.ts';
 
 describe('Alveo configuration through Vite', () => {
   let root: string;
@@ -55,6 +56,35 @@ describe('Alveo configuration through Vite', () => {
   const resolveBase = async (config: object): Promise<string> =>
     (await resolveConfig({ ...config, configFile: false, logLevel: 'silent' }, 'serve', 'development')).base;
 
+  it('emits unnamed text matching its canonical fingerprint without reclassifying explicit opaque files', async () => {
+    fs.writeFileSync(path.join(root, 'index.html'), '<html></html>');
+    const bytes = Buffer.from('one\r\ntwo\r\n');
+    const expected = 'one\ntwo\n';
+    const output = await build({
+      ...defineAlveoConfig({
+        root,
+        build: { write: false },
+        plugins: [
+          {
+            name: 'fixture-assets',
+            buildStart() {
+              this.emitFile({ type: 'asset', source: bytes });
+              this.emitFile({ type: 'asset', fileName: 'opaque.bin', source: bytes });
+            },
+          },
+        ],
+      }),
+      configFile: false,
+      logLevel: 'error',
+    });
+
+    if (!('output' in output)) throw new Error('Expected a single in-memory bundle');
+    const assets = Object.fromEntries(output.output.filter((item) => item.type === 'asset').map((item) => [item.fileName, Buffer.from(item.source)]));
+
+    expect(assets[`assets/asset.0x${getAssetVersion(expected)}`]).toEqual(Buffer.from(expected));
+    expect(assets['opaque.bin']).toEqual(bytes);
+  });
+
   it('emits identical static files, including public copies and worker maps, from LF and CRLF inputs', async () => {
     const scripts = path.join(root, 'src/assets/scripts');
     const assets = path.join(root, 'public/assets');
@@ -67,7 +97,7 @@ describe('Alveo configuration through Vite', () => {
     fs.writeFileSync(path.join(assets, 'image.png'), binary);
 
     const compile = async (eol: string) => {
-      const js = `self.postMessage("ok");${eol}`;
+      const js = `/*! worker${eol}license */${eol}self.postMessage(\`first${eol}second\`);${eol}`;
       const svg = `<svg>${eol}</svg>${eol}`;
 
       fs.writeFileSync(path.join(root, 'index.html'), `<html><body></body></html>${eol}`);
