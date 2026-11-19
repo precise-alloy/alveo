@@ -56,6 +56,50 @@ describe('Alveo configuration through Vite', () => {
   const resolveBase = async (config: object): Promise<string> =>
     (await resolveConfig({ ...config, configFile: false, logLevel: 'silent' }, 'serve', 'development')).base;
 
+  it('canonicalizes emitted maps without walking an overlapping public tree', async () => {
+    const publicDir = path.join(root, 'public');
+    const outDir = path.join(publicDir, 'dist');
+    const raw = 'line one\r\nline two\r\n';
+    const map = JSON.stringify({ version: 3, sources: ['input.ts'], sourcesContent: [raw] }, null, 2);
+    const scripts = path.join(root, 'src/assets/scripts');
+
+    fs.mkdirSync(publicDir);
+    fs.mkdirSync(scripts, { recursive: true });
+    fs.writeFileSync(path.join(scripts, 'layout.entry.ts'), "import Worker from './calc.ts?worker';\r\nnew Worker();\r\n");
+    fs.writeFileSync(path.join(scripts, 'calc.ts'), 'self.postMessage("ok");\r\n');
+    fs.writeFileSync(path.join(publicDir, 'keep.txt'), raw);
+    fs.writeFileSync(path.join(root, 'index.html'), '<html></html>');
+    const output = await build({
+      ...defineAlveoConfig({
+        root,
+        build: { outDir, emptyOutDir: false },
+        plugins: [
+          {
+            name: 'fixture-map',
+            buildStart() {
+              this.emitFile({ type: 'asset', fileName: 'generated.js.map', source: map });
+              this.emitFile({ type: 'asset', name: 'named.map', source: map });
+            },
+          },
+        ],
+      }),
+      configFile: false,
+      logLevel: 'error',
+    });
+
+    if (!('output' in output)) throw new Error('Expected a single bundle');
+    const asset = output.output.find((item) => item.fileName === 'generated.js.map');
+    const expected = JSON.stringify({ version: 3, sources: ['input.ts'], sourcesContent: ['line one\nline two\n'] });
+
+    expect(asset?.type === 'asset' && asset.source).toBe(expected);
+    expect(fs.readFileSync(path.join(outDir, 'generated.js.map'), 'utf8')).toBe(expected);
+    expect(fs.readFileSync(path.join(outDir, `assets/named.0x${getAssetVersion(expected)}.map`), 'utf8')).toBe(expected);
+    const workerMap = fs.readdirSync(path.join(outDir, 'assets/js')).find((file) => /^calc\.0x[\w-]+\.js\.map$/.test(file));
+
+    expect(JSON.parse(fs.readFileSync(path.join(outDir, 'assets/js', workerMap!), 'utf8')).sourcesContent).toContain('self.postMessage("ok");\n');
+    expect(fs.readFileSync(path.join(publicDir, 'keep.txt'), 'utf8')).toBe(raw);
+  });
+
   it('emits unnamed text matching its canonical fingerprint without reclassifying explicit opaque files', async () => {
     fs.writeFileSync(path.join(root, 'index.html'), '<html></html>');
     const bytes = Buffer.from('one\r\ntwo\r\n');
@@ -69,7 +113,9 @@ describe('Alveo configuration through Vite', () => {
             name: 'fixture-assets',
             buildStart() {
               this.emitFile({ type: 'asset', source: bytes });
+              this.emitFile({ type: 'asset', source: Buffer.from('one\rtwo\r') });
               this.emitFile({ type: 'asset', fileName: 'opaque.bin', source: bytes });
+              this.emitFile({ type: 'asset', fileName: 'assets/asset.0xexample', source: bytes });
             },
           },
         ],
@@ -82,6 +128,8 @@ describe('Alveo configuration through Vite', () => {
     const assets = Object.fromEntries(output.output.filter((item) => item.type === 'asset').map((item) => [item.fileName, Buffer.from(item.source)]));
 
     expect(assets[`assets/asset.0x${getAssetVersion(expected)}`]).toEqual(Buffer.from(expected));
+    expect(assets[`assets/asset2.0x${getAssetVersion(expected)}`]).toEqual(Buffer.from(expected));
+    expect(assets['assets/asset.0xexample']).toEqual(bytes);
     expect(assets['opaque.bin']).toEqual(bytes);
   });
 
@@ -128,6 +176,10 @@ describe('Alveo configuration through Vite', () => {
       const asset = 'output' in output && output.output.find((item) => item.fileName === `assets/images/${icon}`);
 
       expect(asset && asset.type === 'asset' && asset.source).toBe('<svg>\n</svg>\n');
+      if (!('output' in output)) throw new Error('Expected a single written bundle');
+      for (const item of output.output.filter((entry) => entry.fileName.endsWith('.js'))) {
+        expect(fs.readFileSync(path.join(dist, item.fileName))).toEqual(Buffer.from(item.type === 'chunk' ? item.code : item.source));
+      }
       expect(fs.readFileSync(path.join(dist, 'assets/js/layout.js'), 'utf8')).toContain(icon);
       expect(fs.readFileSync(path.join(dist, 'assets/images', icon!), 'utf8')).toBe('<svg>\n</svg>\n');
       expect(fs.readFileSync(path.join(assets, 'image.svg'), 'utf8')).toBe(svg);

@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import { loadEnv, mergeConfig } from 'vite';
 
 import { createAliases } from './alias.ts';
-import { getAssetFileName, getChunkFileName, getEntryFileName, getImportedText, stripEntryIsolationQuery } from './filename.ts';
+import { getAssetFileName, getChunkFileName, getEntryFileName, getOutputAssetText, stripEntryIsolationQuery } from './filename.ts';
 import { createManualChunk } from './manual-chunk.ts';
 import { createPaths, getPackageRoot } from './paths.ts';
 import { normalizeStaticOutput } from './static-output.ts';
@@ -94,10 +94,7 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
         // for in-memory builds where writeBundle never runs.
         for (const item of Object.values(bundle)) {
           if (item.type !== 'asset') continue;
-          // Both unnamed and explicitly fileName-only emissions have no names.
-          // Use the extensionless fallback only for our generated anonymous name.
-          const name = item.names[0] ?? (item.fileName === getAssetFileName({ source: item.source }) ? 'asset' : item.fileName);
-          const text = getImportedText(name, item.source);
+          const text = getOutputAssetText(item);
 
           if (text !== undefined) item.source = text;
         }

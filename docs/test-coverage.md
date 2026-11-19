@@ -96,6 +96,8 @@ The fixture also imports an SVG with inlining disabled. Its fingerprint is calcu
 
 An in-memory build checks that unnamed text matches its generated fingerprint while the same bytes emitted under an explicit opaque filename remain unchanged. The LF/CRLF build also compares a hashed worker containing a multiline license comment and template literal, including its source map.
 
+Generated source maps are canonicalized in the bundle, including maps emitted as strings. A build with output nested under `publicDir` checks the emitted map, its on-disk bytes, and the original public file. Alveo does not walk overlapping directories to normalize public copies; use separate directories for that guarantee.
+
 For an actual consumer, run its integration command and:
 
 ```bash
