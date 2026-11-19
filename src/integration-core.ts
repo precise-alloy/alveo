@@ -1,4 +1,5 @@
 import path from 'path';
+import { isUtf8 } from 'node:buffer';
 import fs from 'node:fs';
 
 import * as cheerio from 'cheerio';
@@ -8,38 +9,17 @@ import slash from 'slash';
 import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.ts';
 import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.ts';
 
-export interface CopyItem {
-  from: string;
-  to?: string;
-}
-
 export interface FileExistCheck {
   folder?: string;
   fileName: string | RegExp;
 }
 
-export interface IntegrationDependencies {
-  existsSync: (value: string) => boolean;
-  statSync: (value: string) => { isDirectory: () => boolean };
-  rmSync: (target: string, options?: { recursive?: boolean; force?: boolean }) => void;
-  mkdirSync: (target: string, options?: { recursive?: boolean }) => void;
-  cpSync: (source: string, destination: string, options?: { recursive?: boolean; force?: boolean }) => void;
-  copyFileSync: (source: string, destination: string) => void;
-  readFileSync: (path: string, encoding?: BufferEncoding) => string | Buffer;
-  writeFileSync: (path: string, data: string) => void;
-  readdirSync: (path: string) => string[];
-  globSync: (pattern: string, options?: { nodir?: boolean; dot?: boolean }) => string[];
-  log: (message?: unknown, ...optionalParams: unknown[]) => void;
-  warn: (value: string) => unknown;
-}
-
 export interface IntegrationConfig {
-  argv: string[];
+  projectRoot: string;
   staticBasePath: string;
   srcBasePath: string;
   destBasePath: string;
   patternPath?: string;
-  copyItems: CopyItem[];
   hashItems: string[];
   checkExistFileList: FileExistCheck[];
 }
@@ -153,112 +133,6 @@ export const parseIntegrationArgs = (argv: string[]) => {
   };
 };
 
-/**
- * Replaces a destination file without following links.
- *
- * Destination validation only covers the output directories and their
- * ancestors; an entry *inside* them can still be a symlink to a project or
- * system file (`video.mp4 -> <project>/keep.txt`). copyFileSync/writeFileSync
- * follow such links and would overwrite the target. `rmSync` removes the link
- * itself (it lstat()s), so unlinking first guarantees every integration write
- * creates a regular file owned by the generated-output directory. A real
- * directory at the path still fails loudly (no `recursive`), as before.
- */
-const replaceDestinationFile = (destPath: string, write: () => void, dependencies: Pick<IntegrationDependencies, 'rmSync'>): void => {
-  dependencies.rmSync(destPath, { force: true });
-  write();
-};
-
-export const copyConfiguredItems = (
-  copyItems: CopyItem[],
-  { srcBasePath, destBasePath }: Pick<IntegrationConfig, 'srcBasePath' | 'destBasePath'>,
-  dependencies: IntegrationDependencies
-): void => {
-  copyItems.forEach((item) => {
-    const srcPath = slash(path.join(srcBasePath, item.from));
-    const destPath = slash(item.to ?? path.join(destBasePath, item.from));
-
-    if (!dependencies.existsSync(srcPath)) {
-      return;
-    }
-
-    dependencies.log(`Copy file ${srcPath} to ${destPath}`);
-
-    if (dependencies.statSync(srcPath).isDirectory()) {
-      if (dependencies.existsSync(destPath)) {
-        dependencies.rmSync(destPath, { recursive: true, force: true });
-      }
-
-      dependencies.mkdirSync(destPath, { recursive: true });
-      dependencies.cpSync(srcPath, destPath, { recursive: true, force: true });
-    } else {
-      const destDirPath = path.dirname(destPath);
-
-      if (!dependencies.existsSync(destDirPath)) {
-        // Recursive create so a missing destination parent does not throw
-        dependencies.mkdirSync(destDirPath, { recursive: true });
-      }
-
-      replaceDestinationFile(destPath, () => dependencies.copyFileSync(srcPath, destPath), dependencies);
-    }
-  });
-};
-
-/**
- * Returns copy items for every top-level entry in `srcBasePath` that the
- * configured items do not already cover.
- *
- * Vite emits assets without a dedicated folder (e.g. `.mp4`, `.pdf`, `.wasm`)
- * directly into `assets/`, and `public/assets/**` can add arbitrary files or
- * folders there too. An allowlist of known folders silently dropped those, so
- * integration "succeeded" while deployed references were broken. Copying the
- * remainder after destination cleanup mirrors the build output
- * without hard-coding every extension the asset naming might route to root.
- */
-export const getUnlistedCopyItems = (
-  copyItems: CopyItem[],
-  srcBasePath: string,
-  dependencies: Pick<IntegrationDependencies, 'existsSync' | 'readdirSync'>
-): CopyItem[] => {
-  if (!dependencies.existsSync(srcBasePath)) {
-    return [];
-  }
-
-  const listed = new Set(copyItems.map((item) => item.from));
-
-  return dependencies
-    .readdirSync(srcBasePath)
-    .filter((entry) => !listed.has(entry))
-    .sort()
-    .map((entry) => ({ from: entry }));
-};
-
-export const collectAssetHashes = (
-  hashItems: string[],
-  { staticBasePath, srcBasePath }: Pick<IntegrationConfig, 'staticBasePath' | 'srcBasePath'>,
-  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync'>
-): Map<string, string> => {
-  const hashes: Map<string, string> = new Map();
-
-  hashItems.forEach((item) => {
-    const srcPath = slash(path.join(srcBasePath, item));
-    const files = dependencies.globSync(srcPath + '/**/*.{css,js,svg}');
-
-    files.forEach((file) => {
-      const relativePath = slash(file.substring(staticBasePath.length));
-      const fileContent = dependencies.readFileSync(file);
-
-      if (!hasContentHashInFileName(file)) {
-        hashes.set(relativePath, hashFileContent(normalizeTextLikeContent(file, fileContent)));
-      } else {
-        hashes.set(relativePath, '');
-      }
-    });
-  });
-
-  return hashes;
-};
-
 export const sortHashes = (hashes: Map<string, string>): { [key: string]: string } => {
   return Array.from(hashes)
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -270,25 +144,6 @@ export const sortHashes = (hashes: Map<string, string>): { [key: string]: string
       },
       {} as { [key: string]: string }
     );
-};
-
-export const getPatternCopyTarget = (
-  patternPath: string,
-  sourcePath: string,
-  staticBasePath?: string
-): { sourcePath: string; targetPath: string; recursive: boolean } | undefined => {
-  const relativePath = staticBasePath ? slash(path.relative(staticBasePath, sourcePath)) : slash(sourcePath);
-  const segments = relativePath.split('/');
-
-  if (segments.length < 2) {
-    return undefined;
-  }
-
-  return {
-    sourcePath,
-    targetPath: slash(path.join(patternPath, segments.join('-'))),
-    recursive: segments.length > 2,
-  };
 };
 
 export const normalizePatternHtml = (text: string): string => {
@@ -323,87 +178,23 @@ export const normalizePatternHtml = (text: string): string => {
   return result.toString();
 };
 
-export const normalizeGeneratedTextFiles = (
-  targetPath: string,
-  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync' | 'rmSync'>
-): void => {
-  // Mirrored hidden assets need the same LF normalization as visible files.
-  dependencies.globSync(slash(path.join(targetPath, '**/*')), { nodir: true, dot: true }).forEach((file) => {
-    const fileContent = dependencies.readFileSync(file);
-    const text = typeof fileContent === 'string' ? fileContent : fileContent.toString('utf-8');
-    const newText = normalizeTextLikeContent(file, fileContent);
-
-    if (typeof newText === 'string' && text !== newText) {
-      replaceDestinationFile(file, () => dependencies.writeFileSync(file, newText), dependencies);
-    }
-  });
-};
-
-export const copyPatternArtifacts = (
-  patternPath: string,
-  staticBasePath: string,
-  dependencies: Pick<IntegrationDependencies, 'mkdirSync' | 'globSync' | 'copyFileSync' | 'cpSync'>
-): void => {
-  dependencies.mkdirSync(patternPath, { recursive: true });
-  dependencies.globSync(slash(path.join(staticBasePath, '{atoms,molecules,organisms,templates,pages}/**/*.*'))).forEach((patternSource) => {
-    const target = getPatternCopyTarget(patternPath, patternSource, staticBasePath);
-
-    if (!target) {
-      return;
-    }
-
-    if (target.recursive) {
-      dependencies.cpSync(target.sourcePath, target.targetPath, { recursive: true });
-    } else {
-      dependencies.copyFileSync(target.sourcePath, target.targetPath);
-    }
-  });
-};
-
-export const normalizePatternFiles = (
-  patternPath: string,
-  dependencies: Pick<IntegrationDependencies, 'globSync' | 'readFileSync' | 'writeFileSync'>
-): void => {
-  dependencies.globSync(slash(path.join(patternPath, '**/*.{htm,html}'))).forEach((patternFile) => {
-    const fileContent = dependencies.readFileSync(patternFile, 'utf-8');
-    const text = typeof fileContent === 'string' ? fileContent : fileContent.toString('utf-8');
-    const newText = normalizePatternHtml(text);
-
-    if (text !== newText) {
-      dependencies.writeFileSync(patternFile, newText);
-    }
-  });
-};
-
 export const validateExpectedFiles = (
   checkExistFileList: FileExistCheck[],
   destBasePath: string,
-  dependencies: Pick<IntegrationDependencies, 'existsSync' | 'readdirSync' | 'log' | 'warn'>
+  generated: Set<string>
 ): { isValid: boolean; missing: string[] } => {
   const missing: string[] = [];
 
-  checkExistFileList.forEach((file) => {
-    if (typeof file.fileName === 'string') {
-      const destPath = slash(path.join(destBasePath, file.folder ?? '', file.fileName.toString()));
+  for (const { folder = '', fileName } of checkExistFileList) {
+    const prefix = folder && folder + '/';
+    const matcher = typeof fileName === 'string' ? undefined : new RegExp(fileName.source, fileName.flags.replace(/[gy]/g, ''));
+    const matches =
+      typeof fileName === 'string'
+        ? generated.has(prefix + fileName)
+        : [...generated].some((file) => path.posix.dirname(file) === (folder || '.') && matcher!.test(path.posix.basename(file)));
 
-      if (!dependencies.existsSync(destPath)) {
-        missing.push(destPath);
-        dependencies.log(dependencies.warn(`Cannot find: ${destPath}`));
-      }
-    } else {
-      const fileName = new RegExp(file.fileName.source, file.fileName.flags.replace(/[gy]/g, ''));
-      const folderFiles = slash(path.join(destBasePath, file.folder ?? ''));
-      const files = dependencies.readdirSync(folderFiles);
-      const found = files.find((fileEntry) => fileName.test(fileEntry));
-
-      if (!found) {
-        const missingPath = slash(path.join(folderFiles, fileName.toString()));
-
-        missing.push(missingPath);
-        dependencies.log(dependencies.warn(`Cannot find: ${missingPath}`));
-      }
-    }
-  });
+    if (!matches) missing.push(path.join(destBasePath, folder, String(fileName)));
+  }
 
   return {
     isValid: missing.length === 0,
@@ -411,38 +202,210 @@ export const validateExpectedFiles = (
   };
 };
 
-export const runIntegrationBuild = (config: IntegrationConfig, dependencies: IntegrationDependencies): { isValid: boolean; missing: string[] } => {
-  // This is exclusively owned generated output, including hidden entries and
-  // obsolete content-hashed root assets. Clear children rather than the root to
-  // retain its permissions and validated symlink; rmSync unlinks child symlinks
-  // without following them. Copy failures still propagate without rollback.
-  if (dependencies.existsSync(config.destBasePath)) {
-    for (const entry of dependencies.readdirSync(config.destBasePath)) {
-      dependencies.rmSync(path.join(config.destBasePath, entry), { recursive: true, force: true });
+const ownershipFile = '.alveo-integration.json';
+
+type DestinationKind = 'assets' | 'patterns';
+interface OutputPlan {
+  root: string;
+  kind: DestinationKind;
+  // Keep the source, not its contents, to avoid buffering the whole build.
+  files: Map<string, () => string | Buffer>;
+}
+
+const canonical = (name: string) => name.normalize('NFC').toLowerCase();
+
+// Manifests travel with reviewed output (including across operating systems).
+// Never normalize a manifest entry into a different filename or a parent path.
+function validateRelativePath(name: unknown): asserts name is string {
+  if (
+    typeof name !== 'string' ||
+    name
+      .split('/')
+      .some((part) => !part || /[\\:<>"|?*\p{Cc}]/u.test(part) || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part)) ||
+    canonical(name.split('/')[0]!) === ownershipFile
+  ) {
+    throw new Error(`Unsafe integration output path: ${String(name)}`);
+  }
+}
+
+const planFile = (plan: OutputPlan, name: string, content: () => string | Buffer) => {
+  validateRelativePath(name);
+  if (plan.files.has(name)) throw new Error(`Duplicate integration output: ${path.join(plan.root, name)}`);
+  plan.files.set(name, content);
+};
+
+// Inventory source files, including dotfiles in mirrored assets. Reject links
+// rather than copying a link into a tree that a later publish will write to.
+function* sourceFiles(root: string, prefix = '', skipHidden = false): Generator<string> {
+  // path.resolve strips the trailing separator in prefix. lstat("link/")
+  // would otherwise follow a directory link even though lstat("link") does not.
+  const directory = path.resolve(root, prefix);
+
+  if (!fs.lstatSync(directory).isDirectory()) throw new Error(`Expected build directory: ${directory}`);
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (skipHidden && entry.name.startsWith('.')) continue;
+    const name = prefix + entry.name;
+
+    if (entry.isDirectory()) yield* sourceFiles(root, name + '/', skipHidden);
+    else if (entry.isFile()) yield name;
+    else throw new Error(`Not a regular build output: ${path.join(root, name)}`);
+  }
+}
+
+const patternHtml = (name: string) => /\.html?$/i.test(name);
+
+const planCopy = (plan: OutputPlan, name: string, source: string) => {
+  if (plan.kind === 'patterns' && patternHtml(name) && !fs.statSync(source).size) throw new Error(`Empty generated HTML pattern: ${source}`);
+  planFile(plan, name, () => {
+    const bytes = fs.readFileSync(source);
+
+    // Unknown public assets may have a text-like prefix and binary data
+    // beyond the normalizer's sample. Never re-encode invalid UTF-8 bytes.
+    if (plan.kind === 'assets') return isUtf8(bytes) ? normalizeTextLikeContent(name, bytes) : bytes;
+
+    return patternHtml(name) ? normalizePatternHtml(bytes.toString('utf8')) : bytes;
+  });
+};
+
+const assetHashManifest = (assets: OutputPlan, config: IntegrationConfig): string => {
+  // Use the same normalized source bytes and public URLs as the previous
+  // hashes.json, without a second filesystem walk (or globbing user paths).
+  const hashes = new Map<string, string>();
+
+  for (const [name, content] of assets.files) {
+    if (config.hashItems.includes(name.split('/')[0]!) && !name.includes('/.') && /\.(css|js|svg)$/.test(name)) {
+      const url = '/' + slash(path.relative(config.staticBasePath, path.join(config.srcBasePath, name)));
+
+      hashes.set(url, hasContentHashInFileName(name) ? '' : hashFileContent(content()));
     }
   }
-  dependencies.mkdirSync(config.destBasePath, { recursive: true });
 
-  if (config.patternPath && dependencies.existsSync(config.patternPath)) {
-    dependencies.rmSync(config.patternPath, { recursive: true, force: true });
-    dependencies.mkdirSync(config.patternPath, { recursive: true });
+  return JSON.stringify(sortHashes(hashes), null, '  ');
+};
+
+const planOutputs = (config: IntegrationConfig): OutputPlan[] => {
+  const { srcBasePath, staticBasePath, destBasePath, patternPath } = config;
+  const assets: OutputPlan = { root: destBasePath, kind: 'assets', files: new Map() };
+  const patterns: OutputPlan | undefined = patternPath ? { root: patternPath, kind: 'patterns', files: new Map() } : undefined;
+
+  for (const name of sourceFiles(srcBasePath)) {
+    // The generated manifest supersedes any hashes.json in public/assets.
+    if (name === 'hashes.json') continue;
+    const source = path.join(srcBasePath, name);
+
+    if (patterns && name.startsWith('pages/')) planCopy(patterns, name.slice('pages/'.length), source);
+    else planCopy(assets, name, source);
+  }
+  planFile(assets, 'hashes.json', () => assetHashManifest(assets, config));
+  if (!patterns) return [assets];
+  for (const group of ['atoms', 'molecules', 'organisms', 'templates', 'pages']) {
+    if (!fs.lstatSync(path.join(staticBasePath, group), { throwIfNoEntry: false })) continue;
+    for (const name of sourceFiles(staticBasePath, group + '/', true)) {
+      if (path.posix.basename(name).includes('.')) planCopy(patterns, name.replaceAll('/', '-'), path.join(staticBasePath, name));
+    }
   }
 
-  copyConfiguredItems(config.copyItems, config, dependencies);
-  copyConfiguredItems(getUnlistedCopyItems(config.copyItems, config.srcBasePath, dependencies), config, dependencies);
+  return [assets, patterns];
+};
 
-  const hashes = collectAssetHashes(config.hashItems, config, dependencies);
-  const sortedHashes = sortHashes(hashes);
+const readOwnership = ({ root, kind }: OutputPlan): Set<string> | undefined => {
+  const record = path.join(root, ownershipFile);
+  const stat = fs.lstatSync(record, { throwIfNoEntry: false });
 
-  const hashesPath = path.join(config.destBasePath, 'hashes.json');
+  if (!stat) {
+    if (fs.existsSync(root) && fs.readdirSync(root).length) throw new Error(`Unowned integration destination is not empty: ${root}`);
 
-  replaceDestinationFile(hashesPath, () => dependencies.writeFileSync(hashesPath, JSON.stringify(sortedHashes, null, '  ')), dependencies);
-  normalizeGeneratedTextFiles(config.destBasePath, dependencies);
+    return undefined;
+  }
+  if (!stat.isFile()) throw new Error(`Not a regular ownership record: ${record}`);
+  let data;
 
-  if (config.patternPath) {
-    copyPatternArtifacts(config.patternPath, config.staticBasePath, dependencies);
-    normalizePatternFiles(config.patternPath, dependencies);
+  try {
+    data = JSON.parse(fs.readFileSync(record, 'utf8'));
+  } catch (cause) {
+    throw new Error(`Cannot read integration ownership record: ${record}`, { cause });
+  }
+  if (data?.version !== 1 || data.kind !== kind || !Array.isArray(data.files)) throw new Error(`Invalid integration ownership record: ${record}`);
+  const previous = new Set<string>();
+
+  for (const name of data.files) {
+    validateRelativePath(name);
+    if (previous.has(name)) throw new Error(`Duplicate path in ${record}: ${name}`);
+    previous.add(name);
   }
 
-  return validateExpectedFiles(config.checkExistFileList, config.destBasePath, dependencies);
+  return previous;
+};
+
+const preflight = (plan: OutputPlan) => {
+  const previous = readOwnership(plan);
+  const existing = new Set<string>();
+  const spellings = new Map<string, string>();
+  const names = new Set([...(previous ?? []), ...plan.files.keys()]);
+
+  // Check ancestors before leaves, including for stale entries. A junction
+  // substituted for an owned parent must not redirect either writes or deletes.
+  for (const name of names) {
+    let prefix = '';
+
+    for (const part of name.split('/')) {
+      prefix = prefix ? prefix + '/' + part : part;
+      const target = path.join(plan.root, prefix);
+      const key = canonical(prefix);
+
+      if (spellings.has(key) && spellings.get(key) !== prefix) throw new Error(`Ambiguous integration path: ${target}`);
+      spellings.set(key, prefix);
+      const stat = fs.lstatSync(target, { throwIfNoEntry: false });
+
+      if (prefix !== name) {
+        if (names.has(prefix) || (stat && !stat.isDirectory())) throw new Error(`Integration parent collision: ${target}`);
+      } else if (stat) {
+        if (!previous?.has(name) || !stat.isFile()) throw new Error(`Integration file collision: ${target}`);
+        existing.add(name);
+      }
+    }
+  }
+
+  return { ...plan, existing, hasRecord: previous !== undefined };
+};
+
+export const runIntegrationBuild = (config: IntegrationConfig): { isValid: boolean; missing: string[] } => {
+  const destinations = validateDestinations(config.destBasePath, config.patternPath, config.projectRoot);
+
+  if (!destinations.ok) return { isValid: false, missing: destinations.reasons };
+
+  // Both roots, including their stale files, must pass before even mkdir.
+  const plans = planOutputs(config).map(preflight);
+  const assets = plans[0]!;
+  const patterns = plans[1];
+  const result = validateExpectedFiles(config.checkExistFileList, assets.root, new Set(assets.files.keys()));
+
+  if (patterns && ![...patterns.files.keys()].some(patternHtml)) {
+    result.missing.push(`No generated HTML patterns for ${patterns.root}`);
+    result.isValid = false;
+  }
+  if (!result.isValid) return result;
+
+  for (const { root, existing, files } of plans) {
+    fs.mkdirSync(root, { recursive: true });
+    // Unlink only preflighted regular files. Do not truncate their inode
+    // (there may be unrelated hard links), or recursively remove directories.
+    for (const [name, content] of files) {
+      const file = path.join(root, name);
+      const bytes = content();
+
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      if (existing.delete(name)) fs.unlinkSync(file);
+      fs.writeFileSync(file, bytes, { flag: 'wx' });
+    }
+    for (const stale of existing) fs.unlinkSync(path.join(root, stale));
+  }
+  for (const { root, kind, files, hasRecord } of plans) {
+    const record = path.join(root, ownershipFile);
+
+    if (hasRecord) fs.unlinkSync(record);
+    fs.writeFileSync(record, JSON.stringify({ version: 1, kind, files: [...files.keys()].sort() }, null, 2) + '\n', { flag: 'wx' });
+  }
+
+  return result;
 };
