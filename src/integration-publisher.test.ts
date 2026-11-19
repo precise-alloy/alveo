@@ -311,7 +311,7 @@ describe('owned integration publisher', () => {
     expect(read(f.project, 'keep.json')).toBe(initial);
   });
 
-  it('propagates a publish I/O failure without advancing either ownership record', () => {
+  it('can retry a failed write if no new unrecorded file survived', () => {
     const f = fixture();
 
     expect(f.publish().isValid).toBe(true);
@@ -328,6 +328,47 @@ describe('owned integration publisher', () => {
       failed.mockRestore();
     }
     expect([read(f.assets, marker), read(f.patterns, marker)]).toEqual(records);
+    expect(f.publish().isValid).toBe(true);
+    expect(read(f.assets, 'new.txt')).toBe('new');
+  });
+
+  it.each(['publisher', 'consumer'])('does not claim an unrecorded chunk left by the %s on retry', (writer) => {
+    const f = fixture();
+    const chunk = 'js/chunk.0x1234abcd.js';
+    const bytes = 'export default 1;';
+
+    expect(f.publish().isValid).toBe(true);
+    write(f.source, chunk, bytes);
+    const save = fs.writeFileSync;
+    const failure = vi.spyOn(fs, 'writeFileSync').mockImplementation((file, data, options) => {
+      if (file !== path.join(f.assets, chunk)) return save(file, data, options);
+      if (writer === 'publisher') save(file, data, options);
+      throw new Error('interrupted');
+    });
+
+    try {
+      expect(f.publish).toThrow('interrupted');
+    } finally {
+      failure.mockRestore();
+    }
+    // Both histories give a digest-based retry exactly the same evidence.
+    if (writer === 'consumer') write(f.assets, chunk, bytes);
+    expect(read(f.assets, chunk)).toBe(bytes);
+    expect(JSON.parse(read(f.assets, marker)).files).not.toContain(chunk);
+    const before = [snapshot(f.assets), snapshot(f.patterns)];
+
+    expect(f.publish).toThrow(/file collision/i);
+    expect([snapshot(f.assets), snapshot(f.patterns)]).toEqual(before);
+    const fresh = path.join(f.root, 'fresh-assets');
+    const patterns = path.join(f.root, 'fresh-patterns');
+
+    vi.stubEnv('VITE_INTE_ASSET_DIR', fresh);
+    vi.stubEnv('VITE_INTE_PATTERN_DIR', patterns);
+    expect(f.publish().isValid).toBe(true);
+    expect(JSON.parse(read(fresh, marker)).files).toContain(chunk);
+    expect(read(fresh, chunk)).toBe(bytes);
+    expect(read(patterns, 'pages-home.html')).toBe(read(f.patterns, 'pages-home.html'));
+    expect([snapshot(f.assets), snapshot(f.patterns)]).toEqual(before);
   });
 
   it('refuses file symlinks on owned leaves, even when dangling, without normalizing their targets', (context) => {
