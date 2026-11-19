@@ -12,6 +12,11 @@ Summary: <what was built>
 
 <!-- Add entries below -->
 
+### 0.7.0 - Build output
+
+- Vite emits the script fetched by `?worker` under `assets/js/[name].0x[hash].js`, using the consumer's configured base URL.
+- `alveo styles` versions local image and font URLs under `/assets/` using the consumer's `public/` files. Versions are the first ten base64url characters of SHA-384 (LF-normalized text, unchanged binary bytes). Explicit query strings are preserved.
+
 ### 2026-11-02 - Catalog sprite and integration mirror corrections
 
 - Force external catalog sprite URLs so consumer asset-inlining overrides cannot break SVG `<use>` icons.
