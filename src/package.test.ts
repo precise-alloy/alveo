@@ -434,6 +434,14 @@ describe('package distribution', () => {
       await expect(access(join(consumerRoot, 'dist/assets/js/widget.js'))).resolves.toBeUndefined();
 
       await writeFile(viteConfig, files['vite.config.ts']!);
+      const destinations = ['assets', 'patterns'].map((dir) => join(temporaryRoot, 'integration', dir));
+
+      await Promise.all(
+        destinations.map(async (dir) => {
+          await mkdir(dir, { recursive: true });
+          await writeFile(join(dir, '.legacy'), 'previous build');
+        })
+      );
       for (const command of ['generate', 'inte']) {
         await execFileAsync(process.execPath, [join(installedRoot, 'bin/cli.js'), command, '--mode', 'eshn'], {
           cwd: consumerRoot,
@@ -446,6 +454,7 @@ describe('package distribution', () => {
       await expect(access(join(consumerRoot, 'public/pl-states.json'))).resolves.toBeUndefined();
       await expect(access(join(temporaryRoot, 'integration/assets/hashes.json'))).resolves.toBeUndefined();
       await expect(access(join(temporaryRoot, 'integration/patterns/pages-home.html'))).resolves.toBeUndefined();
+      await Promise.all(destinations.map(async (dir) => expect(await readdir(dir)).not.toContain('.legacy')));
 
       const staticRoot = join(consumerRoot, 'dist/static');
 
