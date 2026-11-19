@@ -13,7 +13,9 @@ describe('Alveo configuration through Vite', () => {
   let root: string;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-config-base-'));
+    // Vite derives HTML asset names relative to its canonical root. Use the
+    // same spelling for entry paths when Windows TEMP uses an 8.3 alias.
+    root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'alveo-config-base-')));
     fs.writeFileSync(path.join(root, '.env'), 'VITE_BASE_URL=/env/\n');
   });
 
