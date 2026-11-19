@@ -123,6 +123,19 @@ describe('alveo/text-normalization.ts', () => {
   });
 
   describe('normalizeSourceMapLineEndings', () => {
+    it('omits synthetic URL proxy IDs but preserves user sources and the mapping indices', () => {
+      const proxy = 'export default import.meta.ROLLDOWN_FILE_URL_buildLocal';
+      const input = {
+        sources: ['logo.svg?url', 'a.js', 'custom.svg?url'],
+        sourcesContent: [proxy, proxy, 'export default "/asset";'],
+        mappings: 'AAAA',
+      };
+
+      expect(JSON.parse(normalizeSourceMapLineEndings(JSON.stringify(input)))).toEqual({
+        ...input,
+        sourcesContent: [null, proxy, 'export default "/asset";'],
+      });
+    });
     it('normalizes CRLF in sourcesContent entries', () => {
       const sourceMap = JSON.stringify({ version: 3, sourcesContent: ['a\r\nb', null], mappings: '' });
       const expected = JSON.stringify({ version: 3, sourcesContent: ['a\nb', null], mappings: '' });

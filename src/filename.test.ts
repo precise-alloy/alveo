@@ -35,6 +35,14 @@ describe('asset filenames', () => {
     expect(getAssetFileName({})).toBe('assets/asset.0x[hash]');
     expect(getAssetFileName({ names: [], name: 'x.css' })).toBe('assets/css/x.0x[hash].css');
   });
+  it('uses the normalized bytes for imported text fingerprints and leaves binary hashing to the bundler', () => {
+    const filename = (source: Buffer) => getAssetFileName({ names: ['icon.svg'], source });
+
+    expect(filename(Buffer.from('a\r\n'))).toBe(filename(Buffer.from('a\n')));
+    expect(filename(Buffer.from('b\n'))).not.toBe(filename(Buffer.from('a\n')));
+    expect(filename(Buffer.from([0xff]))).toContain('[hash]');
+    expect(getAssetFileName({ name: 'image.png', source: Buffer.from('binary\r\n') })).toContain('[hash]');
+  });
   it('preserves entry and chunk naming contracts', () => {
     expect(getEntryFileName({ name: 'entry-server' })).toBe('entry-server.js');
     for (const name of ['index', 'react-loader']) expect(getEntryFileName({ name })).toBe('assets/js/react-loader.0x[hash].js');
