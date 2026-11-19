@@ -10,6 +10,7 @@ import {
   ASSET_HASH_REGEX,
   AssetHashDependencies,
   createAppendAssetHash,
+  createCssAssetUrlRewriter,
   createDefaultAssetHashDependencies,
   rewriteAssetHashes,
 } from './asset-hash.ts';
@@ -120,6 +121,33 @@ describe('alveo/asset-hash.ts', () => {
   });
 
   describe('rewriteAssetHashes', () => {
+    it('never sends malformed or ambiguous CSS paths to the filesystem', () => {
+      const deps = buildDeps();
+      const rewrite = createCssAssetUrlRewriter(deps);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        for (const segment of ['%zz', '%E0%A4', 'a%2fb', 'a%5Cb', '%00', '%3A', '%2e', '.%2E', '..']) {
+          const asset = `/assets/${segment}/image.svg`;
+
+          expect(rewrite(asset + '#icon')).toBe(asset + '#icon');
+          expect(warn).toHaveBeenLastCalledWith('Skipping non-portable public asset URL:', asset);
+        }
+        expect(deps.resolveAssetPath).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('decodes each segment only once without treating plus as space', () => {
+      const deps = buildDeps();
+      const rewrite = createCssAssetUrlRewriter(deps);
+      const url = '/assets/%C3%A9+%2520.svg';
+
+      expect(rewrite(url)).toBe(url + '?v=h1');
+      expect(deps.resolveAssetPath).toHaveBeenCalledWith('/assets/\u00e9+%20.svg');
+    });
+
     it('rewrites every matching URL in a CSS payload using injected dependencies', () => {
       const css = "body { background: url('/assets/img/a.png'); src: url('/assets/fonts/b.woff2') format('woff2'); }";
       const out = rewriteAssetHashes(

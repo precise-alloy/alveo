@@ -55,7 +55,7 @@ The test verifies:
 
 ### Build, Rendering and Safety
 
-- The Vite build test executes a `?worker` importer and the payload at its runtime URL. Real Sass/Lightning CSS output checks hashes against changed consumer bytes, preserving explicit queries, fragments and external URLs.
+- The Vite build test executes a `?worker` importer and the payload at its runtime URL. Real Sass/Lightning CSS output checks hashes against consumer bytes, including `%20` URLs that name files containing spaces. Decoding is only for lookup: URL spelling, explicit queries, fragments and external URLs are preserved. Malformed escapes, dot segments and encoded path separators are not looked up.
 - CLI suites assert that state, style, or prerender failure prevents later stages. Both generation and integration run states first.
 - SSR never creates a fake `window`; render errors retain the route/cause and fail. The development server awaits rendering and returns HTTP 500 on errors.
 - Server mode is passed explicitly; production serving is rejected.

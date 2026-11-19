@@ -55,6 +55,7 @@ describe('stylesheet orchestration', () => {
     fs.mkdirSync(path.join(assets, 'images'), { recursive: true });
     fs.mkdirSync(path.join(assets, 'fonts'));
     fs.writeFileSync(path.join(assets, 'images/icon.svg'), svg.replaceAll('\n', '\r\n'));
+    fs.writeFileSync(path.join(assets, 'images/icon 2.svg'), svg.replaceAll('\n', '\r\n'));
     fs.writeFileSync(path.join(assets, 'images/logo@2x.png'), font);
     fs.writeFileSync(path.join(assets, 'fonts/probe.woff2'), font);
     fs.writeFileSync(
@@ -66,6 +67,7 @@ describe('stylesheet orchestration', () => {
         '.c { background: url(https://example.test/assets/images/icon.svg) }',
         '.d::after { content: "/assets/images/icon.svg" }',
         '.e { background: url("/assets/images/logo@2x.png") }',
+        '.f { background: url("/assets/images/icon%202.svg#dot") }',
       ].join('\n')
     );
 
@@ -75,6 +77,7 @@ describe('stylesheet orchestration', () => {
     expect(css).toContain(`/assets/images/icon.svg?v=${version(svg)}#dot`);
     expect(css).toContain(`/assets/fonts/probe.woff2?v=${version(font)}`);
     expect(css).toContain(`/assets/images/logo@2x.png?v=${version(font)}`);
+    expect(css).toContain(`/assets/images/icon%202.svg?v=${version(svg)}#dot`);
     expect(css).toMatch(/\/assets\/images\/icon\.svg\?v=2["']?\)/);
     expect(css).toMatch(/https:\/\/example\.test\/assets\/images\/icon\.svg["']?\)/);
     expect(css).toContain('"/assets/images/icon.svg"');
