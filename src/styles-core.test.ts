@@ -50,17 +50,17 @@ describe('alveo/styles-core.ts', () => {
       warnings: [],
     });
 
-    expect(transformStyleCss('\uFEFFa{\r\ncolor:red}', map, 'a.scss', {}, transform)).toEqual({
+    expect(transformStyleCss('\uFEFFa{\r\ncolor:red}', map, 'a.scss', {}, { transform })).toEqual({
       css: 'a{\ncolor:red\n}',
       map: '{"sourcesContent":["a\\nb"]}',
     });
     expect(transform.mock.calls[0]![0].code.toString()).toBe('a{\ncolor:red}');
     transform.mockReturnValueOnce({ warnings: [{ message: 'bad CSS' }] });
-    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('LightningCSS warnings');
+    expect(() => transformStyleCss('', map, 'a.scss', {}, { transform })).toThrow('LightningCSS warnings');
     transform.mockReturnValueOnce({ code: Buffer.from(''), warnings: [] });
-    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('did not produce');
+    expect(() => transformStyleCss('', map, 'a.scss', {}, { transform })).toThrow('did not produce');
     transform.mockReturnValueOnce({ code: Buffer.from('a{width:px2rem(2px)}'), map: Buffer.from('{}'), warnings: [] });
-    expect(() => transformStyleCss('', map, 'a.scss', {}, transform)).toThrow('Unevaluated Sass functions in a.scss: px2rem(');
+    expect(() => transformStyleCss('', map, 'a.scss', {}, { transform })).toThrow('Unevaluated Sass functions in a.scss: px2rem(');
   });
   it('flags only real leaked Sass function tokens, not strings, urls, comments, or longer identifiers', () => {
     expect(findUnevaluatedSassFunctions('a{width:px2rem(2px);margin:rtl(1px) div(4,2) px2rem(1px)}')).toEqual(['px2rem(', 'rtl(', 'div(']);
