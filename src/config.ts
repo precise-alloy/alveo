@@ -101,6 +101,17 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
         allow: [paths.root, context.packageRoot],
       },
     },
+    // Vite bundles ?worker in a separate build. Naming only the main build's
+    // chunks moves the wrapper, but not the script fetched by new Worker().
+    worker: {
+      rolldownOptions: {
+        output: {
+          entryFileNames: getChunkFileName,
+          chunkFileNames: getChunkFileName,
+          assetFileNames: getAssetFileName,
+        },
+      },
+    },
     build: {
       rolldownOptions: {
         optimization: {
