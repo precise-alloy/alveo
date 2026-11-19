@@ -1,6 +1,9 @@
 // @vitest-environment node
 
 import path from 'path';
+import { once } from 'node:events';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 import slash from 'slash';
 import { describe, expect, it, vi } from 'vitest';
@@ -184,12 +187,39 @@ describe('alveo/states-core.ts', () => {
       const result = watchStates('/project', deps);
 
       expect(result).toBe(watcher);
-      expect(createWatcher).toHaveBeenCalledWith(expect.stringContaining('src/**/*.states.json'));
+      expect(createWatcher).toHaveBeenCalledWith(path.resolve('/project/src'), expect.objectContaining({ ignored: expect.any(Function) }));
       expect(watcher.on).toHaveBeenCalledWith('ready', expect.any(Function));
       expect(watcher.on).toHaveBeenCalledWith('add', expect.any(Function));
       expect(watcher.on).toHaveBeenCalledWith('change', expect.any(Function));
       expect(watcher.on).toHaveBeenCalledWith('unlink', expect.any(Function));
     });
+
+    it('observes state files added, updated, and removed after startup', async () => {
+      const root = await mkdtemp(path.join(tmpdir(), 'alveo-state-watch-'));
+      const src = path.join(root, 'src');
+
+      await mkdir(src);
+      const watcher = watchStates(root);
+      const output = () => readFile(path.join(root, 'public/pl-states.json'), 'utf8').then(JSON.parse);
+
+      try {
+        await once(watcher, 'ready');
+        const component = path.join(src, 'nested');
+        const state = path.join(component, 'card.states.json');
+
+        await mkdir(component);
+        await writeFile(path.join(component, 'unrelated.json'), '{"not":"a state"}');
+        await writeFile(state, '{"name":"first"}');
+        await expect.poll(output, { timeout: 5000 }).toEqual([{ name: 'first' }]);
+        await writeFile(state, '{"name":"updated"}');
+        await expect.poll(output, { timeout: 5000 }).toEqual([{ name: 'updated' }]);
+        await rm(state);
+        await expect.poll(output, { timeout: 5000 }).toEqual([]);
+      } finally {
+        await watcher.close();
+        await rm(root, { recursive: true, force: true });
+      }
+    }, 20000);
 
     it('uses a 500 ms debounce for watch builds and keeps log-and-continue output', () => {
       const callbacks: Record<string, (statePath: string) => void> = {};

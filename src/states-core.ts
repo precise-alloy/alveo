@@ -154,7 +154,11 @@ export const watchStates = (projectRoot: string, dependencies: StatesCoreDepende
     buildStates();
   }
 
-  const watcher = dependencies.createWatcher(globPattern);
+  // Chokidar 5 watches literal paths. Keep directories traversable so a new
+  // component's state file is discovered even when none existed at startup.
+  const watcher = dependencies.createWatcher(path.resolve(projectRoot, 'src'), {
+    ignored: (file, stats) => !!stats?.isFile() && !file.endsWith('.states.json'),
+  });
 
   watcher
     .on('ready', () => {
