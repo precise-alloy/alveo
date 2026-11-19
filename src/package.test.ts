@@ -12,12 +12,21 @@ import { Script } from 'node:vm';
 
 import { ESLint } from 'eslint';
 import { load } from 'js-yaml';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url));
 const execFileAsync = promisify(execFile);
 
 describe('package distribution', () => {
+  beforeAll(() => {
+    // Fixture installs and git add must never use the invoking hook's index,
+    // worktree or object store. Each fixture initializes its own repository.
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith('GIT_')) vi.stubEnv(key, undefined);
+    }
+  });
+  afterAll(() => vi.unstubAllEnvs());
+
   it('requires cross-platform tests before the single release build and publication', async () => {
     const tests = load(await readFile(join(PACKAGE_ROOT, '.github/workflows/test.yml'), 'utf8'));
 
