@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { withCheckedFile } from './checked-file.ts';
 import { runIntegration } from './integration.ts';
 import { hashFileContent } from './prerender-core.ts';
 
@@ -47,13 +48,13 @@ afterEach(() => {
 // Include link targets and inode timestamps: refusal must not even rewrite
 // unchanged bytes or create a missing sibling destination.
 const snapshot = (root: string): unknown => {
-  const stat = fs.lstatSync(root, { throwIfNoEntry: false });
+  const stat = fs.lstatSync(root, { bigint: true, throwIfNoEntry: false });
 
   if (!stat) return null;
   if (stat.isSymbolicLink()) return ['link', fs.readlinkSync(root)];
   if (stat.isDirectory()) return Object.fromEntries(fs.readdirSync(root).map((name) => [name, snapshot(path.join(root, name))]));
 
-  return [stat.ino, stat.mtimeMs, fs.readFileSync(root)];
+  return [stat.ino, stat.mtimeNs, withCheckedFile(root, stat, 'read', (fd) => fs.readFileSync(fd))];
 };
 
 describe('owned integration publisher', () => {

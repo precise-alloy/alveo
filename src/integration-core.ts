@@ -6,6 +6,7 @@ import * as cheerio from 'cheerio';
 import MagicString from 'magic-string';
 import slash from 'slash';
 
+import { withCheckedFile } from './checked-file.ts';
 import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.ts';
 import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.ts';
 
@@ -310,7 +311,7 @@ const planOutputs = (config: IntegrationConfig): OutputPlan[] => {
 
 const readOwnership = ({ root, kind }: OutputPlan): Set<string> | undefined => {
   const record = path.join(root, ownershipFile);
-  const stat = fs.lstatSync(record, { throwIfNoEntry: false });
+  const stat = fs.lstatSync(record, { bigint: true, throwIfNoEntry: false });
 
   if (!stat) {
     if (fs.existsSync(root) && fs.readdirSync(root).length) throw new Error(`Unowned integration destination is not empty: ${root}`);
@@ -321,7 +322,7 @@ const readOwnership = ({ root, kind }: OutputPlan): Set<string> | undefined => {
   let data;
 
   try {
-    data = JSON.parse(fs.readFileSync(record, 'utf8'));
+    data = JSON.parse(withCheckedFile(record, stat, 'read', (fd) => fs.readFileSync(fd, 'utf8')));
   } catch (cause) {
     throw new Error(`Cannot read integration ownership record: ${record}`, { cause });
   }

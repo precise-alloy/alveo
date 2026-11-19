@@ -24,6 +24,7 @@ export default defineConfig({
       include: [
         'src/alias.ts',
         'src/asset-hash.ts',
+        'src/checked-file.ts',
         'src/cryptography.ts',
         'src/config.ts',
         'src/create-server.ts',

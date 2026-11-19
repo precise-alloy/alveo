@@ -16,7 +16,7 @@ Per-file thresholds remain **100% statements, lines, and functions; >=95% branch
 
 ## Enforced Scope
 
-The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate currently covers these 35 modules:
+The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate covers these modules:
 
 | Area | Modules |
 | --- | --- |
@@ -24,7 +24,7 @@ The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate c
 | Resolution/output | `alias.ts`, `asset-hash.ts`, `cryptography.ts`, `filename.ts`, `manual-chunk.ts`, `paths`-dependent virtual module behavior in `virtual-modules.ts` |
 | Server/processes | `dev-supervisor.ts`, `create-server.ts`, `create-vite-dev-server.ts`, `server.ts`, `entry-server.tsx`, `renderer.ts` |
 | Vite hooks | `hooks/inject-functions.ts`, `hooks/inject-functions-core.ts`, `hooks/options.ts`, `hooks/transform.ts`, `hooks/transform-index-html.ts` |
-| Build cores | `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `static-output.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
+| Build cores | `checked-file.ts`, `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `static-output.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
 | Browser runtime | `react-loader-core.tsx`, `scripts/functions.ts`, `scripts/state-markup.ts` |
 | Catalog | `root/catalog.ts`, `root/svg-symbols.ts`, `root/active-item-options.tsx`, `root/frame-controls.tsx`, `root/frame-width.ts` |
 
@@ -62,6 +62,7 @@ The test verifies:
 - A real Vite/Express HTTP test verifies that watched JavaScript under a non-root base is served as JavaScript, not passed to SSR after Vite strips the URL base. Fresh public files must also win over stale watch-output copies when a file watcher event is missed.
 - HTML payload substitution is literal, and dev/prerender share asset relocation and URL rules while retaining dev refresh versus deterministic content versions.
 - Integration destinations reject ancestors, descendants, equal/nested outputs, and symlink aliases before destructive copying. Missing future directories are resolved through their existing ancestors; filesystem errors are diagnostic.
+- Static text normalization and ownership-record reads validate the open descriptor against the inspected device, inode and link count before I/O. A changed identity aborts; this is not a lock for concurrent publishers.
 - Consecutive integration builds remove only files listed in the previous ownership record. Publisher tests interrupt a write on either side of creating a new chunk. A retry can repair missing owned files, but will not adopt an unrecorded name, even if its bytes match the source. Regenerating into two fresh directories leaves both interrupted outputs untouched; see the [upgrade and recovery instructions](../README.md#integration-destinations-and-first-upgrade).
 - Integrated patterns omit only the internal `rolldown-runtime` module-preload hint, preserving other assets, formatting, and script/comment examples. Static HTML retains its preload, and the loader plus imported runtime are copied unchanged so backend entry-asset registrations stay stable.
 - Every non-production mode may use mocks, but missing handlers are optional and must not pull an unresolved mock module into the build.

@@ -2,6 +2,7 @@ import { isUtf8 } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { withCheckedFile } from './checked-file.ts';
 import { isTextLikeContent, isTextLikePath, normalizeTextFileContent } from './text-normalization.ts';
 
 // Vite copies publicDir independently of Rolldown. Restrict post-processing
@@ -28,12 +29,12 @@ function normalizeOwnedTextFile(root: string, name: string): void {
   const file = path.resolve(root, name);
 
   if (!file.startsWith(root + path.sep)) return;
-  const stat = fs.lstatSync(file, { throwIfNoEntry: false });
+  const stat = fs.lstatSync(file, { bigint: true, throwIfNoEntry: false });
 
   // Neither directory symlinks nor hard-linked files grant ownership of
   // their targets. Keep binary data intact even with a text-like suffix.
-  if (!stat?.isFile() || stat.nlink !== 1 || fs.realpathSync(file) !== file) return;
-  const bytes = fs.readFileSync(file);
+  if (!stat?.isFile() || stat.nlink !== 1n || fs.realpathSync(file) !== file) return;
+  const bytes = withCheckedFile(file, stat, 'read', (fd) => fs.readFileSync(fd));
 
   if (!isUtf8(bytes) || !isTextLikeContent(bytes)) return;
   const text = bytes.toString('utf8');
@@ -41,5 +42,12 @@ function normalizeOwnedTextFile(root: string, name: string): void {
   // only the CRLF variant loses JSON indentation/trailing whitespace.
   const normalized = normalizeTextFileContent(file, text, true);
 
-  if (normalized !== text) fs.writeFileSync(file, normalized);
+  if (normalized !== text) {
+    // Keep already-normalized output read-only. A fresh, checked update handle
+    // starts at offset zero; trim the old suffix only after the write succeeds.
+    withCheckedFile(file, stat, 'update', (fd) => {
+      fs.writeFileSync(fd, normalized);
+      fs.ftruncateSync(fd, Buffer.byteLength(normalized));
+    });
+  }
 }
