@@ -86,6 +86,7 @@ describe('owned integration publisher', () => {
     write(f.source, 'js/main.js.map', JSON.stringify({ sourcesContent: ['original\r\n'] }));
     write(f.source, 'pages/deep/alt.htm', '<img src="logo.svg?v=old">\r\n');
     write(f.source, 'pages/data.csv', 'x,y\r\n');
+    write(f.source, 'pages/sample.cshtml', '@model Page\r\n<img src="logo.svg?v=keep">\r\n');
     write(f.source, 'hashes.json', 'not the generated manifest');
     const preload = '<link rel="modulepreload" href="/assets/js/rolldown-runtime.0xaaaaaaaa.js">\r\n';
 
@@ -107,6 +108,7 @@ describe('owned integration publisher', () => {
     expect(read(f.patterns, 'pages-home.html')).toContain('react-loader.0x00000000.js');
     expect(read(f.patterns, 'deep/alt.htm')).toBe('<img src="logo.svg">\n');
     expect(read(f.patterns, 'data.csv')).toBe('x,y\n');
+    expect(read(f.patterns, 'sample.cshtml')).toBe('@model Page\n<img src="logo.svg?v=keep">\n');
     for (const root of [f.assets, f.patterns]) expect(fs.readFileSync(path.join(root, 'pixel.ppm'))).toEqual(ppm);
     expect(fs.existsSync(path.join(f.assets, 'pages'))).toBe(false);
     const manifest = (root: string) => JSON.parse(read(root, marker)).files;
@@ -124,7 +126,7 @@ describe('owned integration publisher', () => {
         'pixel.ppm',
       ].sort()
     );
-    expect(manifest(f.patterns)).toEqual(['atoms-a-help.html', 'data.csv', 'deep/alt.htm', 'pages-home.html', 'pixel.ppm']);
+    expect(manifest(f.patterns)).toEqual(['atoms-a-help.html', 'data.csv', 'deep/alt.htm', 'pages-home.html', 'pixel.ppm', 'sample.cshtml']);
 
     write(f.assets, 'misc/.nested/manual.txt', 'private\r\n');
     write(f.assets, 'docs-reload.txt', '\r\n');

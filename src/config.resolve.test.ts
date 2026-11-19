@@ -81,6 +81,8 @@ describe('Alveo configuration through Vite', () => {
       fs.writeFileSync(path.join(assets, 'vendor.js'), js);
       fs.writeFileSync(path.join(assets, 'unicode.js'), '// ' + 'a'.repeat(4092) + 'é' + eol);
       for (const name of ['data.csv', 'sample.yaml', 'LICENSE']) fs.writeFileSync(path.join(assets, name), 'sample' + eol);
+      fs.mkdirSync(path.join(assets, 'pages'), { recursive: true });
+      fs.writeFileSync(path.join(assets, 'pages/sample.cshtml'), `@model Page${eol}<h1>@Model.Title</h1>${eol}`);
       fs.writeFileSync(path.join(assets, 'vendor.js.map'), JSON.stringify({ version: 3, sourcesContent: [js] }, null, 2).replaceAll('\n', eol) + eol);
       fs.rmSync(dist, { recursive: true, force: true });
       fs.mkdirSync(dist);
@@ -94,6 +96,7 @@ describe('Alveo configuration through Vite', () => {
       const [icon] = fs.readdirSync(path.join(dist, 'assets/images')).filter((name) => /^logo\.0x[\w-]+\.svg$/.test(name));
 
       const asset = 'output' in output && output.output.find((item) => item.fileName === `assets/images/${icon}`);
+
       expect(asset && asset.type === 'asset' && asset.source).toBe('<svg>\n</svg>\n');
       expect(fs.readFileSync(path.join(dist, 'assets/js/layout.js'), 'utf8')).toContain(icon);
       expect(fs.readFileSync(path.join(dist, 'assets/images', icon!), 'utf8')).toBe('<svg>\n</svg>\n');
@@ -101,6 +104,7 @@ describe('Alveo configuration through Vite', () => {
       expect(fs.readFileSync(path.join(dist, 'assets/image.svg'), 'utf8')).toBe('<svg>\n</svg>\n');
       expect(fs.readFileSync(path.join(dist, 'assets/image.png'))).toEqual(binary);
       for (const name of ['data.csv', 'sample.yaml', 'LICENSE']) expect(fs.readFileSync(path.join(dist, 'assets', name), 'utf8')).toBe('sample\n');
+      expect(fs.readFileSync(path.join(dist, 'assets/pages/sample.cshtml'), 'utf8')).toBe('@model Page\n<h1>@Model.Title</h1>\n');
       expect(fs.readFileSync(path.join(dist, 'unowned.txt'), 'utf8')).toBe('retain\r\n');
 
       return Object.fromEntries(
