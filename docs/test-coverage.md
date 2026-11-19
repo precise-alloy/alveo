@@ -46,6 +46,7 @@ The test verifies:
 - Shared React/router peers and absence of TypeScript/test/lint tools in the initial production-only installation.
 - Scaffold names, the running CLI's version, and consumer-safe hook preparation.
 - Real standalone entry bundling and linked sourcemaps.
+- Installed Bun CLI stylesheet compilation, static/SSR output, and a supervised Vite watch child that writes a bundle under Bun without reloading dotenv. Node CLI generation and integration remain covered.
 - The consumer's own TypeScript compiler in Bundler, Node16, and NodeNext modes with `skipLibCheck: false`, including helpers, models, globals, and virtual types.
 - Custom-mode `generate` and `inte` without consumer helper/icon/mock files.
 - Actual nonempty rendered HTML, literal dollar patterns, and Vite base overrides.
@@ -54,6 +55,7 @@ The test verifies:
 
 ### Build, Rendering and Safety
 
+- The Vite build test executes a `?worker` importer and the payload at its runtime URL. Real Sass/Lightning CSS output checks hashes against changed consumer bytes, preserving explicit queries, fragments and external URLs.
 - CLI suites assert that state, style, or prerender failure prevents later stages. Both generation and integration run states first.
 - SSR never creates a fake `window`; render errors retain the route/cause and fail. The development server awaits rendering and returns HTTP 500 on errors.
 - Server mode is passed explicitly; production serving is rejected.

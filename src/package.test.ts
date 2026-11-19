@@ -1,7 +1,9 @@
 // @vitest-environment node
 
 import { execFile } from 'node:child_process';
+import { once } from 'node:events';
 import { access, cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { type AddressInfo, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -336,6 +338,7 @@ describe('package distribution', () => {
           process.execPath,
           [
             join(consumerModules, 'typescript/bin/tsc'),
+            '--ignoreConfig',
             '--target',
             'ESNext',
             '--module',
@@ -384,6 +387,44 @@ describe('package distribution', () => {
         await mkdir(dirname(join(consumerRoot, file)), { recursive: true });
         await writeFile(join(consumerRoot, file), content);
       }
+
+      // Exercise the installed bin, not a Node mock. Bun's automatic dotenv
+      // loading must stay disabled even after the CLI spawns a new runtime.
+      const viteConfig = join(consumerRoot, 'vite.config.ts');
+
+      await writeFile(join(consumerRoot, '.env'), files['.env'] + 'ALVEO_TEST_AUTO_DOTENV=unexpected\n');
+      await writeFile(
+        viteConfig,
+        [
+          "import { defineAlveoConfig } from 'alveo';",
+          "if (!process.versions.bun || process.env.ALVEO_TEST_AUTO_DOTENV) throw Error('Wrong Vite runtime or implicit dotenv');",
+          // Exit with a sentinel after the real Vite watch child writes its
+          // first bundle, so the supervisor terminates its peers on all OSes.
+          "export default defineAlveoConfig({ plugins: [{ name: 'watch-probe', writeBundle() { if (process.env.scriptOnly) process.exit(42); } }] });",
+        ].join('\n')
+      );
+      const bunCli = (command: string, ...args: string[]) =>
+        execFileAsync('bun', ['--no-env-file', '--bun', 'alveo', command, ...args], {
+          cwd: consumerRoot,
+          env: { ...process.env, NODE_ENV: command === 'dev' ? 'development' : 'production' },
+          timeout: 60_000,
+        });
+
+      await bunCli('styles');
+      expect(await readFile(join(consumerRoot, 'public/assets/css/style-base.css'), 'utf8')).toContain('.probe');
+      await bunCli('build');
+      await expect(access(join(consumerRoot, 'dist/static/assets/js/widget.js'))).resolves.toBeUndefined();
+      await expect(access(join(consumerRoot, 'dist/server/entry-server.js'))).resolves.toBeUndefined();
+      const listener = createServer().listen(0);
+
+      await once(listener, 'listening');
+      const { port } = listener.address() as AddressInfo;
+
+      await new Promise<void>((resolve) => listener.close(() => resolve()));
+      await expect(bunCli('dev', '--port', String(port))).rejects.toMatchObject({ code: 42 });
+      await expect(access(join(consumerRoot, 'dist/assets/js/widget.js'))).resolves.toBeUndefined();
+
+      await writeFile(viteConfig, files['vite.config.ts']!);
       for (const command of ['generate', 'inte']) {
         await execFileAsync(process.execPath, [join(installedRoot, 'bin/cli.js'), command, '--mode', 'eshn'], {
           cwd: consumerRoot,
