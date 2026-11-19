@@ -42,6 +42,20 @@ export const createDefaultAssetHashDependencies = (projectRoot: string): AssetHa
   logMissing: (absPath: string) => console.error(`File not found: ${absPath}`),
 });
 
+// Decode for disk lookup only. Decoding the entire URL at once would turn
+// an encoded separator into a path boundary that wasn't present in the URL.
+function decodeAssetPath(url: string): string | undefined {
+  let parts: string[];
+  try {
+    parts = url.split('/').map(decodeURIComponent);
+  } catch {
+    // decodeURIComponent rejects malformed escapes and invalid UTF-8.
+    return undefined;
+  }
+  if (parts.some((part) => part === '.' || part === '..' || /[/\\:]/.test(part) || part.includes('\0'))) return undefined;
+  return parts.join('/');
+}
+
 /**
  * Pure builder for the `appendAssetHash` replacer. Tests inject their own
  * `AssetHashDependencies` so the cache, fs, and logging can be observed
@@ -61,7 +75,12 @@ export const createAppendAssetHash =
       return assetUrl + '?v=' + cached;
     }
 
-    const absPath = dependencies.resolveAssetPath(assetUrl);
+    const lookup = decodeAssetPath(assetUrl);
+    if (lookup === undefined) {
+      console.warn('Skipping non-portable public asset URL:', assetUrl);
+      return assetUrl;
+    }
+    const absPath = dependencies.resolveAssetPath(lookup);
 
     if (dependencies.existsSync(absPath)) {
       const content = normalizeTextLikeContent(assetUrl, dependencies.readFileSync(absPath));
