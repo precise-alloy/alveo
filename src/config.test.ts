@@ -10,6 +10,17 @@ import { defineAlveoConfig } from './config.ts';
 vi.mock('vite', async (original) => ({ ...(await original<typeof import('vite')>()), loadEnv: vi.fn().mockReturnValue({}) }));
 
 describe('Alveo configuration', () => {
+  it('does not post-process SSR or watch output', () => {
+    const plugin = defineAlveoConfig().plugins!.find((p) => p && typeof p === 'object' && 'name' in p && p.name === 'alveo-static-output') as {
+      writeBundle: (output: { dir: string }, bundle: object) => void;
+    };
+
+    for (const build of [{ ssr: true }, { watch: {} }]) {
+      // The nonexistent directory would fail immediately if the hook entered
+      // the disk normalizer instead of leaving these outputs alone.
+      plugin.writeBundle.call({ environment: { config: { build } } }, { dir: '/absent-test-dir' }, {});
+    }
+  });
   it('deep-merges user output/CSS options without losing framework defaults', () => {
     const extra = { name: 'extra' };
     const config = defineAlveoConfig({

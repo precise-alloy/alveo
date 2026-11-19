@@ -55,6 +55,7 @@ export default defineConfig({
         'src/scripts/state-markup.ts',
         'src/scripts/functions.ts',
         'src/states-core.ts',
+        'src/static-output.ts',
         'src/styles-core.ts',
         'src/text-normalization.ts',
         'src/virtual-modules.ts',
