@@ -11,6 +11,7 @@ import browserslist from 'browserslist';
 import { browserslistToTargets, type Targets } from 'lightningcss';
 import { RawSourceMap } from 'source-map-js';
 
+import { createCssAssetUrlRewriter, createDefaultAssetHashDependencies } from './asset-hash.ts';
 import {
   createStyleCompileQueue,
   createScssImporterResult,
@@ -209,7 +210,10 @@ export const runStyleBuild = async (options: StyleBuildOptions): Promise<void | 
     const inputMap = stripInjectedPreludeFromSourceMap(result.sourceMap as RawSourceMap, undefined, { projectRoot });
 
     try {
-      const output = transformStyleCss(result.css, inputMap, path.relative(projectRoot, from), lightningTargets);
+      // Scope the hash cache to this compilation so a watch rebuild doesn't
+      // reuse versions computed before a consumer changed an image or font.
+      const rewriteUrl = createCssAssetUrlRewriter(createDefaultAssetHashDependencies(projectRoot));
+      const output = transformStyleCss(result.css, inputMap, path.relative(projectRoot, from), lightningTargets, { rewriteUrl });
 
       fs.writeFileSync(path.join(outDir, to), output.css + `\n/*# sourceMappingURL=${to}.map */`);
       fs.writeFileSync(path.join(outDir, to + '.map'), output.map);

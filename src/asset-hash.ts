@@ -11,7 +11,12 @@ import { normalizeTextLikeContent } from './text-normalization.ts';
 // Extensions cover the union of what CSS and JS/TS modules can reference:
 // fonts (ttf/otf/woff/woff2), raster images (png/webp/jpg/jpeg/gif) and
 // vector images (svg).
-export const ASSET_HASH_REGEX = /\/assets\/[a-z0-9./_-]+\.(?:svg|ttf|otf|woff|woff2|png|webp|jpg|jpeg|gif)\b\??/gi;
+const publicAssetPath = String.raw`/assets/[a-z0-9./_-]+\.(?:svg|ttf|otf|woff2?|eot|png|webp|jpe?g|gif|avif|ico)`;
+
+export const ASSET_HASH_REGEX = new RegExp(publicAssetPath + String.raw`\b\??`, 'gi');
+// Lightning CSS supplies one parsed URL, not arbitrary source text. Only
+// version a complete root-relative public path; preserve queries and SVG IDs.
+const cssAssetPath = new RegExp('^' + publicAssetPath + '(?=#|$)', 'i');
 
 export type AssetHashDependencies = {
   existsSync: typeof fs.existsSync;
@@ -78,3 +83,9 @@ export const createAppendAssetHash =
  */
 export const rewriteAssetHashes = (input: string, dependencies: AssetHashDependencies): string =>
   input.replaceAll(ASSET_HASH_REGEX, createAppendAssetHash(dependencies));
+
+export const createCssAssetUrlRewriter = (dependencies: AssetHashDependencies) => {
+  const append = createAppendAssetHash(dependencies);
+
+  return (url: string): string => url.replace(cssAssetPath, append);
+};

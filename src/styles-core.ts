@@ -76,7 +76,7 @@ export function transformStyleCss(
   sourceMap: RawSourceMap,
   filename: string,
   targets: Targets,
-  transform: typeof lightningTransform = lightningTransform
+  { transform = lightningTransform, rewriteUrl }: { transform?: typeof lightningTransform; rewriteUrl?: (url: string) => string } = {}
 ): { css: string; map: string } {
   const result = transform({
     filename: slash(filename),
@@ -86,6 +86,9 @@ export function transformStyleCss(
     inputSourceMap: JSON.stringify(sourceMap),
     targets,
     errorRecovery: true,
+    // Rewrite before serialization: patching minified CSS afterward shifts
+    // generated columns without shifting their source-map mappings.
+    visitor: rewriteUrl ? { Url: (token) => ({ ...token, url: rewriteUrl(token.url) }) } : undefined,
   });
 
   if (result.warnings.length > 0) throw new AggregateError(result.warnings, `LightningCSS warnings in ${filename}`);

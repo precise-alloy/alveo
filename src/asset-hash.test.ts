@@ -27,7 +27,7 @@ const buildDeps = (overrides: Partial<AssetHashDependencies> = {}): AssetHashDep
 describe('alveo/asset-hash.ts', () => {
   describe('ASSET_HASH_REGEX', () => {
     it('matches every supported extension', () => {
-      const extensions = ['svg', 'ttf', 'otf', 'woff', 'woff2', 'png', 'webp', 'jpg', 'jpeg', 'gif'];
+      const extensions = ['svg', 'ttf', 'otf', 'woff', 'woff2', 'eot', 'png', 'webp', 'jpg', 'jpeg', 'gif', 'avif', 'ico'];
 
       extensions.forEach((ext) => {
         ASSET_HASH_REGEX.lastIndex = 0;

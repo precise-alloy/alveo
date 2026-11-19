@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 import { SourceMapConsumer } from 'source-map-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -43,6 +44,46 @@ afterEach(() => {
 });
 
 describe('stylesheet orchestration', () => {
+  it('versions public image/font URLs from consumer bytes and picks up changed assets on the next compilation', async () => {
+    const root = fixture();
+    const assets = path.join(root, 'public/assets');
+    const svg = '<svg>\n</svg>\n';
+    const font = Buffer.from([255, 13, 10, 0]);
+    const version = (bytes: string | Buffer) => createHash('sha384').update(bytes).digest('base64url').slice(0, 10);
+    const readCss = () => fs.readFileSync(path.join(assets, 'css/style-base.css'), 'utf8');
+
+    fs.mkdirSync(path.join(assets, 'images'), { recursive: true });
+    fs.mkdirSync(path.join(assets, 'fonts'));
+    fs.writeFileSync(path.join(assets, 'images/icon.svg'), svg.replaceAll('\n', '\r\n'));
+    fs.writeFileSync(path.join(assets, 'fonts/probe.woff2'), font);
+    fs.writeFileSync(
+      path.join(root, 'src/assets/styles/style-base.scss'),
+      [
+        '@font-face { font-family: probe; src: url(/assets/fonts/probe.woff2) }',
+        '.a { background: url(/assets/images/icon.svg#dot) }',
+        '.b { background: url(/assets/images/icon.svg?v=2) }',
+        '.c { background: url(https://example.test/assets/images/icon.svg) }',
+        '.d::after { content: "/assets/images/icon.svg" }',
+      ].join('\n')
+    );
+
+    await runStyleBuild({ projectRoot: root });
+    const css = readCss();
+
+    expect(css).toContain(`/assets/images/icon.svg?v=${version(svg)}#dot`);
+    expect(css).toContain(`/assets/fonts/probe.woff2?v=${version(font)}`);
+    expect(css).toMatch(/\/assets\/images\/icon\.svg\?v=2["']?\)/);
+    expect(css).toMatch(/https:\/\/example\.test\/assets\/images\/icon\.svg["']?\)/);
+    expect(css).toContain('"/assets/images/icon.svg"');
+
+    const changed = Buffer.from([255, 10, 0]);
+
+    fs.writeFileSync(path.join(assets, 'fonts/probe.woff2'), changed);
+    await runStyleBuild({ projectRoot: root });
+    expect(readCss()).toContain(`/assets/fonts/probe.woff2?v=${version(changed)}`);
+    expect(readCss()).not.toContain(version(font));
+  });
+
   it('preserves base/atom/molecule cascade and real source identities, compiling framework entries once', async () => {
     const root = fixture();
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
