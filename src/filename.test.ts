@@ -11,6 +11,7 @@ import {
   getAssetFileName,
   getEntryFileName,
   getChunkFileName,
+  getOutputAssetText,
   getScriptEntryName,
   isScriptEntry,
   stripEntryIsolationQuery,
@@ -42,6 +43,26 @@ describe('asset filenames', () => {
     expect(filename(Buffer.from('b\n'))).not.toBe(filename(Buffer.from('a\n')));
     expect(filename(Buffer.from([0xff]))).toContain('[hash]');
     expect(getAssetFileName({ name: 'image.png', source: Buffer.from('binary\r\n') })).toContain('[hash]');
+  });
+  it('shares data-asset naming across strings and bytes without reclassifying code or opaque strings', () => {
+    const raw = 'one\r\ntwo\r\n';
+
+    for (const name of ['NOTICE', 'data.csv', 'page.cshtml', 'data.json', 'sample.yaml']) {
+      expect(getAssetFileName({ name, source: raw })).toBe(getAssetFileName({ name, source: Buffer.from(raw) }));
+      expect(getOutputAssetText({ names: [name], fileName: name, source: raw })).toBe('one\ntwo\n');
+    }
+
+    for (const [name, source] of [
+      ['bundle.css', raw],
+      ['bundle.js', raw],
+      ['bundle.MJS', raw],
+      ['bundle.cjs', raw],
+      ['opaque.ppm', raw],
+      ['notice.txt', 'one\0\r\n'],
+    ] as const) {
+      expect(getAssetFileName({ name, source })).toContain('[hash]');
+      expect(getOutputAssetText({ names: [name], fileName: name, source })).toBeUndefined();
+    }
   });
   it('preserves entry and chunk naming contracts', () => {
     expect(getEntryFileName({ name: 'entry-server' })).toBe('entry-server.js');

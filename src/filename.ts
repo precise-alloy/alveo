@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { getAssetVersion } from './cryptography.ts';
-import { isTextLikePath, normalizeTextFileContent, normalizeTextLikeContent } from './text-normalization.ts';
+import { isTextLikeContent, isTextLikePath, normalizeTextFileContent } from './text-normalization.ts';
 
 type AssetPathInfo = {
   name?: string;
@@ -39,14 +39,14 @@ const getAssetPath = ({ name, ext, noHash }: AssetPathInfo): string => {
   return `assets/js/${normalizedName}.0x[hash].${ext}`;
 };
 
-// Plugins can emit SVGs and source maps as strings instead of file bytes.
-// Leave generated CSS/JS strings under Rolldown's placeholder policy.
+// Validate the bytes Rolldown will emit regardless of how the plugin supplied
+// them. Generated scripts/styles can still contain bundler URL placeholders.
 const getCanonicalAssetText = (file: string, source: PreRenderedAsset['source']): string | undefined => {
-  if (typeof source === 'string' && /\.(?:svg|map)$/i.test(file)) return normalizeTextFileContent(file, source, true);
-  if (!(source instanceof Uint8Array) || !isTextLikePath(file)) return undefined;
-  const content = normalizeTextLikeContent(file, Buffer.from(source.buffer, source.byteOffset, source.byteLength), true);
+  if (source === undefined || !isTextLikePath(file)) return undefined;
+  if (typeof source === 'string' && /\.(?:[cm]?js|jsx|tsx?|s?css)(?:[?#]|$)/i.test(file)) return undefined;
+  const bytes = typeof source === 'string' ? Buffer.from(source) : Buffer.from(source.buffer, source.byteOffset, source.byteLength);
 
-  return typeof content === 'string' ? content : undefined;
+  return isTextLikeContent(bytes) ? normalizeTextFileContent(file, bytes.toString('utf8'), true) : undefined;
 };
 
 export const getOutputAssetText = (asset: { names: string[]; fileName: string; source: string | Uint8Array }): string | undefined => {
