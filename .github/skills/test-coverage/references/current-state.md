@@ -13,10 +13,11 @@ The original policy came from the parent frontend workspace. This repository is 
 
 ## Current Enforced Modules
 
-The 35-file gate in `vitest.config.ts` includes:
+The per-file gate in `vitest.config.ts` includes:
 
 - `src/alias.ts`
 - `src/asset-hash.ts`
+- `src/checked-file.ts` (descriptor identity and link count before I/O)
 - `src/config.ts`
 - `src/create-server.ts`
 - `src/create-vite-dev-server.ts`
