@@ -56,6 +56,64 @@ describe('Alveo configuration through Vite', () => {
   const resolveBase = async (config: object): Promise<string> =>
     (await resolveConfig({ ...config, configFile: false, logLevel: 'silent' }, 'serve', 'development')).base;
 
+  it('uses the same SVG file and importer URL when a plugin emits equivalent LF and CRLF strings', async () => {
+    fs.writeFileSync(path.join(root, 'index.html'), '<script type="module" src="/main.js"></script>');
+    fs.writeFileSync(path.join(root, 'main.js'), 'import icon from "virtual:fixture-icon"; console.log(icon);');
+
+    const compile = async (source: string) => {
+      const output = await build({
+        ...defineAlveoConfig({
+          root,
+          build: { modulePreload: { polyfill: false } },
+          plugins: [
+            {
+              name: 'fixture-string-svg',
+              resolveId(id) {
+                if (id === 'virtual:fixture-icon') return '\0fixture-icon';
+              },
+              load(id) {
+                if (id !== '\0fixture-icon') return;
+                const ref = this.emitFile({ type: 'asset', name: 'plugin-icon.svg', source });
+
+                return `export default import.meta.ROLLDOWN_FILE_URL_${ref};`;
+              },
+            },
+          ],
+        }),
+        configFile: false,
+        logLevel: 'error',
+      });
+
+      if (!('output' in output)) throw new Error('Expected a single written bundle');
+      const asset = output.output.find((item) => item.fileName.endsWith('.svg'));
+
+      if (asset?.type !== 'asset') throw new Error('Expected the plugin SVG asset');
+      const importer = output.output.find((item) => item.type === 'chunk' && item.name === 'index');
+
+      if (importer?.type !== 'chunk') throw new Error('Expected the HTML entry chunk');
+      const urls: string[] = [];
+
+      runInNewContext(importer.code, { console: { log: (url: string) => urls.push(url) } });
+
+      return {
+        file: asset.fileName,
+        bundle: Buffer.from(asset.source).toString('utf8'),
+        disk: fs.readFileSync(path.join(root, 'dist', asset.fileName), 'utf8'),
+        urls,
+      };
+    };
+
+    const svg = '<svg>\n<circle/>\n</svg>\n';
+    const lf = await compile(svg);
+    const crlf = await compile(svg.replaceAll('\n', '\r\n'));
+
+    expect(crlf).toEqual(lf);
+    const file = `assets/images/plugin-icon.0x${getAssetVersion(svg)}.svg`;
+
+    expect(lf).toEqual({ file, bundle: svg, disk: svg, urls: [`/env/${file}`] });
+    expect((await compile(svg.replace('circle', 'rect'))).file).not.toBe(lf.file);
+  });
+
   it('canonicalizes emitted maps without walking an overlapping public tree', async () => {
     const publicDir = path.join(root, 'public');
     const outDir = path.join(publicDir, 'dist');

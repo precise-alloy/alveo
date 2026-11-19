@@ -94,6 +94,8 @@ A real Vite fixture compares every static output filename and byte across LF/CRL
 
 The fixture also imports an SVG with inlining disabled. Its fingerprint is calculated from canonical text at asset naming time; the bundle returns those same bytes before the disk pass. The test checks the importer URL, in-memory asset, and extracted file contents. Binary assets and generated chunks keep the bundler's hashing policy.
 
+A Vite plugin fixture emits the SVG as a string and references it from JavaScript. LF and CRLF variants must return and write the same SVG bytes and expose the same runtime URL; changing the SVG markup must change its fingerprint.
+
 An in-memory build checks that unnamed text matches its generated fingerprint while the same bytes emitted under an explicit opaque filename remain unchanged. The LF/CRLF build also compares a hashed worker containing a multiline license comment and template literal, including its source map.
 
 Generated source maps are canonicalized in the bundle, including maps emitted as strings. A build with output nested under `publicDir` checks the emitted map, its on-disk bytes, and the original public file. Alveo does not walk overlapping directories to normalize public copies; use separate directories for that guarantee.
