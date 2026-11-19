@@ -1,4 +1,5 @@
 import path from 'path';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 
 import * as cheerio from 'cheerio';
@@ -400,9 +401,28 @@ export const runIntegrationBuild = (config: IntegrationConfig): { isValid: boole
   }
   for (const { root, kind, files, hasRecord } of plans) {
     const record = path.join(root, ownershipFile);
+    const json = JSON.stringify({ version: 1, kind, files: [...files.keys()].sort() }, null, 2) + '\n';
 
-    if (hasRecord) fs.unlinkSync(record);
-    fs.writeFileSync(record, JSON.stringify({ version: 1, kind, files: [...files.keys()].sort() }, null, 2) + '\n', { flag: 'wx' });
+    if (!hasRecord) {
+      fs.writeFileSync(record, json, { flag: 'wx' });
+      continue;
+    }
+    // Replace the directory entry, not its inode. Until rename succeeds,
+    // a reader (or a retry after interruption) still has the previous record.
+    const temporary = record + '.' + randomUUID();
+    const fd = fs.openSync(temporary, 'wx');
+
+    try {
+      try {
+        fs.writeFileSync(fd, json);
+      } finally {
+        fs.closeSync(fd);
+      }
+      fs.renameSync(temporary, record);
+    } catch (error) {
+      fs.unlinkSync(temporary);
+      throw error;
+    }
   }
 
   return result;

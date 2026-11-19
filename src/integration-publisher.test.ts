@@ -339,6 +339,26 @@ describe('owned integration publisher', () => {
     expect(read(f.assets, 'new.txt')).toBe('new');
   });
 
+  it('keeps the previous complete record if replacement fails and cleans its temporary file', () => {
+    const f = fixture();
+
+    expect(f.publish().isValid).toBe(true);
+    const before = snapshot(path.join(f.assets, marker));
+    const names = fs.readdirSync(f.assets);
+    const failure = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('replacement failed');
+    });
+
+    try {
+      expect(f.publish).toThrow('replacement failed');
+    } finally {
+      failure.mockRestore();
+    }
+    expect(snapshot(path.join(f.assets, marker))).toEqual(before);
+    expect(fs.readdirSync(f.assets)).toEqual(names);
+    expect(f.publish().isValid).toBe(true);
+  });
+
   it.each(['publisher', 'consumer'])('does not claim an unrecorded chunk left by the %s on retry', (writer) => {
     const f = fixture();
     const chunk = 'js/chunk.0x1234abcd.js';
