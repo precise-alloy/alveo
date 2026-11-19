@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { validateDestinations, validateExpectedFiles, type DestinationDependencies } from './integration-core.ts';
+import { validateDestinations, validateExpectedFiles, validateOutputPath, type DestinationDependencies } from './integration-core.ts';
 
 const roots: string[] = [];
 const fixture = () => {
@@ -25,6 +25,11 @@ afterEach(() => {
 });
 
 describe('integration destination safety', () => {
+  it('rejects generated names that cannot be published portably', () => {
+    for (const name of ['dir/aux.bad', 'dir\\name', 'file.', '../escape', '/absolute']) {
+      expect(() => validateOutputPath(name)).toThrow(/unsafe integration output path/i);
+    }
+  });
   it.each(['src', 'public', '.git', '..generated'])('rejects project descendants including %s', (destination) => {
     const { root, project } = fixture();
 

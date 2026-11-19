@@ -1,12 +1,10 @@
 import path from 'path';
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 
 import * as cheerio from 'cheerio';
 import MagicString from 'magic-string';
 import slash from 'slash';
 
-import { withCheckedFile } from './checked-file.ts';
 import { hashFileContent, hasContentHashInFileName, parsePrerenderArgs } from './prerender-core.ts';
 import { normalizeTextLikeContent, normalizeTextLineEndings } from './text-normalization.ts';
 
@@ -203,8 +201,6 @@ export const validateExpectedFiles = (
   };
 };
 
-const ownershipFile = '.alveo-integration.json';
-
 type DestinationKind = 'assets' | 'patterns';
 interface OutputPlan {
   root: string;
@@ -215,22 +211,19 @@ interface OutputPlan {
 
 const canonical = (name: string) => name.normalize('NFC').toLowerCase();
 
-// Manifests travel with reviewed output (including across operating systems).
-// Never normalize a manifest entry into a different filename or a parent path.
-function validateRelativePath(name: unknown): asserts name is string {
+// Generated paths must also be representable when published on Windows.
+export function validateOutputPath(name: string): void {
   if (
-    typeof name !== 'string' ||
     name
       .split('/')
-      .some((part) => !part || /[\\:<>"|?*\p{Cc}]/u.test(part) || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part)) ||
-    canonical(name.split('/')[0]!) === ownershipFile
+      .some((part) => !part || /[\\:<>"|?*\p{Cc}]/u.test(part) || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))
   ) {
-    throw new Error(`Unsafe integration output path: ${String(name)}`);
+    throw new Error(`Unsafe integration output path: ${name}`);
   }
 }
 
 const planFile = (plan: OutputPlan, name: string, content: () => string | Buffer) => {
-  validateRelativePath(name);
+  validateOutputPath(name);
   if (plan.files.has(name)) throw new Error(`Duplicate integration output: ${path.join(plan.root, name)}`);
   plan.files.set(name, content);
 };
@@ -307,44 +300,10 @@ const planOutputs = (config: IntegrationConfig): OutputPlan[] => {
   return [assets, patterns];
 };
 
-const readOwnership = ({ root, kind }: OutputPlan): Set<string> | undefined => {
-  const record = path.join(root, ownershipFile);
-  const stat = fs.lstatSync(record, { bigint: true, throwIfNoEntry: false });
-
-  if (!stat) {
-    if (fs.existsSync(root) && fs.readdirSync(root).length) throw new Error(`Unowned integration destination is not empty: ${root}`);
-
-    return undefined;
-  }
-  if (!stat.isFile()) throw new Error(`Not a regular ownership record: ${record}`);
-  let data;
-
-  try {
-    data = JSON.parse(withCheckedFile(record, stat, 'read', (fd) => fs.readFileSync(fd, 'utf8')));
-  } catch (cause) {
-    throw new Error(`Cannot read integration ownership record: ${record}`, { cause });
-  }
-  if (data?.version !== 1 || data.kind !== kind || !Array.isArray(data.files)) throw new Error(`Invalid integration ownership record: ${record}`);
-  const previous = new Set<string>();
-
-  for (const name of data.files) {
-    validateRelativePath(name);
-    if (previous.has(name)) throw new Error(`Duplicate path in ${record}: ${name}`);
-    previous.add(name);
-  }
-
-  return previous;
-};
-
-const preflight = (plan: OutputPlan) => {
-  const previous = readOwnership(plan);
-  const existing = new Set<string>();
+const validatePlan = (plan: OutputPlan) => {
   const spellings = new Map<string, string>();
-  const names = new Set([...(previous ?? []), ...plan.files.keys()]);
 
-  // Check ancestors before leaves, including for stale entries. A junction
-  // substituted for an owned parent must not redirect either writes or deletes.
-  for (const name of names) {
+  for (const name of plan.files.keys()) {
     let prefix = '';
 
     for (const part of name.split('/')) {
@@ -354,18 +313,9 @@ const preflight = (plan: OutputPlan) => {
 
       if (spellings.has(key) && spellings.get(key) !== prefix) throw new Error(`Ambiguous integration path: ${target}`);
       spellings.set(key, prefix);
-      const stat = fs.lstatSync(target, { throwIfNoEntry: false });
-
-      if (prefix !== name) {
-        if (names.has(prefix) || (stat && !stat.isDirectory())) throw new Error(`Integration parent collision: ${target}`);
-      } else if (stat) {
-        if (!previous?.has(name) || !stat.isFile()) throw new Error(`Integration file collision: ${target}`);
-        existing.add(name);
-      }
+      if (prefix !== name && plan.files.has(prefix)) throw new Error(`Integration parent collision: ${target}`);
     }
   }
-
-  return { ...plan, existing, hasRecord: previous !== undefined };
 };
 
 export const runIntegrationBuild = (config: IntegrationConfig): { isValid: boolean; missing: string[] } => {
@@ -373,8 +323,16 @@ export const runIntegrationBuild = (config: IntegrationConfig): { isValid: boole
 
   if (!destinations.ok) return { isValid: false, missing: destinations.reasons };
 
-  // Both roots, including their stale files, must pass before even mkdir.
-  const plans = planOutputs(config).map(preflight);
+  const plans = planOutputs(config);
+  const staticRoot = fs.realpathSync(config.staticBasePath);
+
+  for (const plan of plans) {
+    plan.root = resolveDestination(path.resolve(config.projectRoot, plan.root), destinationDependencies);
+    // dist may be linked outside the project. Never erase the build we are copying.
+    if (path.dirname(plan.root) === plan.root || pathsOverlap(plan.root, staticRoot))
+      return { isValid: false, missing: [`Unsafe integration destination: ${plan.root}`] };
+    validatePlan(plan);
+  }
   const assets = plans[0]!;
   const patterns = plans[1];
   const result = validateExpectedFiles(config.checkExistFileList, assets.root, new Set(assets.files.keys()));
@@ -385,43 +343,17 @@ export const runIntegrationBuild = (config: IntegrationConfig): { isValid: boole
   }
   if (!result.isValid) return result;
 
-  for (const { root, existing, files } of plans) {
+  for (const { root, files } of plans) {
     fs.mkdirSync(root, { recursive: true });
-    // Unlink only preflighted regular files. Do not truncate their inode
-    // (there may be unrelated hard links), or recursively remove directories.
+    // Preserve the configured root itself. Remove directory entries (including
+    // dotfiles and links), never write through a link left by an earlier build.
+    for (const entry of fs.readdirSync(root)) fs.rmSync(path.join(root, entry), { recursive: true });
     for (const [name, content] of files) {
       const file = path.join(root, name);
       const bytes = content();
 
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      if (existing.delete(name)) fs.unlinkSync(file);
       fs.writeFileSync(file, bytes, { flag: 'wx' });
-    }
-    for (const stale of existing) fs.unlinkSync(path.join(root, stale));
-  }
-  for (const { root, kind, files, hasRecord } of plans) {
-    const record = path.join(root, ownershipFile);
-    const json = JSON.stringify({ version: 1, kind, files: [...files.keys()].sort() }, null, 2) + '\n';
-
-    if (!hasRecord) {
-      fs.writeFileSync(record, json, { flag: 'wx' });
-      continue;
-    }
-    // Replace the directory entry, not its inode. Until rename succeeds,
-    // a reader (or a retry after interruption) still has the previous record.
-    const temporary = record + '.' + randomUUID();
-    const fd = fs.openSync(temporary, 'wx');
-
-    try {
-      try {
-        fs.writeFileSync(fd, json);
-      } finally {
-        fs.closeSync(fd);
-      }
-      fs.renameSync(temporary, record);
-    } catch (error) {
-      fs.unlinkSync(temporary);
-      throw error;
     }
   }
 

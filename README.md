@@ -96,17 +96,11 @@ Mocking remains automatic in **all non-production modes**, including custom mode
 
 `alveo inte` publishes files from `dist/static/assets/`, including root-level and hidden assets, and regenerates the flat `hashes.json`. With `VITE_INTE_PATTERN_DIR` set, it publishes `assets/pages/` relative to the pattern root and flattens prerendered sample names (for example, `atoms/button/index.html` becomes `atoms-button-index.html`). A configured pattern destination requires generated HTML; old samples cannot satisfy validation. Leave the variable unset or empty for assets only.
 
-**First run:** Each destination must be absent or empty, including hidden entries such as `.gitkeep`. The asset and optional pattern directories must be outside the project and must not overlap it or one another, even through symlinks. Alveo checks both destinations and planned filenames before writing to either. An unowned non-empty destination, invalid ownership record, or filename collision stops the publish.
+**Both directories are dedicated build outputs.** On every run, including the first after an upgrade, Alveo clears **all contents** of each configured directory and writes the current build. Old chunks, hand-maintained files, dotfiles and legacy `.alveo-integration.json` records are removed. A missing directory is created. No ownership record is read or written. An existing integration can keep its current paths; move anything you need to preserve outside them **before** running `alveo inte`.
 
-**Upgrading an existing integration (including PreciseAlloy):**
+Use separate destinations outside the frontend project and build tree. Alveo rejects overlapping destinations (including aliases) and validates required files and generated names before clearing either directory. A configured directory link is resolved; links **inside** that directory are removed without following them.
 
-1. Leave both existing outputs untouched. Point `VITE_INTE_ASSET_DIR` and, if used, `VITE_INTE_PATTERN_DIR` at **fresh, separate external directories** for the upgrade build.
-2. Run `alveo inte` there. Compare the generated asset paths, bytes and `hashes.json` with the old assets; review the generated HTML against the backend’s tracked patterns. Run it again with unchanged sources and confirm the outputs, including both hidden ownership records, have no content diff.
-3. Keep a backup of the old trees. Switch to the reviewed directories as a pair, retaining each `.alveo-integration.json` with its corresponding files. Restore only identified, non-colliding backend-owned files. **Do not copy a record alone into a legacy directory, fabricate one, or empty a live directory to force adoption.**
-
-**Later runs:** Each record lists the relative file paths Alveo generated in that destination. Alveo may replace those files and unlink stale ones, but does not clear directories or scan unrelated files for normalization. Unrelated files and links are left alone, including those nested beside generated files. A link or unexpected directory at an owned file, or a link in its parent path below the destination root, causes refusal. Keep the records with the outputs; do not hand-edit them.
-
-An existing record is replaced by a same-directory rename, so a failed replacement does not erase the previous record. Publishing the files and both roots is **not** transactional. Do not run competing writers in these directories. If an I/O failure leaves partial output, restore a known-good pair or regenerate into fresh directories and review before switching.
+Publishing the two directories is not atomic. Do not run competing writers. If an I/O failure interrupts publication, fix the cause and rerun `alveo inte` with the same paths; do not deploy the partial output.
 
 ### tsconfig.json
 
