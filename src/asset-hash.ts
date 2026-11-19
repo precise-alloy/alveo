@@ -46,6 +46,7 @@ export const createDefaultAssetHashDependencies = (projectRoot: string): AssetHa
 // an encoded separator into a path boundary that wasn't present in the URL.
 function decodeAssetPath(url: string): string | undefined {
   let parts: string[];
+
   try {
     parts = url.split('/').map(decodeURIComponent);
   } catch {
@@ -53,6 +54,7 @@ function decodeAssetPath(url: string): string | undefined {
     return undefined;
   }
   if (parts.some((part) => part === '.' || part === '..' || /[/\\:]/.test(part) || part.includes('\0'))) return undefined;
+
   return parts.join('/');
 }
 
@@ -76,8 +78,10 @@ export const createAppendAssetHash =
     }
 
     const lookup = decodeAssetPath(assetUrl);
+
     if (lookup === undefined) {
       console.warn('Skipping non-portable public asset URL:', assetUrl);
+
       return assetUrl;
     }
     const absPath = dependencies.resolveAssetPath(lookup);

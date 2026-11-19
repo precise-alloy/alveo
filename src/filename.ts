@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { getAssetVersion } from './cryptography.ts';
-import { isTextLikePath, normalizeTextLikeContent } from './text-normalization.ts';
+import { isTextLikePath, normalizeTextFileContent, normalizeTextLikeContent } from './text-normalization.ts';
 
 type AssetPathInfo = {
   name?: string;
@@ -39,13 +39,29 @@ const getAssetPath = ({ name, ext, noHash }: AssetPathInfo): string => {
   return `assets/js/${normalizedName}.0x[hash].${ext}`;
 };
 
-// Vite emits file imports as bytes. Leave generated CSS/JS strings (which
-// may still contain bundler URL placeholders) under Rolldown's hash policy.
-export const getImportedText = (file: string, source: PreRenderedAsset['source']): string | undefined => {
+// Vite emits file imports as bytes, but generated source maps can also be
+// strings. Leave generated CSS/JS strings under Rolldown's placeholder policy.
+const getCanonicalAssetText = (file: string, source: PreRenderedAsset['source']): string | undefined => {
+  if (typeof source === 'string' && /\.map$/i.test(file)) return normalizeTextFileContent(file, source, true);
   if (!(source instanceof Uint8Array) || !isTextLikePath(file)) return undefined;
   const content = normalizeTextLikeContent(file, Buffer.from(source.buffer, source.byteOffset, source.byteLength), true);
 
   return typeof content === 'string' ? content : undefined;
+};
+
+export const getOutputAssetText = (asset: { names: string[]; fileName: string; source: string | Uint8Array }): string | undefined => {
+  const name = asset.names[0];
+  // Rolldown gives both anonymous and explicit fileName-only emissions empty
+  // names. It may add a numeric suffix (asset2, ...) to avoid a collision.
+  const anonymous = name === undefined && /^assets\/asset\d*\.0x([\w-]+)$/.exec(asset.fileName);
+
+  if (anonymous) {
+    const text = getCanonicalAssetText('asset', asset.source);
+
+    return text !== undefined && getAssetVersion(text) === anonymous[1] ? text : undefined;
+  }
+
+  return getCanonicalAssetText(name ?? asset.fileName, asset.source);
 };
 
 export const getAssetFileName = (chunkInfo: PreRenderedAsset): string => {
@@ -63,7 +79,7 @@ export const getAssetFileName = (chunkInfo: PreRenderedAsset): string => {
             ? 'assets/js'
             : 'assets';
 
-  const text = getImportedText(file, chunkInfo.source);
+  const text = getCanonicalAssetText(file, chunkInfo.source);
 
   return `${directory}/${toLowerDashed(name)}.0x${text === undefined ? '[hash]' : getAssetVersion(text)}${ext}`;
 };
