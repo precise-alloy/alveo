@@ -107,10 +107,8 @@ describe('integration destination safety', () => {
     const expression = /react-loader\.0xabcdefgh\.js/gy;
 
     expression.lastIndex = 9;
-    const dependencies = { existsSync: () => true, readdirSync: () => ['react-loader.0xabcdefgh.js'], log: vi.fn(), warn: (text: string) => text };
-
     for (let run = 0; run < 2; run++) {
-      expect(validateExpectedFiles([{ fileName: expression }], '/out', dependencies).isValid).toBe(true);
+      expect(validateExpectedFiles([{ fileName: expression }], '/out', new Set(['react-loader.0xabcdefgh.js'])).isValid).toBe(true);
     }
     expect(expression.lastIndex).toBe(9);
   });

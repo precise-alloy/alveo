@@ -1,12 +1,9 @@
-import fs from 'fs';
 import path from 'path';
 
 import slash from 'slash';
-import { glob } from 'glob';
 import { loadEnv } from 'vite';
-import chalk from 'chalk';
 
-import { CopyItem, FileExistCheck, parseIntegrationArgs, runIntegrationBuild, validateDestinations } from './integration-core.ts';
+import { parseIntegrationArgs, runIntegrationBuild } from './integration-core.ts';
 
 export interface IntegrationBuildOptions {
   projectRoot: string;
@@ -26,7 +23,6 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
   const { mode } = parseIntegrationArgs(argv);
   const alveoEnv = loadEnv(mode, projectRoot);
   const toAbsolute = (p: string) => slash(path.resolve(projectRoot, p));
-  const log = console.log.bind(console);
 
   const staticBasePath = toAbsolute('dist/static');
   const srcBasePath = toAbsolute('dist/static/assets');
@@ -34,57 +30,18 @@ export const runIntegration = (options: IntegrationBuildOptions): { isValid: boo
   const patternDir = alveoEnv.VITE_INTE_PATTERN_DIR?.trim();
   const destBasePath = assetDir ? toAbsolute(assetDir) : '';
   const patternPath = patternDir ? toAbsolute(patternDir) : undefined;
-  const destinationValidation = validateDestinations(destBasePath, patternPath, projectRoot);
 
-  if (!destinationValidation.ok) {
-    console.error('[alveo] Unsafe integration destinations:', destinationValidation.reasons);
-
-    return { isValid: false, missing: destinationValidation.reasons };
-  }
-
-  const copyItems: CopyItem[] = [
-    { from: 'css' },
-    { from: 'fonts' },
-    { from: 'images' },
-    { from: 'js' },
-    { from: 'vendors' },
-    { from: 'hashes.json' },
-    { from: 'pages', to: patternPath },
-  ];
-  const hashItems: string[] = ['css', 'images', 'js'];
-
-  const checkExistFileList: FileExistCheck[] = [
-    { fileName: 'hashes.json' },
-    { fileName: /react-loader\.0x[a-z0-9_-]{8,12}\.js/i, folder: 'js' },
-    { fileName: 'main.js', folder: 'js' },
-  ];
-
-  const result = runIntegrationBuild(
-    {
-      argv,
-      staticBasePath,
-      srcBasePath,
-      destBasePath,
-      patternPath,
-      copyItems,
-      hashItems,
-      checkExistFileList,
-    },
-    {
-      existsSync: fs.existsSync,
-      statSync: fs.statSync,
-      rmSync: fs.rmSync,
-      mkdirSync: fs.mkdirSync,
-      cpSync: fs.cpSync,
-      copyFileSync: fs.copyFileSync,
-      readFileSync: fs.readFileSync,
-      writeFileSync: fs.writeFileSync,
-      readdirSync: fs.readdirSync,
-      globSync: glob.sync,
-      log,
-      warn: (value: string) => chalk.yellow(value),
-    }
-  );
-
-  return result;
+  return runIntegrationBuild({
+    projectRoot,
+    staticBasePath,
+    srcBasePath,
+    destBasePath,
+    patternPath,
+    hashItems: ['css', 'images', 'js'],
+    checkExistFileList: [
+      { fileName: 'hashes.json' },
+      { fileName: /react-loader\.0x[a-z0-9_-]{8,12}\.js/i, folder: 'js' },
+      { fileName: 'main.js', folder: 'js' },
+    ],
+  });
 };
