@@ -56,24 +56,27 @@ describe('Alveo configuration through Vite', () => {
   const resolveBase = async (config: object): Promise<string> =>
     (await resolveConfig({ ...config, configFile: false, logLevel: 'silent' }, 'serve', 'development')).base;
 
-  it('uses the same SVG file and importer URL when a plugin emits equivalent LF and CRLF strings', async () => {
+  it.each([
+    { name: 'plugin-icon.svg', prefix: 'assets/images/plugin-icon', ext: '.svg', text: '<svg>\n<circle/>\n</svg>\n', write: true },
+    { name: 'notice.txt', prefix: 'assets/notice', ext: '.txt', text: 'one\ntwo\n', write: false },
+  ])('uses the same $name bytes and importer URL across line endings and source representations', async ({ name, prefix, ext, text, write }) => {
     fs.writeFileSync(path.join(root, 'index.html'), '<script type="module" src="/main.js"></script>');
-    fs.writeFileSync(path.join(root, 'main.js'), 'import icon from "virtual:fixture-icon"; console.log(icon);');
+    fs.writeFileSync(path.join(root, 'main.js'), 'import url from "virtual:fixture-asset"; console.log(url);');
 
-    const compile = async (source: string) => {
+    const compile = async (source: string | Buffer) => {
       const output = await build({
         ...defineAlveoConfig({
           root,
-          build: { modulePreload: { polyfill: false } },
+          build: { write, modulePreload: { polyfill: false } },
           plugins: [
             {
-              name: 'fixture-string-svg',
+              name: 'fixture-text-asset',
               resolveId(id) {
-                if (id === 'virtual:fixture-icon') return '\0fixture-icon';
+                if (id === 'virtual:fixture-asset') return '\0fixture-asset';
               },
               load(id) {
-                if (id !== '\0fixture-icon') return;
-                const ref = this.emitFile({ type: 'asset', name: 'plugin-icon.svg', source });
+                if (id !== '\0fixture-asset') return;
+                const ref = this.emitFile({ type: 'asset', name, source });
 
                 return `export default import.meta.ROLLDOWN_FILE_URL_${ref};`;
               },
@@ -84,10 +87,10 @@ describe('Alveo configuration through Vite', () => {
         logLevel: 'error',
       });
 
-      if (!('output' in output)) throw new Error('Expected a single written bundle');
-      const asset = output.output.find((item) => item.fileName.endsWith('.svg'));
+      if (!('output' in output)) throw new Error('Expected a single bundle');
+      const asset = output.output.find((item) => item.type === 'asset' && item.names.includes(name));
 
-      if (asset?.type !== 'asset') throw new Error('Expected the plugin SVG asset');
+      if (asset?.type !== 'asset') throw new Error(`Missing plugin asset: ${name}`);
       const importer = output.output.find((item) => item.type === 'chunk' && item.name === 'index');
 
       if (importer?.type !== 'chunk') throw new Error('Expected the HTML entry chunk');
@@ -98,20 +101,19 @@ describe('Alveo configuration through Vite', () => {
       return {
         file: asset.fileName,
         bundle: Buffer.from(asset.source).toString('utf8'),
-        disk: fs.readFileSync(path.join(root, 'dist', asset.fileName), 'utf8'),
+        disk: write ? fs.readFileSync(path.join(root, 'dist', asset.fileName), 'utf8') : undefined,
         urls,
       };
     };
 
-    const svg = '<svg>\n<circle/>\n</svg>\n';
-    const lf = await compile(svg);
-    const crlf = await compile(svg.replaceAll('\n', '\r\n'));
+    const crlf = text.replaceAll('\n', '\r\n');
+    const lf = await compile(text);
+    const file = `${prefix}.0x${getAssetVersion(text)}${ext}`;
 
-    expect(crlf).toEqual(lf);
-    const file = `assets/images/plugin-icon.0x${getAssetVersion(svg)}.svg`;
-
-    expect(lf).toEqual({ file, bundle: svg, disk: svg, urls: [`/env/${file}`] });
-    expect((await compile(svg.replace('circle', 'rect'))).file).not.toBe(lf.file);
+    expect(await compile(crlf)).toEqual(lf);
+    expect(await compile(Buffer.from(crlf))).toEqual(lf);
+    expect(lf).toEqual({ file, bundle: text, disk: write ? text : undefined, urls: [`/env/${file}`] });
+    expect((await compile(text + '\n')).file).not.toBe(lf.file);
   });
 
   it('canonicalizes emitted maps without walking an overlapping public tree', async () => {
@@ -191,7 +193,7 @@ describe('Alveo configuration through Vite', () => {
     expect(assets['opaque.bin']).toEqual(bytes);
   });
 
-  it('emits identical static files, including public copies and worker maps, from LF and CRLF inputs', async () => {
+  it.each([false, 'oxc'] as const)('emits identical static files from LF and CRLF inputs (minify: %s)', async (minify) => {
     const scripts = path.join(root, 'src/assets/scripts');
     const assets = path.join(root, 'public/assets');
     const dist = path.join(root, 'dist');
@@ -206,7 +208,7 @@ describe('Alveo configuration through Vite', () => {
       const js = `/*! worker${eol}license */${eol}self.postMessage(\`first${eol}second\`);${eol}`;
       const svg = `<svg>${eol}</svg>${eol}`;
 
-      fs.writeFileSync(path.join(root, 'index.html'), `<html><body></body></html>${eol}`);
+      fs.writeFileSync(path.join(root, 'index.html'), `<html><body><script type="module">console.log(42)</script></body></html>${eol}`);
       fs.writeFileSync(
         path.join(scripts, 'layout.entry.ts'),
         `import Worker from './calc.ts?worker';${eol}import icon from './logo.svg?url';${eol}console.log(icon);new Worker();${eol}`
@@ -225,7 +227,19 @@ describe('Alveo configuration through Vite', () => {
       fs.writeFileSync(path.join(dist, 'unowned.txt'), 'retain\r\n');
 
       const output = await build({
-        ...defineAlveoConfig({ root, build: { emptyOutDir: false, assetsInlineLimit: 0 } }),
+        ...defineAlveoConfig({
+          root,
+          build: { minify, emptyOutDir: false, assetsInlineLimit: 0 },
+          plugins: [
+            {
+              name: 'fixture-license',
+              enforce: 'post',
+              renderChunk(code) {
+                return { code: code + `\n/*! consumer${eol}license */`, map: null };
+              },
+            },
+          ],
+        }),
         configFile: false,
         logLevel: 'error',
       });
@@ -235,6 +249,9 @@ describe('Alveo configuration through Vite', () => {
 
       expect(asset && asset.type === 'asset' && asset.source).toBe('<svg>\n</svg>\n');
       if (!('output' in output)) throw new Error('Expected a single written bundle');
+      const main = output.output.find((item) => item.type === 'chunk' && item.name === 'index');
+
+      if (!minify) expect(main?.type === 'chunk' && main.code).toContain('/*! consumer\nlicense */');
       for (const item of output.output.filter((entry) => entry.fileName.endsWith('.js'))) {
         expect(fs.readFileSync(path.join(dist, item.fileName))).toEqual(Buffer.from(item.type === 'chunk' ? item.code : item.source));
       }
