@@ -31,6 +31,8 @@ Node.js 24+ and Bun are required for development. `npx alveo create` can scaffol
 
 Build, development, server, style, script, and state commands accept `--root <path>` (defaults to `cwd`). `create` takes a target directory instead.
 
+The installed CLI also runs on Bun: `bun --no-env-file --bun alveo styles`, `build`, or `dev`. Vite and dev watchers use the same runtime as the CLI. Disable Bun's automatic dotenv loading at launch so `.env.development` does not silently override production or custom-mode values before Vite selects its mode.
+
 `server` defaults to development mode and rejects `--mode production` or `NODE_ENV=production`. It is not a production hosting API: use `generate` and deploy the static output, or integrate the output with your own backend.
 
 ## Project Structure

@@ -80,6 +80,10 @@ export const assertMode = (raw: string): string => {
 
 export const resolveAlveoCliPath = (packageRoot = getPackageRoot()): string => slash(path.resolve(packageRoot, 'bin/cli.js'));
 
+// Bun normally loads .env.development before Vite can resolve --mode. Keep
+// the inherited shell environment, but let Vite own file precedence, as on Node.
+export const runtimeArgs = (args: string[], bunVersion = process.versions.bun): string[] => (bunVersion ? ['--no-env-file', ...args] : args);
+
 export const resolveViteCliPath = (): string => {
   // Dev uses alveo's declared Vite dependency instead of a consumer-local npx
   // shim so process launch stays deterministic and shell-free on every OS.
@@ -113,19 +117,19 @@ export const buildDevProcesses = ({
   return [
     {
       command: nodeCommand,
-      args: [alveoCliPath, 'styles', '--watch', '--root', projectRoot],
+      args: runtimeArgs([alveoCliPath, 'styles', '--watch', '--root', projectRoot]),
       name: 'styles',
       prefixColor: 'blue',
     },
     {
       command: nodeCommand,
-      args: [alveoCliPath, 'states', '--watch', '--root', projectRoot],
+      args: runtimeArgs([alveoCliPath, 'states', '--watch', '--root', projectRoot]),
       name: 'states',
       prefixColor: 'green',
     },
     {
       command: nodeCommand,
-      args: [viteCliPath, 'build', '--mode', mode, '--watch'],
+      args: runtimeArgs([viteCliPath, 'build', '--mode', mode, '--watch']),
       cwd: projectRoot,
       env: { ...env, scriptOnly: 'true' },
       name: 'vite',
@@ -133,7 +137,7 @@ export const buildDevProcesses = ({
     },
     {
       command: nodeCommand,
-      args: serverArgs,
+      args: runtimeArgs(serverArgs),
       name: 'server',
       prefixColor: 'magenta',
     },

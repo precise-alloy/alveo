@@ -15,6 +15,7 @@ import {
   parsePort,
   resolveAlveoCliPath,
   resolveViteCliPath,
+  runtimeArgs,
   SpawnedDevProcess,
   spawnSupervisor,
 } from './dev-supervisor.ts';
@@ -74,6 +75,10 @@ describe('alveo/dev-supervisor.ts', () => {
   });
 
   describe('binary resolution', () => {
+    it('passes the no-dotenv flag to Bun only, ahead of the Vite script', () => {
+      expect(runtimeArgs(['vite.js', 'build'], '1.4.4')).toEqual(['--no-env-file', 'vite.js', 'build']);
+      expect(runtimeArgs(['vite.js', 'build'], '')).toEqual(['vite.js', 'build']);
+    });
     it('resolves JS entrypoints instead of shell shims', () => {
       expect(resolveAlveoCliPath('/package')).toContain('/bin/cli.js');
       expect(resolveViteCliPath()).toContain('vite');

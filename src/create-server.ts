@@ -1,4 +1,5 @@
 import type { Server } from 'node:http';
+import type { ViteDevServer } from 'vite';
 
 import path from 'node:path';
 
@@ -27,7 +28,15 @@ export function assertDevelopmentMode(mode: string): void {
   }
 }
 
-export async function createServer({ root, mode, hmrPort, baseUrl, isTest }: ServerProps) {
+// Avoid inferring a transitive express-serve-static-core path into emitted
+// declarations when the package is built with linked build dependencies.
+export async function createServer({
+  root,
+  mode,
+  hmrPort,
+  baseUrl,
+  isTest,
+}: ServerProps): Promise<{ app: express.Express; viteDevServer: ViteDevServer }> {
   assertDevelopmentMode(mode);
   const resolve = (value: string) => path.join(root, value);
   const app = express();

@@ -4,7 +4,7 @@ import { createRequire } from 'module';
 
 import { Command } from 'commander';
 
-import { resolveViteCliPath } from './dev-supervisor.ts';
+import { resolveViteCliPath, runtimeArgs } from './dev-supervisor.ts';
 import { getPackageRoot } from './paths.ts';
 
 const require = createRequire(import.meta.url);
@@ -28,7 +28,7 @@ function viteBuild(projectRoot: string, mode: string, outDir: string, ssr?: stri
 
   // A consumer using isolated dependencies has no top-level Vite executable.
   // Use Alveo's declared version without npx downloads or a consumer override.
-  execFileSync(process.execPath, args, { cwd: projectRoot, stdio: 'inherit' });
+  execFileSync(process.execPath, runtimeArgs(args), { cwd: projectRoot, stdio: 'inherit' });
 }
 
 async function runPrerender(projectRoot: string, mode: string, { addHash = false } = {}): Promise<boolean> {
