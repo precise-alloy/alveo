@@ -92,6 +92,8 @@ Normalize text to LF before hashing, writing prerendered HTML, embedding map sou
 
 A real Vite fixture compares every static output filename and byte across LF/CRLF inputs, including worker maps and public copies. Static and integration copies normalize supported text formats (including CSV, YAML and extensionless text) only after validating the whole buffer. Unknown extensions remain opaque: even a binary PPM can consist entirely of printable UTF-8 and CRLF pixel bytes. Retained unowned files and links are not swept.
 
+The fixture also imports an SVG with inlining disabled. Its fingerprint is calculated from canonical text at asset naming time; the bundle returns those same bytes before the disk pass. The test checks the importer URL, in-memory asset, and extracted file contents. Binary assets and generated chunks keep the bundler's hashing policy.
+
 For an actual consumer, run its integration command and:
 
 ```bash

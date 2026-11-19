@@ -71,7 +71,11 @@ describe('Alveo configuration through Vite', () => {
       const svg = `<svg>${eol}</svg>${eol}`;
 
       fs.writeFileSync(path.join(root, 'index.html'), `<html><body></body></html>${eol}`);
-      fs.writeFileSync(path.join(scripts, 'layout.entry.ts'), `import Worker from './calc.ts?worker';${eol}new Worker();${eol}`);
+      fs.writeFileSync(
+        path.join(scripts, 'layout.entry.ts'),
+        `import Worker from './calc.ts?worker';${eol}import icon from './logo.svg?url';${eol}console.log(icon);new Worker();${eol}`
+      );
+      fs.writeFileSync(path.join(scripts, 'logo.svg'), svg);
       fs.writeFileSync(path.join(scripts, 'calc.ts'), js);
       fs.writeFileSync(path.join(assets, 'image.svg'), svg);
       fs.writeFileSync(path.join(assets, 'vendor.js'), js);
@@ -82,7 +86,17 @@ describe('Alveo configuration through Vite', () => {
       fs.mkdirSync(dist);
       fs.writeFileSync(path.join(dist, 'unowned.txt'), 'retain\r\n');
 
-      await build({ ...defineAlveoConfig({ root, build: { emptyOutDir: false } }), configFile: false, logLevel: 'error' });
+      const output = await build({
+        ...defineAlveoConfig({ root, build: { emptyOutDir: false, assetsInlineLimit: 0 } }),
+        configFile: false,
+        logLevel: 'error',
+      });
+      const [icon] = fs.readdirSync(path.join(dist, 'assets/images')).filter((name) => /^logo\.0x[\w-]+\.svg$/.test(name));
+
+      const asset = 'output' in output && output.output.find((item) => item.fileName === `assets/images/${icon}`);
+      expect(asset && asset.type === 'asset' && asset.source).toBe('<svg>\n</svg>\n');
+      expect(fs.readFileSync(path.join(dist, 'assets/js/layout.js'), 'utf8')).toContain(icon);
+      expect(fs.readFileSync(path.join(dist, 'assets/images', icon!), 'utf8')).toBe('<svg>\n</svg>\n');
       expect(fs.readFileSync(path.join(assets, 'image.svg'), 'utf8')).toBe(svg);
       expect(fs.readFileSync(path.join(dist, 'assets/image.svg'), 'utf8')).toBe('<svg>\n</svg>\n');
       expect(fs.readFileSync(path.join(dist, 'assets/image.png'))).toEqual(binary);

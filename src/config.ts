@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import { loadEnv, mergeConfig } from 'vite';
 
 import { createAliases } from './alias.ts';
-import { getAssetFileName, getChunkFileName, getEntryFileName, stripEntryIsolationQuery } from './filename.ts';
+import { getAssetFileName, getChunkFileName, getEntryFileName, getImportedText, stripEntryIsolationQuery } from './filename.ts';
 import { createManualChunk } from './manual-chunk.ts';
 import { createPaths, getPackageRoot } from './paths.ts';
 import { normalizeStaticOutput } from './static-output.ts';
@@ -89,6 +89,16 @@ export function defineAlveoConfig(userOptions?: AlveoConfigOptions): UserConfig 
       name: 'alveo-static-output',
       apply: 'build',
       enforce: 'post',
+      generateBundle(_output, bundle) {
+        // Emit the same canonical bytes used by assetFileNames, including
+        // for in-memory builds where writeBundle never runs.
+        for (const item of Object.values(bundle)) {
+          if (item.type !== 'asset') continue;
+          const text = getImportedText(item.names[0] ?? item.fileName, item.source);
+
+          if (text !== undefined) item.source = text;
+        }
+      },
       writeBundle({ dir }, bundle) {
         const { build, publicDir } = this.environment.config;
 

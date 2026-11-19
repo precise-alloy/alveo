@@ -1,5 +1,8 @@
 import path from 'node:path';
 
+import { getAssetVersion } from './cryptography.ts';
+import { isTextLikePath, normalizeTextLikeContent } from './text-normalization.ts';
+
 type AssetPathInfo = {
   name?: string;
   ext: string;
@@ -9,6 +12,7 @@ type AssetPathInfo = {
 export type PreRenderedAsset = {
   name?: string;
   names?: string[];
+  source?: string | Uint8Array;
 };
 
 export type PreRenderedChunk = {
@@ -35,8 +39,18 @@ const getAssetPath = ({ name, ext, noHash }: AssetPathInfo): string => {
   return `assets/js/${normalizedName}.0x[hash].${ext}`;
 };
 
+// Vite emits file imports as bytes. Leave generated CSS/JS strings (which
+// may still contain bundler URL placeholders) under Rolldown's hash policy.
+export const getImportedText = (file: string, source: PreRenderedAsset['source']): string | undefined => {
+  if (!(source instanceof Uint8Array) || !isTextLikePath(file)) return undefined;
+  const content = normalizeTextLikeContent(file, Buffer.from(source.buffer, source.byteOffset, source.byteLength), true);
+
+  return typeof content === 'string' ? content : undefined;
+};
+
 export const getAssetFileName = (chunkInfo: PreRenderedAsset): string => {
-  const { name, ext } = path.posix.parse((chunkInfo.names?.[0] ?? chunkInfo.name ?? 'asset').replaceAll('\\', '/'));
+  const file = (chunkInfo.names?.[0] ?? chunkInfo.name ?? 'asset').replaceAll('\\', '/');
+  const { name, ext } = path.posix.parse(file);
   const extension = ext.toLowerCase();
   const directory =
     extension === '.css'
@@ -49,7 +63,9 @@ export const getAssetFileName = (chunkInfo: PreRenderedAsset): string => {
             ? 'assets/js'
             : 'assets';
 
-  return `${directory}/${toLowerDashed(name)}.0x[hash]${ext}`;
+  const text = getImportedText(file, chunkInfo.source);
+
+  return `${directory}/${toLowerDashed(name)}.0x${text === undefined ? '[hash]' : getAssetVersion(text)}${ext}`;
 };
 
 /**
