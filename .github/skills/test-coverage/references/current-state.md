@@ -18,7 +18,6 @@ The per-file gate in `vitest.config.ts` includes:
 - `src/alias.ts`
 - `src/asset-hash.ts`
 - `src/checked-file.ts` (descriptor identity and link count before I/O)
-- `src/client-asset-versions.ts` (page manifest from final CSS and JS bytes)
 - `src/config.ts`
 - `src/create-server.ts`
 - `src/create-vite-dev-server.ts`

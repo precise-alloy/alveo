@@ -30,40 +30,13 @@ runtimeGlobal.getModifiers = (model: ModifierModel, baseClass: string) => {
   return classes.join(' ');
 };
 
-let assetVersions: Record<string, string> | undefined;
-
-const clientAssetVersion = (pathname: string): string | undefined => {
-  if (typeof document === 'undefined' || !/^\/assets\/(?:css\/[^?#]+\.css|js\/[^?#]+\.js)$/.test(pathname)) return;
-  if (!assetVersions) {
-    const data = document.getElementById('alveo-asset-versions');
-
-    // Dev and legacy backend layouts need no manifest. Don't cache absence:
-    // an early standalone script may run before the head has finished parsing.
-    if (!data) return;
-    try {
-      const parsed: unknown = JSON.parse(data.textContent);
-
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Expected an asset version map');
-      assetVersions = parsed as Record<string, string>;
-    } catch (error) {
-      console.error('[alveo] Invalid client asset versions', error);
-      assetVersions = {};
-    }
-  }
-  const version = assetVersions[pathname];
-
-  return typeof version === 'string' && /^[\w-]{10}$/.test(version) ? version : undefined;
-};
-
 runtimeGlobal.viteAbsoluteUrl = (path: string, addExtension = false): string => {
-  if (/^(?:https?:)?\/\//i.test(path)) {
+  if (/^https?:\/\//gi.test(path)) {
     return path;
   }
   const baseUrl = import.meta.env.BASE_URL;
-  const pathname = path.startsWith('/') ? path : '/' + path;
-  const version = !addExtension && clientAssetVersion(pathname);
   const normalizedRemain =
-    pathname + (version ? '?v=' + version : addExtension && !path.endsWith('/') ? (import.meta.env.VITE_PATH_EXTENSION ?? '') : '');
+    (path?.startsWith('/') ? path : '/' + path) + (addExtension && !path.endsWith('/') ? (import.meta.env.VITE_PATH_EXTENSION ?? '') : '');
 
   if (!baseUrl) {
     return normalizedRemain;

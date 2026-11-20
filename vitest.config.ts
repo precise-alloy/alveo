@@ -25,7 +25,6 @@ export default defineConfig({
         'src/alias.ts',
         'src/asset-hash.ts',
         'src/checked-file.ts',
-        'src/client-asset-versions.ts',
         'src/cryptography.ts',
         'src/config.ts',
         'src/create-server.ts',
