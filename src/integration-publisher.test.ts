@@ -1,7 +1,7 @@
 // @vitest-environment node
 
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,9 @@ const write = (root: string, file: string, bytes: string | Buffer) => {
 const fixtures: string[] = [];
 const loader = 'react-loader.0xAbCdEf12.js';
 const fixture = () => {
-  const root = path.resolve('test/temp', 'publish-' + randomUUID());
+  // Use the physical temp path: publish resolves junctions, and the interrupted
+  // write test must address the same file even when Windows TEMP uses an 8.3 alias.
+  const root = fs.mkdtempSync(path.join(fs.realpathSync.native(tmpdir()), 'alveo-publish-'));
 
   fixtures.push(root);
   const project = path.join(root, 'project');
@@ -56,7 +58,9 @@ const snapshot = (root: string): unknown => {
   return [stat.ino, stat.mtimeNs, withCheckedFile(root, stat, 'read', (fd) => fs.readFileSync(fd))];
 };
 
-describe('integration publisher', () => {
+// A cold publish on hosted Windows took 14.5s and completed its assertions.
+// Bound real filesystem tests without making the unit-test timeout a disk-speed requirement.
+describe('integration publisher', process.platform === 'win32' ? { timeout: 30_000 } : {}, () => {
   it('replaces populated legacy destinations without needing, trusting, or creating a record', () => {
     const f = fixture();
 
