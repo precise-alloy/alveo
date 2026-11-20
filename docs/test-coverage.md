@@ -21,7 +21,7 @@ The authoritative list is in [vitest.config.ts](../vitest.config.ts). The gate c
 | Area | Modules |
 | --- | --- |
 | Package/configuration | `config.ts`, `package-build.ts`, `scaffold.ts`, `helpers.tsx` |
-| Resolution/output | `alias.ts`, `asset-hash.ts`, `cryptography.ts`, `filename.ts`, `manual-chunk.ts`, `paths`-dependent virtual module behavior in `virtual-modules.ts` |
+| Resolution/output | `alias.ts`, `asset-hash.ts`, `client-asset-versions.ts`, `cryptography.ts`, `filename.ts`, `manual-chunk.ts`, `paths`-dependent virtual module behavior in `virtual-modules.ts` |
 | Server/processes | `dev-supervisor.ts`, `create-server.ts`, `create-vite-dev-server.ts`, `server.ts`, `entry-server.tsx`, `renderer.ts` |
 | Vite hooks | `hooks/inject-functions.ts`, `hooks/inject-functions-core.ts`, `hooks/options.ts`, `hooks/transform.ts`, `hooks/transform-index-html.ts` |
 | Build cores | `checked-file.ts`, `integration-core.ts`, `prerender-core.ts`, `scripts-core.ts`, `states-core.ts`, `static-output.ts`, `styles-core.ts`, `precompile-styles.ts`, `text-normalization.ts` |
