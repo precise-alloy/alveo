@@ -3,10 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { load } from 'cheerio';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { getAssetVersion } from './cryptography.ts';
 import { prerender } from './prerender.ts';
 
 const roots: string[] = [];
@@ -63,22 +61,5 @@ describe('prerender orchestration', () => {
     await expect(prerender(root, { mode: 'production' })).rejects.toThrow('broken component');
     expect(fs.existsSync(path.join(root, 'dist/static/pages/first.html'))).toBe(false);
     expect(fs.existsSync(path.join(root, 'dist/static/pages/second.html'))).toBe(false);
-  });
-  it('ships client versions for late mounts in generated pages, not in unversioned integration patterns', async () => {
-    const root = fixture();
-    const css = 'a { color: red }\n';
-
-    fs.mkdirSync(path.join(root, 'dist/static/assets/css'), { recursive: true });
-    fs.writeFileSync(path.join(root, 'dist/static/assets/css/widget.css'), css);
-    for (const addHash of [true, false]) {
-      await prerender(root, { mode: 'production', addHash });
-      for (const page of ['first', 'second']) {
-        const $ = load(fs.readFileSync(path.join(root, `dist/static/pages/${page}.html`), 'utf8'));
-        const versions = $('head script[type="application/json"]#alveo-asset-versions');
-
-        if (addHash) expect(JSON.parse(versions.text())).toEqual({ '/assets/css/widget.css': getAssetVersion(css) });
-        else expect(versions).toHaveLength(0);
-      }
-    }
   });
 });

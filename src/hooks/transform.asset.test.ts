@@ -25,7 +25,9 @@ describe('Vite-managed asset URL modules', () => {
         configFile: false,
         base: '/subpath/',
         build: { assetsInlineLimit: 0 },
-        server: { middlewareMode: true, hmr: false },
+        // Vite 8 keeps the transport separate from HMR. This transform-only
+        // fixture must not contend with other workers for the default WS port.
+        server: { middlewareMode: true, hmr: false, ws: false },
         plugins: [
           transform({
             projectRoot: root,

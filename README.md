@@ -170,16 +170,6 @@ import { ReactSection, RequireCss, RequireJs } from 'alveo/helpers';
 
 `ReactSection` safely serializes JSON inside a script element. Pass serializable object props (or `null` for empty props); unserializable data is an error. Malformed payloads and mount failures are reported per component rather than blocking the rest of the page. Failed parsing preserves the payload for retry. YAML payloads remain supported, but their parser loads only when needed. `window.renderComponents()` returns a promise for parsing/mount scheduling; `react-loaded` still signals API readiness, not completed React commits.
 
-`alveo generate` embeds the content versions of stable `assets/css/**/*.css` and `assets/js/**/*.js` files in the HTML. Components that call `viteAbsoluteUrl` (including `RequireCss` and `RequireJs`) therefore request the same `?v=` URL even when they mount after prerendering. No client manifest request is needed.
-
-For `alveo inte`, the backend owns the page head. Render the nonempty stable CSS/JS entries from the deployed `hashes.json` **before** the frontend scripts, using root-relative keys without the Vite base. For example:
-
-```html
-<script type="application/json" id="alveo-asset-versions">{"/assets/css/widget.css":"abcdefghij"}</script>
-```
-
-Use a script-safe JSON serializer (escape `<` as `\u003c`, not `&lt;`). Fingerprinted files and vendors need no entries. Development and older layouts without this element keep their existing URLs; hosts using immutable caching should supply it before rebuilding with this version.
-
 The catalog selects a valid hash route, then `/pages/home`, the first page, or the first available component. An empty project gets an explicit empty state instead of recursively embedding the catalog.
 
 ## SCSS Conventions

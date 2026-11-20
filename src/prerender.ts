@@ -11,7 +11,6 @@ import slash from 'slash';
 import { loadEnv } from 'vite';
 import chalk from 'chalk';
 
-import { clientAssetVersionsJson } from './client-asset-versions.ts';
 import {
   beautifyOptions,
   removeDuplicateAssets,
@@ -53,8 +52,6 @@ export async function prerender(projectRoot: string, options: PrerenderOptions):
     throw new Error('SSR bundle is missing its resolved render configuration. Rebuild it with the current Alveo version.');
   }
 
-  const clientVersions = addHash ? clientAssetVersionsJson(toAbsolute('dist/static/assets')) : undefined;
-
   for (const route of routesToPrerender) {
     const output = await render(viteAbsoluteUrl(renderConfig, route.route, true));
 
@@ -62,11 +59,6 @@ export async function prerender(projectRoot: string, options: PrerenderOptions):
 
     let html = replacePlaceholder(template, '<!--app-html-->', output.html).replace('@style.scss', () => '/assets/css/' + route.name + '.css');
     const $ = cheerio.load(html);
-
-    if (clientVersions) {
-      $('#alveo-asset-versions').remove();
-      $('head').prepend(`<script type="application/json" id="alveo-asset-versions">${clientVersions}</script>`);
-    }
     const paths: string[] = [];
     const resourcePathOptions = {
       addHash,
