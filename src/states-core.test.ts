@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import path from 'path';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
@@ -179,6 +179,64 @@ describe('alveo/states-core.ts', () => {
   });
 
   describe('watchStates', () => {
+    const controlledWatch = (read: () => string) => {
+      const events = new EventEmitter();
+      const debounce = vi.fn((_flush: () => void) => vi.fn());
+      const deps = createDependencies({
+        createWatcher: vi.fn().mockReturnValue(events) as never,
+        createDebounce: debounce,
+        readFileSync: vi.fn(read) as never,
+      });
+
+      watchStates('/project', deps);
+
+      return { events, flush: debounce.mock.calls[0]![0], deps };
+    };
+
+    it('reads the completed edit even if the only change event arrived during truncation', () => {
+      let contents = '{"name":"first"}';
+      const { events, flush, deps } = controlledWatch(() => contents);
+      const file = 'src/card.states.json';
+
+      events.emit('add', file);
+      flush();
+
+      contents = '';
+      events.emit('change', file);
+      contents = '{"name":"updated"}'; // write completes without another event
+      flush();
+
+      expect(deps.writeFileSync).toHaveBeenLastCalledWith(
+        path.resolve('/project/public/pl-states.json'),
+        JSON.stringify([{ name: 'updated' }], null, '  ')
+      );
+      expect(deps.log).not.toHaveBeenCalled();
+    });
+
+    it('drops a file that disappeared before the flush but surfaces other read errors', () => {
+      const read = vi.fn(() => '{"name":"first"}');
+      const { events, flush, deps } = controlledWatch(read);
+      const file = 'src/card.states.json';
+
+      events.emit('add', file);
+      flush();
+
+      events.emit('change', file);
+      read.mockImplementationOnce(() => {
+        throw Object.assign(new Error('removed'), { code: 'ENOENT' });
+      });
+      flush();
+      expect(deps.writeFileSync).toHaveBeenLastCalledWith(path.resolve('/project/public/pl-states.json'), '[]');
+
+      events.emit('add', file);
+      const denied = Object.assign(new Error('permission denied'), { code: 'EACCES' });
+
+      read.mockImplementationOnce(() => {
+        throw denied;
+      });
+      expect(flush).toThrow(denied);
+    });
+
     it('creates a watcher and registers ready, add, change, and unlink handlers', () => {
       const watcher = createMockWatcher();
       const createWatcher = vi.fn().mockReturnValue(watcher);

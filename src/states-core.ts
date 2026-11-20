@@ -119,8 +119,21 @@ export const buildStatesOnce = (projectRoot: string, dependencies: StatesCoreDep
 
 export const watchStates = (projectRoot: string, dependencies: StatesCoreDependencies = defaultStatesCoreDependencies): StateWatcher => {
   const states: Record<string, string> = {};
+  const pendingReads = new Set<string>();
   const outputPath = getStateOutputPath(projectRoot);
   const buildStates = dependencies.createDebounce(() => {
+    // A change event can arrive between truncation and the completed write.
+    // Debounce the reads themselves, not just parsing the captured contents.
+    for (const key of pendingReads) {
+      try {
+        states[key] = dependencies.readFileSync(key, 'utf8');
+      } catch (error) {
+        // The file may already be gone before its unlink event is delivered.
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        delete states[key];
+      }
+    }
+    pendingReads.clear();
     // Watch mode intentionally keeps log-and-continue semantics: malformed state
     // files are reported but do not stop the watcher or block valid state output.
     const result = aggregateStates(states, dependencies);
@@ -132,21 +145,22 @@ export const watchStates = (projectRoot: string, dependencies: StatesCoreDepende
   // slash-normalized absolute path so `unlink` removes the entry `add`/glob
   // created instead of leaving stale state in the generated output.
   const toStateKey = (statePath: string): string => slash(path.resolve(projectRoot, statePath));
-  const setStates = (statePath: string): void => {
-    const key = toStateKey(statePath);
-
-    states[key] = dependencies.readFileSync(key, 'utf-8') as string;
+  const queueRead = (statePath: string): void => {
+    pendingReads.add(toStateKey(statePath));
     buildStates();
   };
   const removeStates = (statePath: string): void => {
-    delete states[toStateKey(statePath)];
+    const key = toStateKey(statePath);
+
+    pendingReads.delete(key);
+    delete states[key];
     buildStates();
   };
   const globPattern = getStateGlobPattern(projectRoot);
 
   const initialStatePaths = dependencies.globSync(globPattern);
 
-  initialStatePaths.forEach((statePath) => setStates(statePath));
+  initialStatePaths.forEach(queueRead);
 
   if (initialStatePaths.length === 0) {
     // Watch mode should still clear stale generated output when a project starts
@@ -164,9 +178,9 @@ export const watchStates = (projectRoot: string, dependencies: StatesCoreDepende
     .on('ready', () => {
       dependencies.log('States are ready!');
     })
-    .on('add', (statePath) => setStates(statePath))
-    .on('change', (statePath) => setStates(statePath))
-    .on('unlink', (statePath) => removeStates(statePath));
+    .on('add', queueRead)
+    .on('change', queueRead)
+    .on('unlink', removeStates);
 
   return watcher;
 };

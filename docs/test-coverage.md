@@ -57,6 +57,7 @@ The test verifies:
 
 - The Vite build test executes a `?worker` importer and the payload at its runtime URL. Real Sass/Lightning CSS output checks hashes against consumer bytes, including `%20` URLs that name files containing spaces. Decoding is only for lookup: URL spelling, explicit queries, fragments and external URLs are preserved. Malformed escapes, dot segments and encoded path separators are not looked up.
 - CLI suites assert that state, style, or prerender failure prevents later stages. Both generation and integration run states first.
+- The state watcher reads changed files after its debounce delay. A regression delivers a change while the file is empty, completes the write without sending another event, and checks that the updated state is published. A file removed before the read must also disappear from the output.
 - SSR never creates a fake `window`; render errors retain the route/cause and fail. The development server awaits rendering and returns HTTP 500 on errors.
 - Server mode is passed explicitly; production serving is rejected.
 - A real Vite/Express HTTP test verifies that watched JavaScript under a non-root base is served as JavaScript, not passed to SSR after Vite strips the URL base. Fresh public files must also win over stale watch-output copies when a file watcher event is missed.
