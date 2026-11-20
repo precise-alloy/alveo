@@ -63,6 +63,7 @@ describe('alveo/scripts/functions.ts (node environment)', () => {
 
     expect(runtimeGlobal.viteAbsoluteUrl?.('about', true)).toBe('/about.html');
     expect(runtimeGlobal.viteAbsoluteUrl?.('/contact')).toBe('/contact');
+    expect(runtimeGlobal.viteAbsoluteUrl?.('/assets/css/widget.css')).toBe('/assets/css/widget.css');
   });
 
   it('keeps SSR routes consistent with prerender when no extension is configured', async () => {
